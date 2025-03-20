@@ -79,17 +79,51 @@
                             <span>Dashboard</span>
                         </a>
                         
+                        <!-- For regular users only -->
+                        <?php if(session()->get('isLoggedIn') && !in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                            <div class="sidebar-heading">FORMS</div>
+
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms' ? 'active' : '' ?>" href="<?= base_url('forms') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-file-alt me-2"></i></div>
+                                <span>Available Forms</span>
+                            </a>
+
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/my-submissions' ? 'active' : '' ?>" href="<?= base_url('forms/my-submissions') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-clipboard-list me-2"></i></div>
+                                <span>My Submissions</span>
+                            </a>
+                        <?php endif; ?>
+                        
+                        <!-- Admin section -->
                         <?php if(session()->get('isLoggedIn') && in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <div class="sidebar-heading">ADMINISTRATION</div>
                         
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dashboard' ? 'active' : '' ?>" href="<?= base_url('admin/dashboard') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-cogs me-2"></i></div>
-                            <span>Admin Dashboard</span>
+                            <div class="nav-link-icon"><i class="fas fa-gauge-high me-2"></i></div>
+                            <span>Analytics</span>
                         </a>
                         
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/configurations' ? 'active' : '' ?>" href="<?= base_url('admin/configurations') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-building me-2"></i></div>
+                            <div class="nav-link-icon"><i class="fas fa-cogs me-2"></i></div>
                             <span>Configurations</span>
+                        </a>
+
+                        <!-- For admin users only -->
+                        <div class="sidebar-heading">FORM MANAGEMENT</div>
+
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-edit me-2"></i></div>
+                            <span>Form Builder</span>
+                        </a>
+
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/panel-config' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/panel-config') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-cog me-2"></i></div>
+                            <span>Panel Configuration</span>
+                        </a>
+
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/submissions' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/submissions') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-clipboard-check me-2"></i></div>
+                            <span>Review Submissions</span>
                         </a>
                         
                         <?php if(session()->get('user_type') == 'superuser'): ?>
@@ -99,17 +133,6 @@
                         </a>
                         <?php endif; ?>
                         <?php endif; ?>
-                        
-                        <div class="sidebar-heading">USER</div>
-                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'profile' ? 'active' : '' ?>" href="<?= base_url('profile') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-id-card me-2"></i></div>
-                            <span>Profile</span>
-                        </a>
-                        
-                        <a class="nav-link d-flex align-items-center" href="<?= base_url('auth/logout') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-sign-out-alt me-2"></i></div>
-                            <span>Logout</span>
-                        </a>
                     </div>
                 </div>
                 
@@ -222,17 +245,6 @@
     <!-- Additional Modern JS for enhanced interactions -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Add hover effect to cards
-        const cards = document.querySelectorAll('.card');
-        cards.forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                this.style.transform = 'translateY(-5px)';
-            });
-            card.addEventListener('mouseleave', function() {
-                this.style.transform = 'translateY(0)';
-            });
-        });
-        
         // Enhance sidebar navigation with smooth transitions
         const navLinks = document.querySelectorAll('.nav-link');
         navLinks.forEach(link => {

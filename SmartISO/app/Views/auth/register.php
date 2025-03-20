@@ -38,7 +38,7 @@
                             <option value="">Select Department</option>
                             <?php foreach ($departments as $department): ?>
                                 <option value="<?= $department['id'] ?>" <?= old('department_id') == $department['id'] ? 'selected' : '' ?>>
-                                    <?= esc($department['code']) ?> - <?= esc($department['description']) ?>
+                                    <?= esc($department['description']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

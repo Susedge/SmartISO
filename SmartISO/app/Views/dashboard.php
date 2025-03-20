@@ -3,7 +3,7 @@
 <?= $this->section('content') ?>
 <div class="row">
     <div class="col-md-12 mb-4">
-        <h2>User Dashboard</h2>
+        <h2>Dashboard</h2>
         <p class="text-muted">Welcome, <?= session()->get('full_name') ?>!</p>
     </div>
     

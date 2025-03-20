@@ -50,6 +50,12 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('profile', 'Profile::index');
     $routes->post('profile/update', 'Profile::update');
     $routes->post('profile/change-password', 'Profile::changePassword');
+    $routes->get('forms', 'Forms::index');
+    $routes->get('forms/view/(:segment)', 'Forms::view/$1');
+    $routes->post('forms/submit', 'Forms::submit');
+    $routes->get('forms/my-submissions', 'Forms::mySubmissions');
+    $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
+    $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
 });
 
 // Admin routes
@@ -63,23 +69,21 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->get('configurations/edit/(:num)', 'Admin\Configurations::edit/$1');
     $routes->post('configurations/update/(:num)', 'Admin\Configurations::update/$1');
     $routes->get('configurations/delete/(:num)', 'Admin\Configurations::delete/$1');
-    
-    // Keep the existing individual controllers if needed or remove if only using the consolidated approach
-    // Department management
-    $routes->get('departments', 'Admin\Departments::index');
-    $routes->get('departments/new', 'Admin\Departments::new');
-    $routes->post('departments/create', 'Admin\Departments::create');
-    $routes->get('departments/edit/(:num)', 'Admin\Departments::edit/$1');
-    $routes->post('departments/update/(:num)', 'Admin\Departments::update/$1');
-    $routes->get('departments/delete/(:num)', 'Admin\Departments::delete/$1');
-    
-    // Forms management
-    $routes->get('forms', 'Admin\Forms::index');
-    $routes->get('forms/new', 'Admin\Forms::new');
-    $routes->post('forms/create', 'Admin\Forms::create');
-    $routes->get('forms/edit/(:num)', 'Admin\Forms::edit/$1');
-    $routes->post('forms/update/(:num)', 'Admin\Forms::update/$1');
-    $routes->get('forms/delete/(:num)', 'Admin\Forms::delete/$1');
+
+    // Dynamic Forms routes
+    $routes->get('dynamicforms', 'Admin\DynamicForms::index');
+    $routes->get('dynamicforms/panel', 'Admin\DynamicForms::panel');
+    $routes->get('dynamicforms/panel-config', 'Admin\DynamicForms::panelConfig');
+    $routes->get('dynamicforms/edit-panel/(:segment)', 'Admin\DynamicForms::editPanel/$1');
+    $routes->post('dynamicforms/add-panel-field', 'Admin\DynamicForms::addPanelField');
+    $routes->get('dynamicforms/delete-field/(:num)', 'Admin\DynamicForms::deleteField/$1');
+    $routes->post('dynamicforms/update-panel-field', 'Admin\DynamicForms::updatePanelField');
+    $routes->post('dynamicforms/submit', 'Admin\DynamicForms::submit');
+    $routes->get('dynamicforms/submissions', 'Admin\DynamicForms::submissions');
+    $routes->get('dynamicforms/view-submission/(:num)', 'Admin\DynamicForms::viewSubmission/$1');
+    $routes->post('dynamicforms/update-status', 'Admin\DynamicForms::updateStatus');
+    $routes->get('dynamicforms/export-submission/(:num)/(:alpha)', 'Admin\DynamicForms::exportSubmission/$1/$2');
+    $routes->post('dynamicforms/bulk-action', 'Admin\DynamicForms::bulkAction');
 });
 
 // Superuser-only routes
