@@ -17,7 +17,7 @@ class UserModel extends Model
     protected $allowedFields = [
         'email', 'username', 'password_hash', 'full_name', 
         'department_id', 'user_type', 'active', 'reset_token', 
-        'reset_expires', 'last_login'
+        'reset_expires', 'last_login', 'signature'
     ];
     
     // Dates
@@ -33,7 +33,7 @@ class UserModel extends Model
         'password_hash' => 'required',
         'full_name'     => 'required|min_length[3]|max_length[100]',
         'department_id' => 'permit_empty|integer',
-        'user_type'     => 'required|in_list[user,admin,superuser]',
+        'user_type'     => 'required|in_list[admin,requestor,approving_authority,service_staff]',
     ];
     
     /**

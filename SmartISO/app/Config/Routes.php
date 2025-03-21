@@ -46,10 +46,13 @@ $routes->get('/', 'Home::index');
 $routes->get('dashboard', 'Dashboard::index', ['filter' => 'auth']);
 
 // User routes
+// User routes
 $routes->group('', ['filter' => 'auth'], function ($routes) {
-    $routes->get('profile', 'Profile::index');
+    $routes->get('profile', 'Profile::index');  // This route already exists
     $routes->post('profile/update', 'Profile::update');
     $routes->post('profile/change-password', 'Profile::changePassword');
+    $routes->post('profile/upload-signature', 'Profile::uploadSignature');
+    $routes->get('forms/sign/(:num)', 'Forms::signForm/$1');
     $routes->get('forms', 'Forms::index');
     $routes->get('forms/view/(:segment)', 'Forms::view/$1');
     $routes->post('forms/submit', 'Forms::submit');
@@ -57,6 +60,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
     $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
 });
+
 
 // Admin routes
 $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes) {

@@ -51,7 +51,7 @@
             </div>
             
             <div class="col-md-6">
-                <?php if (session()->get('role') == 'admin' || session()->get('role') == 'superuser'): ?>
+            <?php if(session()->get('isLoggedIn') && in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0">Review Submission</h5>

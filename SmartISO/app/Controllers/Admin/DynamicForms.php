@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Admin;
 
+use CodeIgniter\Model;
 use App\Controllers\BaseController;
 use App\Models\DbpanelModel;
 use App\Models\FormModel;
@@ -17,6 +18,7 @@ class DynamicForms extends BaseController
     
     public function __construct()
     {
+        $this->db = \Config\Database::connect();
         $this->dbpanelModel = new DbpanelModel();
         $this->formModel = new FormModel();
         $this->departmentModel = new DepartmentModel();
@@ -98,6 +100,9 @@ class DynamicForms extends BaseController
         ];
         
         if ($this->validate($rules)) {
+
+            log_message('debug', 'Panel field POST data: ' . json_encode($this->request->getPost()));
+
             $this->dbpanelModel->save([
                 'panel_name' => $this->request->getPost('panel_name'),
                 'field_name' => $this->request->getPost('field_name'),
@@ -106,7 +111,9 @@ class DynamicForms extends BaseController
                 'bump_next_field' => (int)$this->request->getPost('bump_next_field'),
                 'code_table' => $this->request->getPost('code_table'),
                 'length' => $this->request->getPost('length'),
-                'field_order' => $this->request->getPost('field_order') ?? 0
+                'field_order' => $this->request->getPost('field_order') ?? 0,
+                'required' => (int)$this->request->getPost('required'),
+                'width' => $this->request->getPost('width') ?? 6
             ]);
             
             return redirect()->to('/admin/dynamicforms/edit-panel/' . $this->request->getPost('panel_name'))
@@ -147,6 +154,8 @@ class DynamicForms extends BaseController
         if ($this->validate($rules)) {
             $fieldId = $this->request->getPost('field_id');
             $panelName = $this->request->getPost('panel_name');
+
+            log_message('debug', 'Panel field update POST data: ' . json_encode($this->request->getPost()));
             
             $this->dbpanelModel->update($fieldId, [
                 'field_name' => $this->request->getPost('field_name'),
@@ -155,7 +164,9 @@ class DynamicForms extends BaseController
                 'bump_next_field' => (int)$this->request->getPost('bump_next_field'),
                 'code_table' => $this->request->getPost('code_table'),
                 'length' => $this->request->getPost('length'),
-                'field_order' => $this->request->getPost('field_order')
+                'field_order' => $this->request->getPost('field_order'),
+                'required' => (int)$this->request->getPost('required'),
+                'width' => $this->request->getPost('width') ?? 6
             ]);
             
             return redirect()->to('/admin/dynamicforms/edit-panel/' . $panelName)
@@ -220,46 +231,77 @@ class DynamicForms extends BaseController
         $status = $this->request->getGet('status');
         $search = $this->request->getGet('search');
         
-        // For admin/superuser, show all submissions
-        // For regular users, show only their submissions
-        $isAdmin = in_array(session()->get('role'), ['admin', 'superuser']);
+        // IMPORTANT: Fix the admin check - handle null role
+        $userRole = session()->get('role');
+        
+        // Consider user with ID 1 as admin if role isn't set
+        // Adjust this based on your application's admin user ID
+        $isAdmin = ($userRole === 'admin' || $userRole === 'superuser' || session()->get('user_id') == 1);
+        
+        // For admin, show all submissions by NOT filtering by user ID
         $userId = $isAdmin ? null : session()->get('user_id');
         
         // Get all forms for filter dropdown
         $forms = $this->formModel->findAll();
         
-        // Build the query
-        $builder = $this->db->table('form_submissions fs')
-            ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name')
-            ->join('forms f', 'f.id = fs.form_id')
-            ->join('users u', 'u.id = fs.submitted_by');    
-        
-        // Apply filters
-        if ($formId) {
-            $builder->where('fs.form_id', $formId);
+        // Get submissions - use this simplified approach to avoid issues
+        if ($isAdmin) {
+            // For admin, get all submissions without filtering
+            $submissions = $this->db->table('form_submissions fs')
+                ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name')
+                ->join('forms f', 'f.id = fs.form_id', 'left')
+                ->join('users u', 'u.id = fs.submitted_by', 'left')
+                ->orderBy('fs.created_at', 'DESC')
+                ->get()
+                ->getResultArray();
+        } else {
+            // For regular users, only show their submissions
+            $submissions = $this->db->table('form_submissions fs')
+                ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name')
+                ->join('forms f', 'f.id = fs.form_id', 'left')
+                ->join('users u', 'u.id = fs.submitted_by', 'left')
+                ->where('fs.submitted_by', session()->get('user_id'))
+                ->orderBy('fs.created_at', 'DESC')
+                ->get()
+                ->getResultArray();
         }
         
-        if ($status) {
-            $builder->where('fs.status', $status);
+        // Handle missing data in results
+        foreach ($submissions as &$row) {
+            if (empty($row['form_code'])) $row['form_code'] = 'Unknown';
+            if (empty($row['form_description'])) $row['form_description'] = 'Unknown Form';
+            if (empty($row['submitted_by_name'])) $row['submitted_by_name'] = 'Unknown User';
         }
         
-        if ($userId) {
-            $builder->where('fs.submitted_by', $userId);
+        // Apply filters if specified
+        if ($formId || $status || $search) {
+            $filteredSubmissions = [];
+            foreach ($submissions as $submission) {
+                $includeSubmission = true;
+                
+                if ($formId && $submission['form_id'] != $formId) {
+                    $includeSubmission = false;
+                }
+                
+                if ($status && $submission['status'] != $status) {
+                    $includeSubmission = false;
+                }
+                
+                if ($search && (
+                    stripos($submission['form_code'] ?? '', $search) === false &&
+                    stripos($submission['form_description'] ?? '', $search) === false &&
+                    stripos($submission['submitted_by_name'] ?? '', $search) === false &&
+                    stripos($submission['panel_name'] ?? '', $search) === false
+                )) {
+                    $includeSubmission = false;
+                }
+                
+                if ($includeSubmission) {
+                    $filteredSubmissions[] = $submission;
+                }
+            }
+            $submissions = $filteredSubmissions;
         }
-        
-        if ($search) {
-            $builder->groupStart()
-                ->like('f.code', $search)
-                ->orLike('f.description', $search)
-                ->orLike('u.name', $search)
-                ->orLike('fs.panel_name', $search)
-                ->groupEnd();
-        }
-        
-        // Get results
-        $submissions = $builder->orderBy('fs.created_at', 'DESC')
-                             ->get()
-                             ->getResultArray();
         
         $data = [
             'title' => 'Form Submissions',
@@ -288,8 +330,11 @@ class DynamicForms extends BaseController
                             ->with('error', 'Submission not found');
         }
         
-        // Check if user has permission to view this submission
-        $isAdmin = in_array(session()->get('role'), ['admin', 'superuser']);
+        // UPDATED: Check if user has permission to view this submission
+        // Consider user with ID 1 as admin if role isn't set
+        $userRole = session()->get('role');
+        $isAdmin = ($userRole === 'admin' || $userRole === 'superuser' || session()->get('user_id') == 1);
+        
         if (!$isAdmin && $submission['submitted_by'] != session()->get('user_id')) {
             return redirect()->to('/admin/dynamicforms/submissions')
                             ->with('error', 'You do not have permission to view this submission');
@@ -314,7 +359,7 @@ class DynamicForms extends BaseController
         
         return view('admin/dynamicforms/view_submission', $data);
     }
-
+    
     public function updateStatus()
     {
         // Check if user has admin permissions

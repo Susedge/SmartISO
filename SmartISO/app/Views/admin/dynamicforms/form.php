@@ -29,25 +29,39 @@
                 <input type="hidden" name="panel_name" value="<?= $panel_name ?>">
                 
                 <div class="row">
-                    <?php foreach ($panel_fields as $field): ?>
-                        <div class="col-md-6 mb-3">
+                    <?php 
+                    $isRowOpen = false;
+                    foreach ($panel_fields as $index => $field): 
+                        $fieldWidth = isset($field['width']) ? (int)$field['width'] : 6;
+                        $isRequired = isset($field['required']) && $field['required'] == 1;
+                        $bumpNext = isset($field['bump_next_field']) && $field['bump_next_field'] == 1;
+                        
+                        // Close the row if the previous field didn't have bump_next_field set
+                        if (!$isRowOpen) {
+                            echo '<div class="row">';
+                            $isRowOpen = true;
+                        }
+                    ?>
+                        <div class="col-md-<?= $fieldWidth ?> mb-3">
                             <label for="<?= $field['field_name'] ?>" class="form-label">
-                                <?= esc($field['field_label']) ?>
+                                <?= esc($field['field_label']) ?> <?= $isRequired ? '<span class="text-danger">*</span>' : '' ?>
                             </label>
                             
                             <?php if ($field['field_type'] === 'input'): ?>
                                 <input type="text" 
-                                       class="form-control" 
-                                       id="<?= $field['field_name'] ?>" 
-                                       name="<?= $field['field_name'] ?>" 
-                                       <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>
-                                       <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>>
-                                       
+                                    class="form-control" 
+                                    id="<?= $field['field_name'] ?>" 
+                                    name="<?= $field['field_name'] ?>" 
+                                    <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>
+                                    <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
+                                    <?= $isRequired ? 'required' : '' ?>>
+                                    
                             <?php elseif ($field['field_type'] === 'dropdown'): ?>
                                 <select class="form-select" 
                                         id="<?= $field['field_name'] ?>" 
                                         name="<?= $field['field_name'] ?>"
-                                        <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>>
+                                        <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
+                                        <?= $isRequired ? 'required' : '' ?>>
                                     <option value="">Select...</option>
                                     <?php if ($field['code_table'] === 'departments'): ?>
                                         <?php foreach ($departments as $dept): ?>
@@ -59,26 +73,38 @@
                                 
                             <?php elseif ($field['field_type'] === 'textarea'): ?>
                                 <textarea class="form-control" 
-                                          id="<?= $field['field_name'] ?>" 
-                                          name="<?= $field['field_name'] ?>"
-                                          rows="3"
-                                          <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>></textarea>
-                                          
+                                        id="<?= $field['field_name'] ?>" 
+                                        name="<?= $field['field_name'] ?>"
+                                        rows="3"
+                                        <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>
+                                        <?= $isRequired ? 'required' : '' ?>></textarea>
+                                        
                             <?php elseif ($field['field_type'] === 'datepicker'): ?>
                                 <input type="date" 
-                                       class="form-control datepicker" 
-                                       id="<?= $field['field_name'] ?>" 
-                                       name="<?= $field['field_name'] ?>"
-                                       <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>>
+                                    class="form-control datepicker" 
+                                    id="<?= $field['field_name'] ?>" 
+                                    name="<?= $field['field_name'] ?>"
+                                    <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
+                                    <?= $isRequired ? 'required' : '' ?>>
                             <?php endif; ?>
                         </div>
-                    <?php endforeach; ?>
+                    <?php 
+                        // Check if we need to close the row
+                        if (!$bumpNext || $index == count($panel_fields) - 1) {
+                            echo '</div>';  // Close the row
+                            $isRowOpen = false;
+                        }
+                    endforeach; 
+                    
+                    // Ensure any open row is closed
+                    if ($isRowOpen) {
+                        echo '</div>';
+                    }
+                    ?>
                 </div>
+
                 
-                <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">Submit</button>
-                    <button type="reset" class="btn btn-secondary">Reset</button>
-                </div>
+
             </form>
         <?php endif; ?>
     </div>

@@ -24,42 +24,48 @@
         
         <div class="table-responsive mt-3">
             <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Field Name</th>
-                        <th>Label</th>
-                        <th>Type</th>
-                        <th>Auto Move</th>
-                        <th>Code Table</th>
-                        <th>Length</th>
-                        <th>Order</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
+            <thead>
+                <tr>
+                    <th>Field Name</th>
+                    <th>Label</th>
+                    <th>Type</th>
+                    <th>Auto Move</th>
+                    <th>Required</th>
+                    <th>Width</th>
+                    <th>Code Table</th>
+                    <th>Length</th>
+                    <th>Order</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
                 <tbody>
                     <?php if (!empty($panel_fields)): ?>
                         <?php foreach ($panel_fields as $field): ?>
                             <tr>
-                                <td><?= esc($field['field_name']) ?></td>
-                                <td><?= esc($field['field_label']) ?></td>
-                                <td><?= esc($field['field_type']) ?></td>
-                                <td><?= $field['bump_next_field'] ? 'Yes' : 'No' ?></td>
-                                <td><?= esc($field['code_table'] ?? '-') ?></td>
-                                <td><?= $field['length'] ?? '-' ?></td>
-                                <td><?= $field['field_order'] ?></td>
-                                <td>
-                                    <button type="button" class="btn btn-sm btn-primary edit-field-btn" 
-                                            data-field-id="<?= $field['id'] ?>"
-                                            data-field-name="<?= esc($field['field_name']) ?>"
-                                            data-field-label="<?= esc($field['field_label']) ?>"
-                                            data-field-type="<?= $field['field_type'] ?>"
-                                            data-bump-next="<?= $field['bump_next_field'] ?>"
-                                            data-code-table="<?= esc($field['code_table'] ?? '') ?>"
-                                            data-length="<?= $field['length'] ?? '' ?>"
-                                            data-field-order="<?= $field['field_order'] ?>"
-                                            data-bs-toggle="modal" data-bs-target="#editFieldModal">
-                                        Edit
-                                    </button>
+                            <td><?= esc($field['field_name']) ?></td>
+                            <td><?= esc($field['field_label']) ?></td>
+                            <td><?= esc($field['field_type']) ?></td>
+                            <td><?= $field['bump_next_field'] ? 'Yes' : 'No' ?></td>
+                            <td><?= isset($field['required']) && $field['required'] ? 'Yes' : 'No' ?></td>
+                            <td><?= isset($field['width']) ? $field['width'] : '6' ?></td>
+                            <td><?= esc($field['code_table'] ?? '-') ?></td>
+                            <td><?= $field['length'] ?? '-' ?></td>
+                            <td><?= $field['field_order'] ?></td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-primary edit-field-btn" 
+                                        data-field-id="<?= $field['id'] ?>"
+                                        data-field-name="<?= esc($field['field_name']) ?>"
+                                        data-field-label="<?= esc($field['field_label']) ?>"
+                                        data-field-type="<?= $field['field_type'] ?>"
+                                        data-bump-next="<?= $field['bump_next_field'] ?>"
+                                        data-required="<?= isset($field['required']) ? $field['required'] : '0' ?>"
+                                        data-width="<?= isset($field['width']) ? $field['width'] : '6' ?>"
+                                        data-code-table="<?= esc($field['code_table'] ?? '') ?>"
+                                        data-length="<?= $field['length'] ?? '' ?>"
+                                        data-field-order="<?= $field['field_order'] ?>"
+                                        data-bs-toggle="modal" data-bs-target="#editFieldModal">
+                                    Edit
+                                </button>
                                     <button type="button" class="btn btn-sm btn-danger" 
                                             data-bs-toggle="modal" data-bs-target="#deleteModal<?= $field['id'] ?>">
                                         Delete
@@ -136,6 +142,28 @@
                             <option value="0">No</option>
                             <option value="1">Yes</option>
                         </select>
+                        <small class="text-muted">If Yes, next field will appear beside this one. If No, next field will be on a new line.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="required" class="form-label">Required Field</label>
+                        <select class="form-select" id="required" name="required">
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="width" class="form-label">Field Width</label>
+                        <select class="form-select" id="width" name="width">
+                            <option value="12">Full Width (12)</option>
+                            <option value="6" selected>Half Width (6)</option>
+                            <option value="4">One Third (4)</option>
+                            <option value="3">One Quarter (3)</option>
+                            <option value="8">Two Thirds (8)</option>
+                            <option value="9">Three Quarters (9)</option>
+                        </select>
+                        <small class="text-muted">Bootstrap grid columns (out of 12)</small>
                     </div>
                     
                     <div class="mb-3">
@@ -203,6 +231,28 @@
                             <option value="0">No</option>
                             <option value="1">Yes</option>
                         </select>
+                        <small class="text-muted">If Yes, next field will appear beside this one. If No, next field will be on a new line.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_required" class="form-label">Required Field</label>
+                        <select class="form-select" id="edit_required" name="required">
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_width" class="form-label">Field Width</label>
+                        <select class="form-select" id="edit_width" name="width">
+                            <option value="12">Full Width (12)</option>
+                            <option value="6">Half Width (6)</option>
+                            <option value="4">One Third (4)</option>
+                            <option value="3">One Quarter (3)</option>
+                            <option value="8">Two Thirds (8)</option>
+                            <option value="9">Three Quarters (9)</option>
+                        </select>
+                        <small class="text-muted">Bootstrap grid columns (out of 12)</small>
                     </div>
                     
                     <div class="mb-3">
@@ -243,6 +293,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const fieldLabel = this.getAttribute('data-field-label');
             const fieldType = this.getAttribute('data-field-type');
             const bumpNext = this.getAttribute('data-bump-next');
+            const required = this.getAttribute('data-required');
+            const width = this.getAttribute('data-width');
             const codeTable = this.getAttribute('data-code-table');
             const length = this.getAttribute('data-length');
             const fieldOrder = this.getAttribute('data-field-order');
@@ -253,6 +305,8 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit_field_label').value = fieldLabel;
             document.getElementById('edit_field_type').value = fieldType;
             document.getElementById('edit_bump_next_field').value = bumpNext;
+            document.getElementById('edit_required').value = required;
+            document.getElementById('edit_width').value = width;
             document.getElementById('edit_code_table').value = codeTable;
             document.getElementById('edit_length').value = length;
             document.getElementById('edit_field_order').value = fieldOrder;

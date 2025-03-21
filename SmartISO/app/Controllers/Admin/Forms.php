@@ -104,4 +104,71 @@ class Forms extends BaseController
             return redirect()->to('/admin/forms')->with('error', 'Form not found');
         }
     }
+
+    public function signForm($id)
+    {
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+        $submission = $this->formSubmissionModel->find($id);
+        
+        if (!$submission) {
+            return redirect()->to('/forms/my-submissions')
+                            ->with('error', 'Submission not found');
+        }
+        
+        // Check permissions based on user role
+        if ($userType === 'requestor') {
+            // Requestor can only sign their own forms
+            if ($submission['submitted_by'] != $userId) {
+                return redirect()->to('/forms/my-submissions')
+                                ->with('error', 'You do not have permission to sign this form');
+            }
+            
+            // Record requestor signature date
+            $this->formSubmissionModel->update($id, [
+                'requestor_signature_date' => date('Y-m-d H:i:s')
+            ]);
+            
+            return redirect()->to('/forms/submission/' . $id)
+                            ->with('message', 'Form signed successfully');
+                            
+        } elseif ($userType === 'approving_authority') {
+            // Approver can only sign forms with status 'submitted'
+            if ($submission['status'] !== 'submitted') {
+                return redirect()->to('/forms/submissions')
+                                ->with('error', 'This form cannot be signed at this time');
+            }
+            
+            // Record approver signature and update status
+            $this->formSubmissionModel->update($id, [
+                'approver_id' => $userId,
+                'approver_signature_date' => date('Y-m-d H:i:s'),
+                'status' => 'approved'
+            ]);
+            
+            return redirect()->to('/forms/submissions')
+                            ->with('message', 'Form approved and signed successfully');
+                            
+        } elseif ($userType === 'service_staff') {
+            // Service staff can only sign approved forms
+            if ($submission['status'] !== 'approved') {
+                return redirect()->to('/forms/submissions')
+                                ->with('error', 'This form cannot be signed at this time');
+            }
+            
+            // Record service staff signature and mark as completed
+            $this->formSubmissionModel->update($id, [
+                'service_staff_id' => $userId,
+                'service_staff_signature_date' => date('Y-m-d H:i:s'),
+                'completed' => 1,
+                'completion_date' => date('Y-m-d H:i:s')
+            ]);
+            
+            return redirect()->to('/forms/submissions')
+                            ->with('message', 'Work completed and form signed successfully');
+        }
+        
+        return redirect()->back()->with('error', 'Unauthorized action');
+    }
+
 }

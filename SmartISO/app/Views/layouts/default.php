@@ -65,7 +65,7 @@
         </div>
     </nav>
 
-    <?php if(uri_string() == 'dashboard' || strpos(uri_string(), 'admin/') === 0): ?>
+    <?php if(uri_string() == 'dashboard' || strpos(uri_string(), 'admin/') === 0 || strpos(uri_string(), 'forms') === 0): ?>
     <!-- Layout with sidebar -->
     <div id="layoutSidenav">
         <div id="layoutSidenav_nav">

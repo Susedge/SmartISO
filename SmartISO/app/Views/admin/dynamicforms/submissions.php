@@ -4,7 +4,6 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h3><?= $title ?></h3>
-        <a href="<?= base_url('admin/dynamicforms') ?>" class="btn btn-primary">New Submission</a>
     </div>
     <div class="card-body">
     <div class="row mb-4">
@@ -40,10 +39,10 @@
                     <a href="<?= base_url('admin/dynamicforms/submissions') ?>" class="btn btn-outline-secondary w-100">Reset</a>
                 </div>
             </form>
-        </div>
+        </div>  
         
-        <?php if (session()->get('role') == 'admin' || session()->get('role') == 'superuser'): ?>
-        <div class="col-md-4">
+        <?php if(session()->get('isLoggedIn') && in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+            <div class="col-md-4">
             <form action="<?= base_url('admin/dynamicforms/bulk-action') ?>" method="post" id="bulkActionForm">
                 <?= csrf_field() ?>
                 <div class="input-group">
@@ -72,7 +71,7 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <?php if (session()->get('role') == 'admin' || session()->get('role') == 'superuser'): ?>
+                    <?php if(session()->get('isLoggedIn') && in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <th>
                             <input type="checkbox" id="selectAll" class="form-check-input">
                         </th>
@@ -90,7 +89,7 @@
                     <?php if (!empty($submissions)): ?>
                         <?php foreach ($submissions as $submission): ?>
                             <tr>
-                                <?php if (session()->get('role') == 'admin' || session()->get('role') == 'superuser'): ?>
+                            <?php if(session()->get('isLoggedIn') && in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                                 <td>
                                     <?php if ($submission['status'] == 'submitted'): ?>
                                     <input type="checkbox" name="selected_submissions[]" form="bulkActionForm" 
