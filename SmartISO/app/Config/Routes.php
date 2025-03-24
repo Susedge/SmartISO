@@ -44,23 +44,41 @@ $routes->get('/', 'Home::index');
 
 // Dashboard (requires login)
 $routes->get('dashboard', 'Dashboard::index', ['filter' => 'auth']);
-
-// User routes
-// User routes
-$routes->group('', ['filter' => 'auth'], function ($routes) {
-    $routes->get('profile', 'Profile::index');  // This route already exists
-    $routes->post('profile/update', 'Profile::update');
-    $routes->post('profile/change-password', 'Profile::changePassword');
-    $routes->post('profile/upload-signature', 'Profile::uploadSignature');
-    $routes->get('forms/sign/(:num)', 'Forms::signForm/$1');
-    $routes->get('forms', 'Forms::index');
-    $routes->get('forms/view/(:segment)', 'Forms::view/$1');
-    $routes->post('forms/submit', 'Forms::submit');
-    $routes->get('forms/my-submissions', 'Forms::mySubmissions');
-    $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
-    $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
-});
-
+    // User routes
+    $routes->group('', ['filter' => 'auth'], function ($routes) {
+        // Profile and signature routes
+        $routes->get('profile', 'Profile::index');
+        $routes->post('profile/update', 'Profile::update');
+        $routes->post('profile/change-password', 'Profile::changePassword');
+        $routes->post('profile/upload-signature', 'Profile::uploadSignature');
+    
+        // Form routes for all users
+        $routes->get('forms', 'Forms::index');
+        $routes->get('forms/view/(:segment)', 'Forms::view/$1');
+        $routes->post('forms/submit', 'Forms::submit');
+        $routes->get('forms/my-submissions', 'Forms::mySubmissions');
+        $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
+        $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
+    
+        // Requestor specific routes
+        $routes->get('forms/pending-signature', 'Forms::pendingRequestorSignature');
+        $routes->get('forms/final-sign/(:num)', 'Forms::finalSignForm/$1');
+        $routes->post('forms/confirm-service/(:num)', 'Forms::confirmService/$1');
+    
+        // Approving Authority specific routes
+        $routes->get('forms/pending-approval', 'Forms::pendingApproval');
+        $routes->get('forms/approval-form/(:num)', 'Forms::approvalForm/$1');
+        $routes->post('forms/sign/(:num)', 'Forms::signForm/$1');
+        $routes->post('forms/reject/(:num)', 'Forms::rejectForm/$1');
+    
+        // Service Staff specific routes
+        $routes->get('forms/pending-service', 'Forms::pendingService');
+        $routes->get('forms/service-form/(:num)', 'Forms::serviceForm/$1');
+        $routes->post('forms/mark-serviced/(:num)', 'Forms::signForm/$1');
+    
+        // Completed forms for all users
+        $routes->get('forms/completed', 'Forms::completedForms');
+    });
 
 // Admin routes
 $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes) {
@@ -73,6 +91,12 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->get('configurations/edit/(:num)', 'Admin\Configurations::edit/$1');
     $routes->post('configurations/update/(:num)', 'Admin\Configurations::update/$1');
     $routes->get('configurations/delete/(:num)', 'Admin\Configurations::delete/$1');
+    
+    // Form signatories management
+    $routes->get('configurations/form-signatories/(:num)', 'Admin\Configurations::formSignatories/$1');
+    $routes->post('configurations/add-form-signatory', 'Admin\Configurations::addFormSignatory');
+    $routes->get('configurations/remove-form-signatory/(:num)', 'Admin\Configurations::removeFormSignatory/$1');
+    $routes->get('configurations/user-form-signatories/(:num)', 'Admin\Configurations::userFormSignatories/$1');
 
     // Dynamic Forms routes
     $routes->get('dynamicforms', 'Admin\DynamicForms::index');
@@ -88,16 +112,23 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->post('dynamicforms/update-status', 'Admin\DynamicForms::updateStatus');
     $routes->get('dynamicforms/export-submission/(:num)/(:alpha)', 'Admin\DynamicForms::exportSubmission/$1/$2');
     $routes->post('dynamicforms/bulk-action', 'Admin\DynamicForms::bulkAction');
-});
-
-// Superuser-only routes
-$routes->group('admin', ['filter' => 'auth:superuser'], function ($routes) {
-    // User management
+    
+    // User management (accessible to both admin and superuser)
     $routes->get('users', 'Admin\Users::index');
     $routes->get('users/new', 'Admin\Users::new');
     $routes->post('users/create', 'Admin\Users::create');
     $routes->get('users/edit/(:num)', 'Admin\Users::edit/$1');
     $routes->post('users/update/(:num)', 'Admin\Users::update/$1');
+
+    // Approval Form routes
+    $routes->get('dynamicforms/approval-form/(:num)', 'Admin\DynamicForms::approvalForm/$1');
+    $routes->post('dynamicforms/approve-submission', 'Admin\DynamicForms::approveSubmission');
+
+});
+
+// Superuser-only routes
+$routes->group('admin', ['filter' => 'auth:superuser'], function ($routes) {
+    // Restricted user management operations (superuser only)
     $routes->get('users/delete/(:num)', 'Admin\Users::delete/$1');
 });
 

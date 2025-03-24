@@ -84,7 +84,13 @@
                             <td><?= esc($item['description']) ?></td>
                             <td><?= date('M d, Y', strtotime($item['created_at'])) ?></td>
                             <td>
+                                <!-- Signatories button for managing form signatories -->
+                                <a href="<?= base_url('admin/configurations/form-signatories/' . $item['id']) ?>" class="btn btn-sm btn-info me-1">Signatories</a>
+                                
+                                <!-- Standard edit button -->
                                 <a href="<?= base_url('admin/configurations/edit/' . $item['id'] . '?type=' . $tableType) ?>" class="btn btn-sm btn-primary">Edit</a>
+                                
+                                <!-- Delete button -->
                                 <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $item['id'] ?>">Delete</button>
                                 
                                 <!-- Delete Modal -->
@@ -114,8 +120,7 @@
                             <td colspan="5" class="text-center">No forms found</td>
                         </tr>
                         <?php endif; ?>
-                    <?php endif; ?>
-                </tbody>
+                    <?php endif; ?>                </tbody>
             </table>
         </div>
     </div>

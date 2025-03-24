@@ -170,5 +170,4 @@ class Forms extends BaseController
         
         return redirect()->back()->with('error', 'Unauthorized action');
     }
-
 }

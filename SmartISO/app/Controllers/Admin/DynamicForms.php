@@ -349,15 +349,88 @@ class DynamicForms extends BaseController
         // Get submission data
         $submissionData = $this->formSubmissionDataModel->getSubmissionDataAsArray($id);
         
+        // Get submitter info
+        $userModel = new \App\Models\UserModel();
+        $submitter = $userModel->find($submission['submitted_by']);
+        
+        // Get approver info if submission is approved
+        $approver = null;
+        if (!empty($submission['approver_id'])) {
+            $approver = $userModel->find($submission['approver_id']);
+        }
+        
+        // Check if current user can approve submissions
+        $canApprove = in_array(session()->get('user_type'), ['admin', 'superuser', 'approving_authority']) && 
+                     $submission['status'] === 'submitted';
+        
+        // Check if current user has a signature
+        $currentUser = $userModel->find(session()->get('user_id'));
+        $hasSignature = !empty($currentUser['signature']);
+        
         $data = [
             'title' => 'View Submission',
             'submission' => $submission,
             'form' => $form,
             'panel_fields' => $panelFields,
-            'submission_data' => $submissionData
+            'submission_data' => $submissionData,
+            'submitter' => $submitter,
+            'approver' => $approver,
+            'canApprove' => $canApprove,
+            'hasSignature' => $hasSignature,
+            'currentUser' => $currentUser
         ];
         
         return view('admin/dynamicforms/view_submission', $data);
+    }
+
+    // New method to show approval form
+    public function approvalForm($id = null)
+    {
+        if (!$id) {
+            return redirect()->to('/admin/dynamicforms/submissions')
+                            ->with('error', 'Submission ID is required');
+        }
+        
+        // Check if user has permission to approve
+        $userType = session()->get('user_type');
+        
+        if (!in_array($userType, ['admin', 'superuser', 'approving_authority'])) {
+            return redirect()->to('/admin/dynamicforms/submissions')
+                            ->with('error', 'You do not have permission to approve submissions');
+        }
+        
+        $submission = $this->formSubmissionModel->find($id);
+        
+        if (!$submission) {
+            return redirect()->to('/admin/dynamicforms/submissions')
+                            ->with('error', 'Submission not found');
+        }
+        
+        // Check if submission is already approved or rejected
+        if ($submission['status'] !== 'submitted') {
+            return redirect()->to('/admin/dynamicforms/view-submission/' . $id)
+                            ->with('error', 'This submission has already been ' . $submission['status']);
+        }
+        
+        // Get form details
+        $form = $this->formModel->find($submission['form_id']);
+        
+        // Get submitter info
+        $userModel = new \App\Models\UserModel();
+        $submitter = $userModel->find($submission['submitted_by']);
+        
+        // Get current user info for signature
+        $currentUser = $userModel->find(session()->get('user_id'));
+        
+        $data = [
+            'title' => 'Approve Submission',
+            'submission' => $submission,
+            'form' => $form,
+            'submitter' => $submitter,
+            'currentUser' => $currentUser
+        ];
+        
+        return view('admin/dynamicforms/approve', $data);
     }
     
     public function updateStatus()
@@ -468,5 +541,51 @@ class DynamicForms extends BaseController
         }
         
         return redirect()->back()->with('message', $count . ' submissions ' . $status);
-    } 
+    }
+
+    public function approveSubmission()
+    {
+        // Check if user has permission to approve
+        $userType = session()->get('user_type');
+        $userId = session()->get('user_id');
+        
+        if (!in_array($userType, ['admin', 'superuser', 'approving_authority'])) {
+            return redirect()->to('/admin/dynamicforms/submissions')
+                            ->with('error', 'You do not have permission to approve submissions');
+        }
+        
+        $submissionId = $this->request->getPost('submission_id');
+        $action = $this->request->getPost('action');
+        $comments = $this->request->getPost('comments');
+        
+        if (!$submissionId || !in_array($action, ['approve', 'reject'])) {
+            return redirect()->back()->with('error', 'Invalid submission ID or action');
+        }
+        
+        $submission = $this->formSubmissionModel->find($submissionId);
+        if (!$submission) {
+            return redirect()->to('/admin/dynamicforms/submissions')
+                            ->with('error', 'Submission not found');
+        }
+        
+        // Check if user has an uploaded signature for approval
+        $userModel = new \App\Models\UserModel();
+        $currentUser = $userModel->find($userId);
+        
+        if ($action === 'approve' && empty($currentUser['signature'])) {
+            return redirect()->back()
+                            ->with('error', 'You need to upload a signature before approving forms. Please update your profile.');
+        }
+        
+        if ($action === 'approve') {
+            $this->formSubmissionModel->approveSubmission($submissionId, $userId, $comments);
+            $message = 'Submission approved successfully with your signature applied';
+        } else {
+            $this->formSubmissionModel->rejectSubmission($submissionId, $userId, $comments);
+            $message = 'Submission rejected';
+        }
+        
+        return redirect()->to('/admin/dynamicforms/view-submission/' . $submissionId)
+                        ->with('message', $message);
+    }
 }

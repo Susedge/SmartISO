@@ -43,6 +43,53 @@
             </div>
         </div>
         
+        <!-- Approval information section -->
+        <?php if ($submission['status'] === 'approved' && !empty($approver)): ?>
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Approval Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Approved By:</strong> <?= esc($approver['full_name']) ?></p>
+                            <p><strong>Approved On:</strong> <?= date('M d, Y h:i A', strtotime($submission['approved_at'])) ?></p>
+                            <?php if (!empty($submission['approval_comments'])): ?>
+                                <p><strong>Comments:</strong> <?= esc($submission['approval_comments']) ?></p>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-6 text-center">
+                            <h6>Approval Signature</h6>
+                            <div class="border p-3">
+                                <?php if (!empty($approver['signature'])): ?>
+                                    <img src="<?= base_url('uploads/signatures/' . $approver['signature']) ?>" alt="Approver Signature" class="img-fluid" style="max-height: 100px;">
+                                <?php else: ?>
+                                    <p class="text-muted">Digital approval recorded without signature image.</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php elseif ($submission['status'] === 'rejected' && !empty($approver)): ?>
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Rejection Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <p><strong>Rejected By:</strong> <?= esc($approver['full_name']) ?></p>
+                            <p><strong>Rejected On:</strong> <?= date('M d, Y h:i A', strtotime($submission['approved_at'])) ?></p>
+                            <?php if (!empty($submission['rejected_reason'])): ?>
+                                <p><strong>Reason:</strong> <?= esc($submission['rejected_reason']) ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+        
         <h5>Form Data</h5>
         <div class="table-responsive">
             <table class="table table-bordered">

@@ -5,18 +5,122 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\DepartmentModel;
 use App\Models\FormModel;
+use App\Models\FormSignatoryModel;
+use App\Models\UserModel;
 
 class Configurations extends BaseController
 {
     protected $departmentModel;
     protected $formModel;
+    protected $formSignatoryModel;
+    protected $userModel;
     
     public function __construct()
     {
         $this->departmentModel = new DepartmentModel();
         $this->formModel = new FormModel();
+        
+        // Add new models
+        $this->formSignatoryModel = new FormSignatoryModel();
+        $this->userModel = new UserModel();
     }
-    
+
+    public function formSignatories($formId = null)
+    {
+        if ($formId === null) {
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'Invalid form ID');
+        }
+        
+        $form = $this->formModel->find($formId);
+        if (!$form) {
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'Form not found');
+        }
+        
+        $data = [
+            'title' => 'Form Signatories: ' . $form['code'] . ' - ' . $form['description'],
+            'form' => $form,
+            'signatories' => $this->formSignatoryModel->getFormSignatories($formId),
+            'availableApprovers' => $this->userModel->where('user_type', 'approving_authority')
+                                                   ->where('active', 1)
+                                                   ->findAll()
+        ];
+        
+        return view('admin/configurations/form_signatories', $data);
+    }
+
+    public function addFormSignatory()
+    {
+        $formId = $this->request->getPost('form_id');
+        $userId = $this->request->getPost('user_id');
+        $position = $this->request->getPost('order_position') ?? 0;
+        
+        // Check if this combination already exists
+        $existing = $this->formSignatoryModel
+            ->where('form_id', $formId)
+            ->where('user_id', $userId)
+            ->first();
+            
+        if ($existing) {
+            return redirect()->back()
+                ->with('error', 'This user is already a signatory for this form');
+        }
+        
+        if ($this->formSignatoryModel->save([
+            'form_id' => $formId,
+            'user_id' => $userId,
+            'order_position' => $position
+        ])) {
+            return redirect()->to("/admin/configurations/form-signatories/{$formId}")
+                ->with('message', 'Signatory added successfully');
+        } else {
+            return redirect()->back()
+                ->with('error', 'Failed to add signatory')
+                ->with('validation', $this->formSignatoryModel->errors());
+        }
+    }
+
+    public function removeFormSignatory($id = null)
+    {
+        $signatory = $this->formSignatoryModel->find($id);
+        
+        if (!$signatory) {
+            return redirect()->back()->with('error', 'Signatory not found');
+        }
+        
+        $formId = $signatory['form_id'];
+        
+        if ($this->formSignatoryModel->delete($id)) {
+            return redirect()->to("/admin/configurations/form-signatories/{$formId}")
+                ->with('message', 'Signatory removed successfully');
+        } else {
+            return redirect()->back()->with('error', 'Failed to remove signatory');
+        }
+    }
+
+    public function userFormSignatories($userId = null)
+    {
+        if ($userId === null) {
+            return redirect()->to('/admin/users')
+                ->with('error', 'Invalid user ID');
+        }
+        
+        $user = $this->userModel->find($userId);
+        if (!$user || $user['user_type'] !== 'approving_authority') {
+            return redirect()->to('/admin/users')
+                ->with('error', 'User not found or not an approving authority');
+        }
+        
+        $data = [
+            'title' => 'Forms Assigned to: ' . $user['full_name'],
+            'user' => $user,
+            'assignedForms' => $this->formSignatoryModel->getUserForms($userId),
+            'availableForms' => $this->formModel->findAll()
+        ];
+        
+        return view('admin/configurations/user_form_signatories', $data);
+    }    
     public function index()
     {
         $tableType = $this->request->getGet('type') ?? 'departments';

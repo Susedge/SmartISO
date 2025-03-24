@@ -126,7 +126,7 @@
                             <span>Review Submissions</span>
                         </a>
                         
-                        <?php if(session()->get('user_type') == 'superuser'): ?>
+                        <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
                             <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
                             <span>Users</span>

@@ -37,28 +37,25 @@ class UserModel extends Model
     ];
     
     /**
-     * Finds a user by their email address
+     * Get users by type
      */
-    public function findByEmail(string $email)
+    public function getUsersByType($type)
     {
-        return $this->where('email', $email)->first();
+        return $this->where('user_type', $type)->findAll();
     }
     
     /**
-     * Finds a user by their username
+     * Upload and set user signature
      */
-    public function findByUsername(string $username)
+    public function setSignature($userId, $signatureFile)
     {
-        return $this->where('username', $username)->first();
-    }
-    
-    /**
-     * Sets a user's password
-     */
-    public function setPassword(int $userId, string $password)
-    {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
+        // Generate unique filename
+        $newName = $userId . '_' . time() . '.png';
         
-        return $this->update($userId, ['password_hash' => $hash]);
+        // Move uploaded file
+        $signatureFile->move(ROOTPATH . 'public/uploads/signatures', $newName);
+        
+        // Update user record
+        return $this->update($userId, ['signature' => $newName]);
     }
 }

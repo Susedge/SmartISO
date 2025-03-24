@@ -41,8 +41,8 @@ class CreateUsersTable extends Migration
             ],
             'user_type' => [
                 'type'       => 'ENUM',
-                'constraint' => ['user', 'admin', 'superuser'],
-                'default'    => 'user',
+                'constraint' => ['admin', 'requestor', 'approving_authority', 'service_staff', 'superuser'],
+                'default'    => 'requestor',
             ],
             'active' => [
                 'type'       => 'TINYINT',
@@ -79,6 +79,7 @@ class CreateUsersTable extends Migration
         // Create a default superuser
         $seeder = \Config\Database::seeder();
         $seeder->call('SuperuserSeeder');
+        $seeder->call('UserTypesSeeder');
     }
 
     public function down()
