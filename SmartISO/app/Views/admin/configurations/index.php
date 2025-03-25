@@ -34,6 +34,7 @@
                         <th>Code</th>
                         <th>Description</th>
                         <th>Created</th>
+                        <th>Template</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -84,14 +85,28 @@
                             <td><?= esc($item['description']) ?></td>
                             <td><?= date('M d, Y', strtotime($item['created_at'])) ?></td>
                             <td>
-                                <!-- Signatories button for managing form signatories -->
+                                <?php 
+                                $templatePath = FCPATH . 'templates/docx/' . $item['code'] . '_template.docx';
+                                $hasTemplate = file_exists($templatePath);
+                                ?>
+                                <?php if ($hasTemplate): ?>
+                                    <span class="badge bg-success">Template Available</span>
+                                <?php else: ?>
+                                    <span class="badge bg-warning text-dark">No Custom Template</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <!-- Keep existing buttons -->
                                 <a href="<?= base_url('admin/configurations/form-signatories/' . $item['id']) ?>" class="btn btn-sm btn-info me-1">Signatories</a>
-                                
-                                <!-- Standard edit button -->
                                 <a href="<?= base_url('admin/configurations/edit/' . $item['id'] . '?type=' . $tableType) ?>" class="btn btn-sm btn-primary">Edit</a>
-                                
-                                <!-- Delete button -->
                                 <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $item['id'] ?>">Delete</button>
+                                
+                                <!-- Add template button -->
+                                <?php if ($hasTemplate): ?>
+                                    <a href="<?= base_url('admin/configurations/download-template/' . $item['id']) ?>" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-download"></i> Template
+                                    </a>
+                                <?php endif; ?>
                                 
                                 <!-- Delete Modal -->
                                 <div class="modal fade" id="deleteModal<?= $item['id'] ?>" tabindex="-1" aria-hidden="true">

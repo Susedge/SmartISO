@@ -135,6 +135,10 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     // Approval Form routes
     $routes->get('dynamicforms/approval-form/(:num)', 'Admin\DynamicForms::approvalForm/$1');
     $routes->post('dynamicforms/approve-submission', 'Admin\DynamicForms::approveSubmission');
+
+    $routes->get('configurations/download-template/(:num)', 'Admin\Configurations::downloadTemplate/$1');
+    $routes->get('configurations/delete-template/(:num)', 'Admin\Configurations::deleteTemplate/$1');
+    $routes->post('configurations/upload-template/(:num)', 'Admin\Configurations::uploadTemplate/$1');    
 });
 
 // Superuser-only routes

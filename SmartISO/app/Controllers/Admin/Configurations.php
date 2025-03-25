@@ -316,4 +316,106 @@ class Configurations extends BaseController
         
         return redirect()->to('/admin/configurations?type=' . $tableType)->with('error', ucfirst(rtrim($tableType, 's')) . ' not found');
     }
+
+    /**
+ * Upload a template for a form
+ */
+public function uploadTemplate($formId = null)
+{
+    if (!$formId) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Invalid form ID');
+    }
+    
+    $form = $this->formModel->find($formId);
+    if (!$form) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Form not found');
+    }
+    
+    // Validate file upload
+    $validationRules = [
+        'template' => [
+            'label' => 'Template file',
+            'rules' => 'uploaded[template]|max_size[template,5120]|mime_in[template,application/vnd.openxmlformats-officedocument.wordprocessingml.document]'
+        ]
+    ];
+    
+    if (!$this->validate($validationRules)) {
+        return redirect()->back()
+            ->with('error', $this->validator->getErrors()['template'] ?? 'Invalid template file')
+            ->withInput();
+    }
+    
+    $file = $this->request->getFile('template');
+    if (!$file->isValid() || $file->hasMoved()) {
+        return redirect()->back()->with('error', 'Invalid file upload');
+    }
+    
+    // Create templates directory if it doesn't exist
+    $templateDir = FCPATH . 'templates/docx/';
+    if (!is_dir($templateDir)) {
+        mkdir($templateDir, 0755, true);
+    }
+    
+    // Move the file to the templates directory with the correct naming convention
+    $fileName = $form['code'] . '_template.docx';
+    
+    try {
+        $file->move($templateDir, $fileName, true); // Overwrite if exists
+        return redirect()->back()->with('message', 'Template uploaded successfully');
+    } catch (\Exception $e) {
+        return redirect()->back()->with('error', 'Error saving template: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Download a template for a form
+ */
+public function downloadTemplate($formId = null)
+{
+    if (!$formId) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Invalid form ID');
+    }
+    
+    $form = $this->formModel->find($formId);
+    if (!$form) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Form not found');
+    }
+    
+    $templatePath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
+    if (!file_exists($templatePath)) {
+        return redirect()->back()->with('error', 'Template file not found');
+    }
+    
+    return $this->response->download($templatePath, null);
+}
+
+/**
+ * Delete a template for a form
+ */
+public function deleteTemplate($formId = null)
+{
+    if (!$formId) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Invalid form ID');
+    }
+    
+    $form = $this->formModel->find($formId);
+    if (!$form) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Form not found');
+    }
+    
+    $templatePath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
+    if (file_exists($templatePath)) {
+        unlink($templatePath);
+        return redirect()->back()->with('message', 'Template deleted successfully');
+    }
+    
+    return redirect()->back()->with('error', 'Template file not found');
+}
+
 }
