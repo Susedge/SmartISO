@@ -3,6 +3,12 @@
 
 ## Installation
 - Uncomment `extension=intl` on php.ini
+- Uncomment `extension=gd` on php.ini
+- Uncomment `extension=zip` on php.ini
+- Run `composer install`
+- Create 'smartiso' db
+- Run php spark:migrate
+- Run php spark serve
 
 ADMIN 
 - Create accounts for “APPROVING AUTHORITIES” and “SERVICE STAFF”.
@@ -27,5 +33,7 @@ SERVICE STAFF
 - View and edit approved request form.
 Send the completed request form back to the requestor for signature that the work is done by the Service staff. “If the Requestor already has signed the completed request form it will notify both Approving Authorities and Service Staff”.
 - View all completed ISO request form for record
+
+
 
 
