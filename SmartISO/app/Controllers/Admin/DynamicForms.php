@@ -96,7 +96,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker]'
+            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]'
         ];
         
         if ($this->validate($rules)) {
@@ -148,7 +148,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker]'
+            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]'
         ];
         
         if ($this->validate($rules)) {
@@ -483,27 +483,17 @@ class DynamicForms extends BaseController
                             ->with('error', 'You do not have permission to export this submission');
         }
         
-        // Get form details
-        $form = $this->formModel->find($submission['form_id']);
-        
-        // Get panel fields
-        $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
-        
-        // Get submission data
-        $submissionData = $this->formSubmissionDataModel->getSubmissionDataAsArray($id);
-        
         if ($format == 'pdf') {
-            // In a real app, you'd generate a PDF using a library like TCPDF or DOMPDF
-            // For this example, we'll just return a message
-            return redirect()->back()->with('message', 'PDF export functionality would be implemented here');
+            // Redirect to the PDF generator controller
+            return redirect()->to('/pdfgenerator/generateFormPdf/' . $id);
         } else if ($format == 'excel') {
             // In a real app, you'd generate an Excel file using a library like PhpSpreadsheet
-            // For this example, we'll just return a message
             return redirect()->back()->with('message', 'Excel export functionality would be implemented here');
         }
         
         return redirect()->back()->with('error', 'Invalid export format');
     }
+    
 
     public function bulkAction()
     {

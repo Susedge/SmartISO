@@ -17,7 +17,7 @@
         
         <div class="row mb-4">
             <div class="col-md-6">
-                <h5>Form Details</h5>
+                <h5>Request Details</h5>
                 <table class="table table-bordered">
                     <tr>
                         <th width="30%">Form</th>
@@ -28,18 +28,22 @@
                         <td><?= esc($requestor['full_name']) ?></td>
                     </tr>
                     <tr>
-                        <th>Approved By</th>
-                        <td><?= esc($approver['full_name']) ?></td>
+                        <th>Department</th>
+                        <td><?= isset($requestor['department_id']) ? 'Department #' . $requestor['department_id'] : 'Not assigned' ?></td>
                     </tr>
                     <tr>
-                        <th>Approval Date</th>
-                        <td><?= date('F d, Y H:i:s', strtotime($submission['approver_signature_date'])) ?></td>
+                        <th>Submission Date</th>
+                        <td><?= date('F d, Y H:i:s', strtotime($submission['created_at'])) ?></td>
+                    </tr>
+                    <tr>
+                        <th>Status</th>
+                        <td><span class="badge bg-primary">Approved - Pending Service</span></td>
                     </tr>
                 </table>
             </div>
         </div>
         
-        <h5>Form Data</h5>
+        <h5>Form Details</h5>
         <div class="table-responsive mb-4">
             <table class="table table-bordered">
                 <thead>
@@ -64,42 +68,20 @@
             </table>
         </div>
         
-        <?php if (!$hasSignature): ?>
-            <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                You need to upload your signature before you can mark a form as serviced.
-                <a href="<?= base_url('profile') ?>" class="alert-link">Upload signature</a>
+        <form action="<?= base_url('forms/service') ?>" method="post">
+            <?= csrf_field() ?>
+            <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
+            
+            <div class="mb-3">
+                <label for="service_notes" class="form-label">Service Notes</label>
+                <textarea class="form-control" id="service_notes" name="service_notes" rows="3" placeholder="Enter notes about the service provided"></textarea>
             </div>
-        <?php else: ?>
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                <h5 class="mb-0">Mark as Serviced</h5>
-                </div>
-                <div class="card-body">
-                    <form action="<?= base_url('forms/sign/' . $submission['id']) ?>" method="post">
-                        <?= csrf_field() ?>
-                        <div class="mb-3">
-                            <label for="service_notes" class="form-label">Service Notes</label>
-                            <textarea class="form-control" id="service_notes" name="service_notes" rows="3" placeholder="Describe the work that was completed..."></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <p>Your signature will be applied to this form:</p>
-                            <div class="border p-3 text-center">
-                                <img src="<?= base_url('uploads/signatures/' . $current_user['signature']) ?>" alt="Your Signature" class="img-fluid" style="max-height: 100px;">
-                            </div>
-                        </div>
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle me-2"></i>
-                            After marking this form as serviced, the requestor will be notified to provide final confirmation.
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-check-circle me-2"></i>Mark as Serviced and Sign
-                        </button>
-                    </form>
-                </div>
+            
+            <div class="d-flex justify-content-between">
+                <a href="<?= base_url('forms/pending-service') ?>" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Complete Service</button>
             </div>
-        <?php endif; ?>
+        </form>
     </div>
 </div>
 <?= $this->endSection() ?>
-

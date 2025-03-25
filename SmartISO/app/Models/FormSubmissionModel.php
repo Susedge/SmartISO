@@ -158,7 +158,8 @@ class FormSubmissionModel extends Model
         return $this->update($submissionId, [
             'service_staff_id' => $serviceStaffId,
             'service_staff_signature_date' => date('Y-m-d H:i:s'),
-            'service_notes' => $notes
+            'service_notes' => $notes,
+            'status' => 'completed'
         ]);
     }
     
@@ -170,7 +171,8 @@ class FormSubmissionModel extends Model
         return $this->update($submissionId, [
             'requestor_signature_date' => date('Y-m-d H:i:s'),
             'completed' => 1,
-            'completion_date' => date('Y-m-d H:i:s')
+            'completion_date' => date('Y-m-d H:i:s'),
+            'status' => 'completed'
         ]);
     }
 }

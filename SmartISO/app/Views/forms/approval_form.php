@@ -1,6 +1,7 @@
 <?= $this->extend('layouts/default') ?>
 
 <?= $this->section('content') ?>
+
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h3><?= $title ?></h3>
@@ -75,7 +76,7 @@
                 <div class="col-md-6">
                     <div class="card mb-4">
                         <div class="card-header bg-success text-white">
-                            <h5 class="mb-0">Approve Form</h5>
+                            <h5 class="mb-0 text-white">Approve Form</h5>
                         </div>
                         <div class="card-body">
                             <form action="<?= base_url('forms/sign/' . $submission['id']) ?>" method="post">
@@ -87,7 +88,7 @@
                                 <div class="mb-3">
                                     <p>Your signature will be applied to this form:</p>
                                     <div class="border p-3 text-center">
-                                        <img src="<?= base_url('uploads/signatures/' . $current_user['signature']) ?>" alt="Your Signature" class="img-fluid" style="max-height: 100px;">
+                                        <img src="<?= base_url($current_user['signature']) ?>" alt="Your Signature" class="img-fluid" style="max-height: 100px;">
                                     </div>
                                 </div>
                                 <button type="submit" class="btn btn-success">
@@ -101,7 +102,7 @@
                 <div class="col-md-6">
                     <div class="card mb-4">
                         <div class="card-header bg-danger text-white">
-                            <h5 class="mb-0">Reject Form</h5>
+                            <h5 class="mb-0 text-white">Reject Form</h5>
                         </div>
                         <div class="card-body">
                             <form action="<?= base_url('forms/reject/' . $submission['id']) ?>" method="post">

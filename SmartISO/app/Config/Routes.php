@@ -43,42 +43,54 @@ $routes->group('auth', function ($routes) {
 $routes->get('/', 'Home::index');
 
 // Dashboard (requires login)
-$routes->get('dashboard', 'Dashboard::index', ['filter' => 'auth']);
-    // User routes
-    $routes->group('', ['filter' => 'auth'], function ($routes) {
-        // Profile and signature routes
-        $routes->get('profile', 'Profile::index');
-        $routes->post('profile/update', 'Profile::update');
-        $routes->post('profile/change-password', 'Profile::changePassword');
-        $routes->post('profile/upload-signature', 'Profile::uploadSignature');
+$routes->get('/dashboard', 'Dashboard::index', ['filter' => 'auth']);
+
+// User routes
+$routes->group('', ['filter' => 'auth'], function ($routes) {
+    // Profile and signature routes
+    $routes->get('profile', 'Profile::index');
+    $routes->post('profile/update', 'Profile::update');
+    $routes->post('profile/change-password', 'Profile::changePassword');
+    $routes->post('profile/upload-signature', 'Profile::uploadSignature');
+
+    // Form routes for all users
+    $routes->get('forms', 'Forms::index');
+    $routes->get('forms/view/(:segment)', 'Forms::view/$1');
+    $routes->post('forms/submit', 'Forms::submit');
+    $routes->get('forms/my-submissions', 'Forms::mySubmissions');
+    $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
+    $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
+    $routes->get('forms/completed', 'Forms::completedForms');
+
+    // For requestors
+    $routes->get('forms/pending-signature', 'Forms::pendingRequestorSignature');
     
-        // Form routes for all users
-        $routes->get('forms', 'Forms::index');
-        $routes->get('forms/view/(:segment)', 'Forms::view/$1');
-        $routes->post('forms/submit', 'Forms::submit');
-        $routes->get('forms/my-submissions', 'Forms::mySubmissions');
-        $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
-        $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
+    // For approving authority
+    $routes->get('forms/pending-approval', 'Forms::pendingApproval');
+    $routes->get('forms/approved-by-me', 'Forms::approvedByMe');
+    $routes->get('forms/rejected-by-me', 'Forms::rejectedByMe');
     
-        // Requestor specific routes
-        $routes->get('forms/pending-signature', 'Forms::pendingRequestorSignature');
-        $routes->get('forms/final-sign/(:num)', 'Forms::finalSignForm/$1');
-        $routes->post('forms/confirm-service/(:num)', 'Forms::confirmService/$1');
+    // For service staff
+    $routes->get('forms/pending-service', 'Forms::pendingService');
+    $routes->get('forms/serviced-by-me', 'Forms::servicedByMe');
     
-        // Approving Authority specific routes
-        $routes->get('forms/pending-approval', 'Forms::pendingApproval');
-        $routes->get('forms/approval-form/(:num)', 'Forms::approvalForm/$1');
-        $routes->post('forms/sign/(:num)', 'Forms::signForm/$1');
-        $routes->post('forms/reject/(:num)', 'Forms::rejectForm/$1');
+    // Form actions
+    $routes->get('forms/sign/(:num)', 'Forms::signForm/$1');
+    $routes->get('forms/approve/(:num)', 'Forms::approveForm/$1');
+    $routes->post('forms/approve', 'Forms::submitApproval');
+    $routes->get('forms/reject/(:num)', 'Forms::rejectForm/$1');
+    $routes->post('forms/reject', 'Forms::submitRejection');
+    $routes->get('forms/service/(:num)', 'Forms::serviceForm/$1');
+    $routes->post('forms/service', 'Forms::submitService');
+    $routes->post('forms/sign/(:num)', 'Forms::signForm/$1');
     
-        // Service Staff specific routes
-        $routes->get('forms/pending-service', 'Forms::pendingService');
-        $routes->get('forms/service-form/(:num)', 'Forms::serviceForm/$1');
-        $routes->post('forms/mark-serviced/(:num)', 'Forms::signForm/$1');
-    
-        // Completed forms for all users
-        $routes->get('forms/completed', 'Forms::completedForms');
-    });
+    // Form completion routes
+    $routes->get('forms/final-sign/(:num)', 'Forms::finalSignForm/$1');
+    $routes->post('forms/confirm-service', 'Forms::confirmService');
+
+    // PDF viewer
+    $routes->get('pdfgenerator/generateFormPdf/(:num)', 'PdfGenerator::generateFormPdf/$1');
+});
 
 // Admin routes
 $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes) {
@@ -123,7 +135,6 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     // Approval Form routes
     $routes->get('dynamicforms/approval-form/(:num)', 'Admin\DynamicForms::approvalForm/$1');
     $routes->post('dynamicforms/approve-submission', 'Admin\DynamicForms::approveSubmission');
-
 });
 
 // Superuser-only routes

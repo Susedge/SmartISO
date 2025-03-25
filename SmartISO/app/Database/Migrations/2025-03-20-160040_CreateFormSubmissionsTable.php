@@ -34,7 +34,7 @@ class CreateFormSubmissionsTable extends Migration
                 'type' => 'VARCHAR',
                 'constraint' => 20,
                 'default' => 'submitted',
-                'comment' => 'submitted, approved, rejected',
+                'comment' => 'submitted, approved, rejected, completed',
             ],
             'created_at' => [
                 'type' => 'DATETIME',

@@ -1,0 +1,54 @@
+# Form Submission Template Placeholders (.docx format)
+
+## Basic Form Information
+${FORM_ID}             - Form ID
+${FORM_CODE}           - Form code/identifier
+${FORM_DESCRIPTION}    - Form description/title
+${FORM_STATUS}         - Form status (submitted, approved, rejected, completed)
+
+## Submission Information
+${SUBMISSION_ID}       - Submission ID
+${SUBMISSION_DATE}     - Date of submission
+${PANEL_NAME}          - Panel name used for the form
+
+## Requestor Information
+${REQUESTOR_ID}        - Requestor's user ID
+${REQUESTOR_NAME}      - Requestor's full name
+${REQUESTOR_EMAIL}     - Requestor's email address
+${REQUESTOR_DEPARTMENT}  - Requestor's department
+REQUESTOR_SIGNATURE    - Requestor's signature image (name the image placeholder without ${})
+${REQUESTOR_SIGN_DATE} - Date when requestor signed the form
+
+## Approver Information
+${APPROVER_ID}         - Approver's user ID
+${APPROVER_NAME}       - Approver's full name
+${APPROVER_EMAIL}      - Approver's email address
+APPROVER_SIGNATURE     - Approver's signature image (name the image placeholder without ${})
+${APPROVAL_DATE}       - Date of approval
+${APPROVAL_COMMENTS}   - Approver's comments
+${REJECTED_REASON}     - Reason for rejection (if applicable)
+
+## Service Staff Information
+${SERVICE_STAFF_ID}    - Service staff's user ID 
+${SERVICE_STAFF_NAME}  - Service staff's full name
+${SERVICE_STAFF_EMAIL} - Service staff's email address
+SERVICE_STAFF_SIGNATURE - Service staff's signature image (name the image placeholder without ${})
+${SERVICE_DATE}        - Date when service was completed
+${SERVICE_NOTES}       - Service staff notes/comments
+
+## Dynamic Form Fields
+# Each form field from the panel will have a placeholder with its field name
+# Examples:
+${FIELD_NAME}          - Replace with actual field name in uppercase
+${CUSTOMER_NAME}       - Example for a field named "customer_name"
+${PROJECT_ID}          - Example for a field named "project_id"
+${DESCRIPTION}         - Example for a field named "description"
+${QUANTITY}            - Example for a field named "quantity"
+${REQUEST_TYPE}        - Example for a field named "request_type"
+
+## Dates and Meta Information
+${COMPLETED_DATE}      - Date when form was marked as completed
+${GENERATED_DATE}      - Current date when PDF is generated
+${GENERATED_BY}        - User who generated the PDF
+${PAGE}                - Current page number (added automatically by Word)
+${TOTAL_PAGES}         - Total number of pages (added automatically by Word)

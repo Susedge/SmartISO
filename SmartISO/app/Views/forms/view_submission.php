@@ -47,7 +47,7 @@
         <?php if ($submission['status'] === 'approved' && !empty($approver)): ?>
             <div class="card mb-4">
                 <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">Approval Information</h5>
+                    <h5 class="mb-0 text-white">Approval Information</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
@@ -57,16 +57,6 @@
                             <?php if (!empty($submission['approval_comments'])): ?>
                                 <p><strong>Comments:</strong> <?= esc($submission['approval_comments']) ?></p>
                             <?php endif; ?>
-                        </div>
-                        <div class="col-md-6 text-center">
-                            <h6>Approval Signature</h6>
-                            <div class="border p-3">
-                                <?php if (!empty($approver['signature'])): ?>
-                                    <img src="<?= base_url('uploads/signatures/' . $approver['signature']) ?>" alt="Approver Signature" class="img-fluid" style="max-height: 100px;">
-                                <?php else: ?>
-                                    <p class="text-muted">Digital approval recorded without signature image.</p>
-                                <?php endif; ?>
-                            </div>
                         </div>
                     </div>
                 </div>

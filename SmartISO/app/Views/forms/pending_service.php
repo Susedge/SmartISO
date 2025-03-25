@@ -2,7 +2,7 @@
 
 <?= $this->section('content') ?>
 <div class="card">
-    <div class="card-header">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h3><?= $title ?></h3>
     </div>
     <div class="card-body">
@@ -15,35 +15,29 @@
         <?php endif; ?>
         
         <?php if (empty($submissions)): ?>
-            <div class="alert alert-info">
-                <i class="fas fa-info-circle me-2"></i>
-                No forms are currently awaiting service.
-            </div>
+            <div class="alert alert-info">There are no forms waiting for service.</div>
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Form</th>
                             <th>Requestor</th>
-                            <th>Approved By</th>
                             <th>Approval Date</th>
-                            <th>Action</th>
+                            <th>Department</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($submissions as $submission): ?>
+                        <?php foreach ($submissions as $item): ?>
                         <tr>
-                            <td><?= $submission['id'] ?></td>
-                            <td><?= esc($submission['form_code']) ?> - <?= esc($submission['form_description']) ?></td>
-                            <td><?= esc($submission['submitted_by_name']) ?></td>
-                            <td><?= esc($submission['approver_name']) ?></td>
-                            <td><?= date('M d, Y', strtotime($submission['approver_signature_date'])) ?></td>
+                            <td><?= esc($item['form_code']) ?> - <?= esc($item['form_description']) ?></td>
+                            <td><?= esc($item['requestor_name']) ?></td>
+                            <td><?= isset($item['approved_at']) ? date('M d, Y', strtotime($item['approved_at'])) : date('M d, Y', strtotime($item['updated_at'])) ?></td>
+                            <td><?= esc($item['department_name'] ?? 'N/A') ?></td>
                             <td>
-                                <a href="<?= base_url('forms/service-form/' . $submission['id']) ?>" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-tools me-1"></i> Process
-                                </a>
+                                <a href="<?= base_url('forms/service/' . $item['id']) ?>" class="btn btn-sm btn-primary">Service</a>
+                                <a href="<?= base_url('forms/submission/' . $item['id']) ?>" class="btn btn-sm btn-info">View</a>
                             </td>
                         </tr>
                         <?php endforeach; ?>

@@ -88,6 +88,7 @@
                             <option value="dropdown">Dropdown</option>
                             <option value="textarea">Text Area</option>
                             <option value="datepicker">Date Picker</option>
+                            <option value="yesno">Yes/No</option>
                         </select>
                     </div>
                     

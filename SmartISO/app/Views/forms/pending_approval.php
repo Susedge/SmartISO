@@ -39,7 +39,7 @@
                             <td><?= esc($submission['submitted_by_name']) ?></td>
                             <td><?= date('M d, Y H:i:s', strtotime($submission['created_at'])) ?></td>
                             <td>
-                                <a href="<?= base_url('forms/approval-form/' . $submission['id']) ?>" class="btn btn-sm btn-primary">
+                                <a href="<?= base_url('forms/approve/' . $submission['id']) ?>" class="btn btn-sm btn-primary">
                                     <i class="fas fa-signature me-1"></i> Review & Sign
                                 </a>
                             </td>

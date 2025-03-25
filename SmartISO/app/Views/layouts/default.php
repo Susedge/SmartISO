@@ -26,12 +26,13 @@
                 <span class="fw-bold">Smart<span class="text-primary">ISO</span></span>
             </a>
             
-            <!-- Sidebar Toggle -->
-            <?php if(uri_string() == 'dashboard' || strpos(uri_string(), 'admin/') === 0): ?>
+            <!-- Sidebar Toggle - Only shown if logged in -->
+            <?php if(session()->get('isLoggedIn')): ?>
                 <button class="btn btn-icon btn-sm order-1 order-lg-0 me-4 me-lg-0" id="sidebarToggle">
                     <i class="fas fa-bars"></i>
                 </button>
-            <?php endif; ?>    
+            <?php endif; ?>
+                
             <!-- Navbar -->
             <ul class="navbar-nav ms-auto">
                 <!-- User Menu -->
@@ -65,7 +66,10 @@
         </div>
     </nav>
 
-    <?php if(uri_string() == 'dashboard' || strpos(uri_string(), 'admin/') === 0 || strpos(uri_string(), 'forms') === 0): ?>
+    <?php 
+    // Show sidebar only for logged in users
+    if(session()->get('isLoggedIn')): 
+    ?>
     <!-- Layout with sidebar -->
     <div id="layoutSidenav">
         <div id="layoutSidenav_nav">
@@ -74,13 +78,13 @@
                     <div class="nav">
                         <div class="sidebar-heading">MAIN MENU</div>
                         
-                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'dashboard' ? 'active' : '' ?>" href="<?= base_url('dashboard') ?>">
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'dashboard' ? 'active' : '' ?>" href="<?= base_url('/dashboard') ?>">
                             <div class="nav-link-icon"><i class="fas fa-tachometer-alt me-2"></i></div>
                             <span>Dashboard</span>
                         </a>
                         
-                        <!-- For regular users only -->
-                        <?php if(session()->get('isLoggedIn') && !in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                        <!-- For regular users (requestor) -->
+                        <?php if(session()->get('user_type') === 'requestor'): ?>
                             <div class="sidebar-heading">FORMS</div>
 
                             <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms' ? 'active' : '' ?>" href="<?= base_url('forms') ?>">
@@ -94,8 +98,53 @@
                             </a>
                         <?php endif; ?>
                         
+                        <!-- For approving authority -->
+                        <?php if(session()->get('user_type') === 'approving_authority'): ?>
+                            <div class="sidebar-heading">APPROVALS</div>
+
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/pending-approval' ? 'active' : '' ?>" href="<?= base_url('forms/pending-approval') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-clipboard-check me-2"></i></div>
+                                <span>Pending Approvals</span>
+                            </a>
+
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/approved-by-me' ? 'active' : '' ?>" href="<?= base_url('forms/approved-by-me') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-thumbs-up me-2"></i></div>
+                                <span>Approved Forms</span>
+                            </a>
+                        
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/rejected-by-me' ? 'active' : '' ?>" href="<?= base_url('forms/rejected-by-me') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-thumbs-down me-2"></i></div>
+                                <span>Rejected Forms</span>
+                            </a>
+                        
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/completed' ? 'active' : '' ?>" href="<?= base_url('forms/completed') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-check-circle me-2"></i></div>
+                                <span>Completed Forms</span>
+                            </a>
+                        <?php endif; ?>
+                        
+                        <!-- For service staff -->
+                        <?php if(session()->get('user_type') === 'service_staff'): ?>
+                            <div class="sidebar-heading">SERVICE REQUESTS</div>
+
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/pending-service' ? 'active' : '' ?>" href="<?= base_url('forms/pending-service') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-tools me-2"></i></div>
+                                <span>Pending Service</span>
+                            </a>
+
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/serviced-by-me' ? 'active' : '' ?>" href="<?= base_url('forms/serviced-by-me') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-hands-helping me-2"></i></div>
+                                <span>My Serviced Forms</span>
+                            </a>
+                        
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/completed' ? 'active' : '' ?>" href="<?= base_url('forms/completed') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-check-circle me-2"></i></div>
+                                <span>Completed Forms</span>
+                            </a>
+                        <?php endif; ?>
+                        
                         <!-- Admin section -->
-                        <?php if(session()->get('isLoggedIn') && in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                        <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <div class="sidebar-heading">ADMINISTRATION</div>
                         
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dashboard' ? 'active' : '' ?>" href="<?= base_url('admin/dashboard') ?>">
@@ -126,12 +175,10 @@
                             <span>Review Submissions</span>
                         </a>
                         
-                        <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
                             <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
                             <span>Users</span>
                         </a>
-                        <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -172,7 +219,7 @@
                     <div class="fade-in">
                         <?= $this->renderSection('content') ?>
                     </div>
-                </div>
+                    </div>
             </main>
             <footer class="py-4 mt-auto">
                 <div class="container-fluid px-4">
@@ -190,7 +237,7 @@
         </div>
     </div>
     <?php else: ?>
-    <!-- Regular layout without sidebar -->
+    <!-- Regular layout without sidebar (for non-logged in users) -->
     <main>
         <div class="container py-5">
             <?php if(session()->getFlashdata('message')): ?>
@@ -260,3 +307,4 @@
     </script>
 </body>
 </html>
+
