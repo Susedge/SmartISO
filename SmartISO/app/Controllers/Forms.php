@@ -141,23 +141,32 @@ class Forms extends BaseController
     
     public function pendingService()
     {
-        $userType = session()->get('user_type');
+        $userId = session()->get('user_id');
         
-        if ($userType !== 'service_staff' && $userType !== 'admin') {
-            return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
-        }
+        // Get submissions pending service
+        $builder = $this->formSubmissionModel->builder();
+        $builder->select('
+            form_submissions.id, 
+            form_submissions.form_id, 
+            form_submissions.submitted_by, 
+            form_submissions.status, 
+            form_submissions.approved_at, 
+            form_submissions.updated_at,
+            forms.code as form_code, 
+            forms.description as form_description,
+            requestor.full_name as requestor_name,
+            departments.description as department_name
+        ');
+        $builder->join('forms', 'forms.id = form_submissions.form_id');
+        $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
+        $builder->join('departments', 'departments.id = requestor.department_id', 'left');
         
-        // Get approved forms that have not been serviced yet
-        $builder = $this->db->table('form_submissions fs');
-        $builder->select('fs.*, f.code as form_code, f.description as form_description, 
-                        u.full_name as requestor_name, d.description as department_name')
-                ->join('forms f', 'f.id = fs.form_id', 'left')
-                ->join('users u', 'u.id = fs.submitted_by', 'left')
-                ->join('users submitter', 'submitter.id = fs.submitted_by', 'left')
-                ->join('departments d', 'd.id = submitter.department_id', 'left')
-                ->where('fs.status', 'approved')
-                ->where('fs.service_staff_id IS NULL');
-                
+        // Filter for forms assigned to this service staff and with status 'pending_service'
+        $builder->where('form_submissions.service_staff_id', $userId);
+        $builder->where('form_submissions.status', 'pending_service');
+        
+        $builder->orderBy('form_submissions.approved_at', 'DESC');
+        
         $submissions = $builder->get()->getResultArray();
         
         $data = [
@@ -204,38 +213,60 @@ class Forms extends BaseController
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
         
-        // For requestors, only show their own completed forms
-        if ($userType === 'requestor') {
-            $submissions = $this->formSubmissionModel->where('submitted_by', $userId)
-                                                ->where('status', 'completed')
-                                                ->findAll();
+        // Build a query to get completed forms with all necessary details
+        $builder = $this->db->table('form_submissions fs');
+        
+        // First, let's determine which completion date field exists
+        $completionDateField = '';
+        if ($this->db->fieldExists('completed_date', 'form_submissions')) {
+            $completionDateField = 'fs.completed_date';
+        } elseif ($this->db->fieldExists('completed_at', 'form_submissions')) {
+            $completionDateField = 'fs.completed_at';
         } else {
-            // For approvers and service staff, show all completed forms
-            $submissions = $this->formSubmissionModel->where('status', 'completed')
-                                                ->findAll();
+            $completionDateField = 'fs.updated_at'; // Fallback
         }
         
-        // Get additional details for each submission
-        $submissionsWithDetails = [];
-        foreach ($submissions as $submission) {
-            // Get form details
-            $form = $this->formModel->find($submission['form_id']);
-            $submissionWithDetails = $submission;
-            
-            if ($form) {
-                $submissionWithDetails['form_code'] = $form['code'];
-                $submissionWithDetails['form_description'] = $form['description'];
-            } else {
-                $submissionWithDetails['form_code'] = 'Unknown';
-                $submissionWithDetails['form_description'] = 'Unknown Form';
-            }
-            
-            $submissionsWithDetails[] = $submissionWithDetails;
+        // Build the select statement with only existing columns
+        $select = "
+            fs.id, 
+            fs.form_id, 
+            fs.submitted_by, 
+            fs.approver_id,
+            fs.service_staff_id,
+            fs.status, 
+            fs.created_at,
+            fs.updated_at,
+            fs.approved_at,
+            fs.service_staff_signature_date,
+            {$completionDateField} as completion_date,
+            f.code as form_code, 
+            f.description as form_description,
+            requestor.full_name as requestor_name,
+            approver.full_name as approver_name,
+            service_staff.full_name as service_staff_name,
+            d.description as department_name
+        ";
+        
+        $builder->select($select);
+        $builder->join('forms f', 'f.id = fs.form_id', 'left');
+        $builder->join('users requestor', 'requestor.id = fs.submitted_by', 'left');
+        $builder->join('users approver', 'approver.id = fs.approver_id', 'left');
+        $builder->join('users service_staff', 'service_staff.id = fs.service_staff_id', 'left');
+        $builder->join('departments d', 'd.id = requestor.department_id', 'left');
+        $builder->where('fs.status', 'completed');
+        
+        // For requestors, only show their own completed forms
+        if ($userType === 'requestor') {
+            $builder->where('fs.submitted_by', $userId);
         }
+        
+        $builder->orderBy('fs.id', 'DESC');
+        
+        $submissions = $builder->get()->getResultArray();
         
         $data = [
             'title' => 'Completed Forms',
-            'submissions' => $submissionsWithDetails
+            'submissions' => $submissions
         ];
         
         return view('forms/completed', $data);
@@ -419,7 +450,7 @@ class Forms extends BaseController
                         ->with('message', 'Form rejected');
     }
     
-    public function approveForm($id)
+    public function approveForm($submissionId)
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
@@ -428,41 +459,43 @@ class Forms extends BaseController
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
-        $submission = $this->formSubmissionModel->find($id);
+        // Get submission details
+        $submission = $this->formSubmissionModel->find($submissionId);
         
-        if (!$submission || $submission['status'] !== 'submitted') {
+        if (!$submission) {
             return redirect()->to('/forms/pending-approval')
-                            ->with('error', 'Form not found or cannot be approved');
+                        ->with('error', 'Submission not found');
         }
         
         // Get form details
         $form = $this->formModel->find($submission['form_id']);
         
-        // Get panel fields
-        $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
-        
-        // Get submission data
-        $submissionData = $this->formSubmissionDataModel->getSubmissionDataAsArray($id);
-        
         // Get requestor details
         $requestor = $this->userModel->find($submission['submitted_by']);
         
-        // Check if user has signature
-        $currentUser = $this->userModel->find($userId);
-        $hasSignature = !empty($currentUser['signature']);
+        // Get submission data
+        $submissionData = $this->formSubmissionDataModel->getSubmissionDataAsArray($submissionId);
+        
+        // Get panel fields
+        $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
+        
+        // Get available service staff - NEW CODE
+        $userModel = new \App\Models\UserModel();
+        $serviceStaff = $userModel->where('user_type', 'service_staff')
+                             ->where('active', 1)
+                             ->findAll();
         
         $data = [
-            'title' => 'Approve Form',
+            'title' => 'Approve Form: ' . $form['code'],
             'submission' => $submission,
             'form' => $form,
-            'panel_fields' => $panelFields,
-            'submission_data' => $submissionData,
             'requestor' => $requestor,
-            'hasSignature' => $hasSignature,
-            'current_user' => $currentUser
+            'submissionData' => $submissionData,
+            'panelFields' => $panelFields,
+            'serviceStaff' => $serviceStaff // NEW: Pass service staff to the view
         ];
         
-        return view('forms/approval_form', $data);
+        return view('forms/approve', $data);
     }
 
     /**
@@ -470,6 +503,7 @@ class Forms extends BaseController
      */
     public function serviceForm($id)
     {
+        $userId = session()->get('user_id');
         $userType = session()->get('user_type');
         
         if ($userType !== 'service_staff' && $userType !== 'admin') {
@@ -478,9 +512,28 @@ class Forms extends BaseController
         
         $submission = $this->formSubmissionModel->find($id);
         
-        if (!$submission || $submission['status'] !== 'approved' || !empty($submission['service_staff_id'])) {
+        if (!$submission) {
             return redirect()->to('/forms/pending-service')
-                        ->with('error', 'Form not found or cannot be serviced');
+                    ->with('error', 'Form not found');
+        }
+        
+        // Check if this form is assigned to the current service staff
+        if ($userType === 'service_staff' && $submission['service_staff_id'] != $userId) {
+            return redirect()->to('/forms/pending-service')
+                    ->with('error', 'This form is not assigned to you');
+        }
+        
+        // Check if the form is in the correct status for servicing
+        // Accept both 'approved' and 'pending_service' statuses for backward compatibility
+        if (!in_array($submission['status'], ['approved', 'pending_service'])) {
+            return redirect()->to('/forms/pending-service')
+                    ->with('error', 'This form is not ready for service');
+        }
+        
+        // Check if the form has already been serviced
+        if (!empty($submission['service_staff_signature_date'])) {
+            return redirect()->to('/forms/pending-service')
+                    ->with('error', 'This form has already been serviced');
         }
         
         // Get form details
@@ -676,46 +729,33 @@ class Forms extends BaseController
     public function approvedByMe()
     {
         $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
         
-        if ($userType !== 'approving_authority' && $userType !== 'admin') {
-            return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
-        }
+        // Get submissions approved by the current user
+        $builder = $this->formSubmissionModel->builder();
+        $builder->select('
+            form_submissions.id, 
+            form_submissions.form_id, 
+            form_submissions.submitted_by, 
+            form_submissions.status, 
+            form_submissions.approved_at, 
+            form_submissions.updated_at,
+            form_submissions.service_staff_id, 
+            forms.code as form_code, 
+            forms.description as form_description,
+            requestor.full_name as requestor_name,
+            service_staff.full_name as service_staff_name
+        ');
+        $builder->join('forms', 'forms.id = form_submissions.form_id');
+        $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
+        $builder->join('users as service_staff', 'service_staff.id = form_submissions.service_staff_id', 'left'); // Left join to include submissions without service staff
+        $builder->where('form_submissions.approver_id', $userId);
+        $builder->orderBy('form_submissions.approved_at', 'DESC');
         
-        // Get forms approved by this user
-        $submissions = $this->formSubmissionModel->where('approver_id', $userId)
-                                            ->where('status', 'approved')
-                                            ->findAll();
-        
-        // Enhance submissions with form details
-        $submissionsWithDetails = [];
-        foreach ($submissions as $submission) {
-            // Get form details
-            $form = $this->formModel->find($submission['form_id']);
-            $submissionWithDetails = $submission;
-            
-            if ($form) {
-                $submissionWithDetails['form_code'] = $form['code'];
-                $submissionWithDetails['form_description'] = $form['description'];
-            } else {
-                $submissionWithDetails['form_code'] = 'Unknown';
-                $submissionWithDetails['form_description'] = 'Unknown Form';
-            }
-            
-            // Get requestor details
-            $requestor = $this->userModel->find($submission['submitted_by']);
-            if ($requestor) {
-                $submissionWithDetails['requestor_name'] = $requestor['full_name'];
-            } else {
-                $submissionWithDetails['requestor_name'] = 'Unknown User';
-            }
-            
-            $submissionsWithDetails[] = $submissionWithDetails;
-        }
+        $submissions = $builder->get()->getResultArray();
         
         $data = [
             'title' => 'Forms Approved By Me',
-            'submissions' => $submissionsWithDetails
+            'submissions' => $submissions
         ];
         
         return view('forms/approved_by_me', $data);
@@ -785,36 +825,40 @@ class Forms extends BaseController
         }
         
         $submissionId = $this->request->getPost('submission_id');
-        $comments = $this->request->getPost('approval_comments') ?? '';
+        $action = $this->request->getPost('action');
+        $comments = $this->request->getPost('comments');
+        $serviceStaffId = $this->request->getPost('service_staff_id'); // NEW: Get selected service staff
         
+        // Get the submission
         $submission = $this->formSubmissionModel->find($submissionId);
         
-        if (!$submission || $submission['status'] !== 'submitted') {
+        if (!$submission) {
             return redirect()->to('/forms/pending-approval')
-                            ->with('error', 'Form not found or cannot be approved');
+                        ->with('error', 'Submission not found');
         }
         
-        // Record approver signature and update status
-        // Here we use the simple update method to avoid database column issues
-        $updateData = [
-            'status' => 'approved',
-            'approver_id' => $userId
-        ];
-        
-        // Add approved_at if the column exists
-        if ($this->db->fieldExists('approved_at', 'form_submissions')) {
-            $updateData['approved_at'] = date('Y-m-d H:i:s');
+        // Update submission based on action
+        if ($action === 'approve') {
+            $updateData = [
+                'status' => 'pending_service',
+                'approver_id' => session()->get('user_id'),
+                'approved_at' => date('Y-m-d H:i:s'),
+                'approval_comments' => $comments,
+                'service_staff_id' => $serviceStaffId, // NEW: Save selected service staff
+            ];
+            
+            $this->formSubmissionModel->update($submissionId, $updateData);
+            
+            // Send notification to service staff - you can implement this
+            
+            return redirect()->to('/forms/approved-by-me')
+                        ->with('message', 'Form has been approved and assigned to service staff.');
+        } elseif ($action === 'reject') {
+            // Existing rejection code...
         }
-        
-        // Add approval_comments if the column exists
-        if ($this->db->fieldExists('approval_comments', 'form_submissions')) {
-            $updateData['approval_comments'] = $comments;
-        }
-        
-        $this->formSubmissionModel->update($submissionId, $updateData);
         
         return redirect()->to('/forms/pending-approval')
-                        ->with('message', 'Form approved successfully');
+                    ->with('error', 'Invalid action');
     }
 
     /**
@@ -878,22 +922,36 @@ class Forms extends BaseController
         
         $submission = $this->formSubmissionModel->find($submissionId);
         
-        if (!$submission || $submission['status'] !== 'approved' || !empty($submission['service_staff_id'])) {
+        if (!$submission) {
             return redirect()->to('/forms/pending-service')
-                            ->with('error', 'Form not found or cannot be serviced');
+                        ->with('error', 'Form not found');
+        }
+        
+        // Check if this form is assigned to the current service staff
+        if ($userType === 'service_staff' && $submission['service_staff_id'] != $userId) {
+            return redirect()->to('/forms/pending-service')
+                        ->with('error', 'This form is not assigned to you');
+        }
+        
+        // Check if the form is in the correct status for servicing
+        if (!in_array($submission['status'], ['approved', 'pending_service'])) {
+            return redirect()->to('/forms/pending-service')
+                        ->with('error', 'This form is not ready for service');
+        }
+        
+        // Check if the form has already been serviced
+        if (!empty($submission['service_staff_signature_date'])) {
+            return redirect()->to('/forms/pending-service')
+                        ->with('error', 'This form has already been serviced');
         }
         
         // Record service staff signature
         $updateData = [
-            'service_staff_id' => $userId,
-            'status' => 'completed', // Update status to completed
-            'completed' => 1 // Add completed flag
+            'status' => 'completed', // Set status to completed after service
+            'completed' => 1, // Add completed flag
+            'service_staff_signature_date' => date('Y-m-d H:i:s'),
+            'service_notes' => $notes
         ];
-        
-        // Add service_staff_signature_date if the column exists
-        if ($this->db->fieldExists('service_staff_signature_date', 'form_submissions')) {
-            $updateData['service_staff_signature_date'] = date('Y-m-d H:i:s');
-        }
         
         // Add completed_date if the column exists
         if ($this->db->fieldExists('completed_date', 'form_submissions')) {
@@ -902,15 +960,10 @@ class Forms extends BaseController
             $updateData['completed_at'] = date('Y-m-d H:i:s');
         }
         
-        // Add service_notes if the column exists
-        if ($this->db->fieldExists('service_notes', 'form_submissions')) {
-            $updateData['service_notes'] = $notes;
-        }
-        
         $this->formSubmissionModel->update($submissionId, $updateData);
         
-        return redirect()->to('/forms/pending-service')
-                        ->with('message', 'Service recorded successfully');
+        return redirect()->to('/forms/serviced-by-me')
+                    ->with('message', 'Service completed and form signed successfully');
     }    
 
     public function export($id, $format = 'pdf')

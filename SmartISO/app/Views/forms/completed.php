@@ -1,6 +1,16 @@
 <?= $this->extend('layouts/default') ?>
 
 <?= $this->section('content') ?>
+
+<style>
+    .table td .dropdown-menu {
+        overflow: visible;
+        min-width: auto;
+    }
+    .table .btn-group {
+        position: static;
+    }
+</style>
 <div class="card">
     <div class="card-header">
         <h3><?= $title ?></h3>
@@ -26,6 +36,8 @@
                         <tr>
                             <th>ID</th>
                             <th>Form</th>
+                            <th>Requestor</th>
+                            <th>Approved By</th>
                             <th>Completion Date</th>
                             <th>Action</th>
                         </tr>
@@ -33,8 +45,10 @@
                     <tbody>
                         <?php foreach ($submissions as $submission): ?>
                         <tr>
-                        <td><?= $submission['id'] ?></td>
+                            <td><?= $submission['id'] ?></td>
                             <td><?= esc($submission['form_code']) ?> - <?= esc($submission['form_description']) ?></td>
+                            <td><?= esc($submission['requestor_name'] ?? 'Unknown') ?></td>
+                            <td><?= esc($submission['approver_name'] ?? 'N/A') ?></td>
                             <td><?= date('M d, Y', strtotime($submission['completion_date'])) ?></td>
                             <td>
                                 <a href="<?= base_url('forms/submission/' . $submission['id']) ?>" class="btn btn-sm btn-info me-1">
@@ -44,11 +58,10 @@
                                     <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                                         Export
                                     </button>
-                                    <ul class="dropdown-menu">
+                                    <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/pdf') ?>">
-                                            <i class="fas fa-file-pdf me-2 text-danger"></i> PDF
-                                        </a></li>
-                                        <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/excel') ?>">
+                                            <i class="fas fa-file-word me-2 text-primary"></i> Word
+                                        </a></li>                                        <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/excel') ?>">
                                             <i class="fas fa-file-excel me-2 text-success"></i> Excel
                                         </a></li>
                                     </ul>
@@ -63,4 +76,3 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-

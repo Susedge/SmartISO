@@ -5,10 +5,10 @@
 - Uncomment `extension=intl` on php.ini
 - Uncomment `extension=gd` on php.ini
 - Uncomment `extension=zip` on php.ini
-- Run `composer install`
-- Create 'smartiso' db
-- Run php spark:migrate
-- Run php spark serve
+- Run - composer install
+- Create 'smartiso' db in phpMyAdmin
+- Run -  php spark:migrate
+- Run - php spark serve
 
 ADMIN 
 - Create accounts for “APPROVING AUTHORITIES” and “SERVICE STAFF”.
@@ -35,5 +35,9 @@ Send the completed request form back to the requestor for signature that the wor
 - View all completed ISO request form for record
 
 
-
-
+# Test Accounts
+password: password123
+- admin_user
+- approver_user
+- requestor_user
+- service_user

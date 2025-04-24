@@ -24,6 +24,7 @@
                             <th>Form</th>
                             <th>Requestor</th>
                             <th>Approval Date</th>
+                            <th>Service Staff</th>
                             <th>Current Status</th>
                             <th>Actions</th>
                         </tr>
@@ -34,6 +35,13 @@
                             <td><?= esc($item['form_code']) ?> - <?= esc($item['form_description']) ?></td>
                             <td><?= esc($item['requestor_name']) ?></td>
                             <td><?= isset($item['approved_at']) ? date('M d, Y', strtotime($item['approved_at'])) : date('M d, Y', strtotime($item['updated_at'])) ?></td>
+                            <td>
+                                <?php if (!empty($item['service_staff_name'])): ?>
+                                    <?= esc($item['service_staff_name']) ?>
+                                <?php else: ?>
+                                    <span class="text-muted">Not assigned</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <?php if ($item['status'] == 'completed'): ?>
                                     <span class="badge bg-success">Completed</span>
@@ -55,4 +63,3 @@
     </div>
 </div>
 <?= $this->endSection() ?>
-

@@ -236,52 +236,58 @@ class PdfGenerator extends BaseController
     {
         // Add requestor signature if available
         if (!empty($requestor['signature'])) {
-            $signaturePath = FCPATH . 'uploads/signatures/' . $requestor['signature'];
+            $signaturePath = strpos($requestor['signature'], 'uploads/signatures/') === 0 
+                ? FCPATH . $requestor['signature'] 
+                : FCPATH . 'uploads/signatures/' . $requestor['signature'];
+            
             if (file_exists($signaturePath)) {
+                log_message('info', 'Requestor signature image found: ' . $requestor['signature'] . ' for user ID: ' . $requestor['id']);
                 try {
-                    $imageOptions = [
-                        'width' => 100,
-                        'height' => 50,
-                        'ratio' => true
-                    ];
-                    $templateProcessor->setImageValue('REQUESTOR_SIGNATURE', $signaturePath, $imageOptions);
+                    // Try using the simpler version without the options array
+                    $templateProcessor->setImageValue('REQUESTOR_SIGNATURE', $signaturePath);
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to add requestor signature: ' . $e->getMessage());
                 }
+            } else {
+                log_message('warning', 'Requestor signature file not found: ' . $signaturePath);
             }
         }
         
         // Add approver signature if available
         if ($approver && !empty($approver['signature'])) {
-            $signaturePath = FCPATH . 'uploads/signatures/' . $approver['signature'];
+            $signaturePath = strpos($approver['signature'], 'uploads/signatures/') === 0 
+                ? FCPATH . $approver['signature'] 
+                : FCPATH . 'uploads/signatures/' . $approver['signature'];
+            
             if (file_exists($signaturePath)) {
+                log_message('info', 'Approver signature image found: ' . $approver['signature'] . ' for user ID: ' . $approver['id']);
                 try {
-                    $imageOptions = [
-                        'width' => 100,
-                        'height' => 50,
-                        'ratio' => true
-                    ];
-                    $templateProcessor->setImageValue('APPROVER_SIGNATURE', $signaturePath, $imageOptions);
+                    // Try using the simpler version without the options array
+                    $templateProcessor->setImageValue('APPROVER_SIGNATURE', $signaturePath);
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to add approver signature: ' . $e->getMessage());
                 }
+            } else {
+                log_message('warning', 'Approver signature file not found: ' . $signaturePath);
             }
         }
         
         // Add service staff signature if available
         if ($serviceStaff && !empty($serviceStaff['signature'])) {
-            $signaturePath = FCPATH . 'uploads/signatures/' . $serviceStaff['signature'];
+            $signaturePath = strpos($serviceStaff['signature'], 'uploads/signatures/') === 0 
+                ? FCPATH . $serviceStaff['signature'] 
+                : FCPATH . 'uploads/signatures/' . $serviceStaff['signature'];
+            
             if (file_exists($signaturePath)) {
+                log_message('info', 'Service staff signature image found: ' . $serviceStaff['signature'] . ' for user ID: ' . $serviceStaff['id']);
                 try {
-                    $imageOptions = [
-                        'width' => 100,
-                        'height' => 50,
-                        'ratio' => true
-                    ];
-                    $templateProcessor->setImageValue('SERVICE_STAFF_SIGNATURE', $signaturePath, $imageOptions);
+                    // Try using the simpler version without the options array
+                    $templateProcessor->setImageValue('SERVICE_STAFF_SIGNATURE', $signaturePath);
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to add service staff signature: ' . $e->getMessage());
                 }
+            } else {
+                log_message('warning', 'Service staff signature file not found: ' . $signaturePath);
             }
         }
     }
