@@ -83,7 +83,7 @@
                         <div class="mb-3">
                             <p>By signing this form, you confirm that the requested service has been completed to your satisfaction.</p>
                             <div class="border p-3 text-center">
-                                <img src="<?= base_url('uploads/signatures/' . $current_user['signature']) ?>" alt="Your Signature" class="img-fluid" style="max-height: 100px;">
+                                <img src="<?= base_url($current_user['signature']) ?>" alt="Your Signature" class="img-fluid" style="max-height: 100px;">
                             </div>
                         </div>
                         <div class="alert alert-info">

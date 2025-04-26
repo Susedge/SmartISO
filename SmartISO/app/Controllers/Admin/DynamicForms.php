@@ -96,7 +96,8 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]'
+            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]',
+            'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         
         if ($this->validate($rules)) {
@@ -113,7 +114,8 @@ class DynamicForms extends BaseController
                 'length' => $this->request->getPost('length'),
                 'field_order' => $this->request->getPost('field_order') ?? 0,
                 'required' => (int)$this->request->getPost('required'),
-                'width' => $this->request->getPost('width') ?? 6
+                'width' => $this->request->getPost('width') ?? 6,
+                'field_role' => $this->request->getPost('field_role') ?? 'both'
             ]);
             
             return redirect()->to('/admin/dynamicforms/edit-panel/' . $this->request->getPost('panel_name'))
@@ -148,7 +150,8 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]'
+            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]',
+            'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         
         if ($this->validate($rules)) {
@@ -166,7 +169,8 @@ class DynamicForms extends BaseController
                 'length' => $this->request->getPost('length'),
                 'field_order' => $this->request->getPost('field_order'),
                 'required' => (int)$this->request->getPost('required'),
-                'width' => $this->request->getPost('width') ?? 6
+                'width' => $this->request->getPost('width') ?? 6,
+                'field_role' => $this->request->getPost('field_role') ?? 'both'
             ]);
             
             return redirect()->to('/admin/dynamicforms/edit-panel/' . $panelName)

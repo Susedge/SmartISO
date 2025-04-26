@@ -149,7 +149,7 @@
                         </div>
                     </div>
                     <?php elseif(session()->get('user_type') === 'service_staff'): ?>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="card bg-primary text-white mb-3">
                             <div class="card-body text-center">
                                 <h5>Pending Service</h5>
@@ -157,7 +157,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="card bg-success text-white mb-3">
                             <div class="card-body text-center">
                                 <h5>Serviced by Me</h5>
@@ -165,7 +165,15 @@
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <div class="card bg-danger text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Rejected</h5>
+                                <h2><?= $statusSummary['rejected'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
                         <div class="card bg-info text-white mb-3">
                             <div class="card-body text-center">
                                 <h5>Completed</h5>

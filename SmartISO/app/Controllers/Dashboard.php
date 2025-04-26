@@ -9,29 +9,73 @@ class Dashboard extends BaseController
 {
     public function index()
     {
-        $departmentModel = new DepartmentModel();
-        $formSubmissionModel = new FormSubmissionModel();
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
         
-        // Get user's department if assigned
+        // Get department info if available
+        $departmentId = session()->get('department_id');
         $department = null;
-        if (session()->get('department_id')) {
-            $department = $departmentModel->find(session()->get('department_id'));
+        if ($departmentId) {
+            $departmentModel = new \App\Models\DepartmentModel();
+            $department = $departmentModel->find($departmentId);
         }
         
-        // Initialize status summary array based on user type
+        // Get form status summary based on user type
+        $formSubmissionModel = new \App\Models\FormSubmissionModel();
         $statusSummary = [];
         
         if ($userType === 'requestor') {
-            // For requestors - show their own submission statuses
-            $statusSummary = $this->getRequestorStatusSummary($formSubmissionModel, $userId);
-        } elseif ($userType === 'approving_authority') {
-            // For approvers - show counts of forms they need to approve and have approved/rejected
-            $statusSummary = $this->getApproverStatusSummary($formSubmissionModel, $userId);
-        } elseif ($userType === 'service_staff') {
-            // For service staff - show counts of forms they need to service and have serviced
-            $statusSummary = $this->getServiceStaffStatusSummary($formSubmissionModel, $userId);
+            // For requestors - count their own submissions by status
+            $statusSummary['submitted'] = $formSubmissionModel->where('submitted_by', $userId)
+                                                         ->where('status', 'submitted')
+                                                         ->countAllResults();
+                                                         
+            $statusSummary['approved'] = $formSubmissionModel->where('submitted_by', $userId)
+                                                        ->whereIn('status', ['approved', 'pending_service'])
+                                                        ->countAllResults();
+                                                        
+            $statusSummary['rejected'] = $formSubmissionModel->where('submitted_by', $userId)
+                                                        ->where('status', 'rejected')
+                                                        ->countAllResults();
+                                                        
+            $statusSummary['completed'] = $formSubmissionModel->where('submitted_by', $userId)
+                                                         ->where('status', 'completed')
+                                                         ->countAllResults();
+        } 
+        elseif ($userType === 'approving_authority') {
+            // For approving authorities - count forms they need to approve and ones they've approved
+            $statusSummary['pending_approval'] = $formSubmissionModel->where('status', 'submitted')
+                                                                ->countAllResults();
+                                                                
+            $statusSummary['approved_by_me'] = $formSubmissionModel->where('approver_id', $userId)
+                                                              ->whereIn('status', ['approved', 'pending_service', 'completed'])
+                                                              ->countAllResults();
+                                                              
+            $statusSummary['rejected_by_me'] = $formSubmissionModel->where('approver_id', $userId)
+                                                              ->where('status', 'rejected')
+                                                              ->countAllResults();
+                                                              
+            $statusSummary['completed'] = $formSubmissionModel->where('approver_id', $userId)
+                                                         ->where('status', 'completed')
+                                                         ->countAllResults();
+        }
+        elseif ($userType === 'service_staff') {
+            // For service staff - count forms assigned to them
+            $statusSummary['pending_service'] = $formSubmissionModel->where('service_staff_id', $userId)
+                                                               ->whereIn('status', ['approved', 'pending_service'])
+                                                               ->where('service_staff_signature_date IS NULL')
+                                                               ->countAllResults();
+                                                               
+            $statusSummary['serviced_by_me'] = $formSubmissionModel->where('service_staff_id', $userId)
+                                                              ->where('service_staff_signature_date IS NOT NULL')
+                                                              ->countAllResults();
+                                                              
+            $statusSummary['rejected'] = $formSubmissionModel->where('status', 'rejected')
+                                                        ->countAllResults();
+                                                        
+            $statusSummary['completed'] = $formSubmissionModel->where('service_staff_id', $userId)
+                                                         ->where('status', 'completed')
+                                                         ->countAllResults();
         }
         
         $data = [

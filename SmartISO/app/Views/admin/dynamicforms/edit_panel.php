@@ -29,11 +29,12 @@
                     <th>Field Name</th>
                     <th>Label</th>
                     <th>Type</th>
+                    <th>Role</th>
                     <th>Auto Move</th>
                     <th>Required</th>
-                    <th>Width</th>
+                    <!-- Removed Width column -->
                     <th>Code Table</th>
-                    <th>Length</th>
+                    <!-- Removed Length column -->
                     <th>Order</th>
                     <th>Actions</th>
                 </tr>
@@ -45,11 +46,12 @@
                             <td><?= esc($field['field_name']) ?></td>
                             <td><?= esc($field['field_label']) ?></td>
                             <td><?= esc($field['field_type']) ?></td>
+                            <td><?= esc($field['field_role'] ?? 'both') ?></td>
                             <td><?= $field['bump_next_field'] ? 'Yes' : 'No' ?></td>
                             <td><?= isset($field['required']) && $field['required'] ? 'Yes' : 'No' ?></td>
-                            <td><?= isset($field['width']) ? $field['width'] : '6' ?></td>
+                            <!-- Removed Width column data -->
                             <td><?= esc($field['code_table'] ?? '-') ?></td>
-                            <td><?= $field['length'] ?? '-' ?></td>
+                            <!-- Removed Length column data -->
                             <td><?= $field['field_order'] ?></td>
                             <td>
                                 <button type="button" class="btn btn-sm btn-primary edit-field-btn" 
@@ -57,6 +59,7 @@
                                         data-field-name="<?= esc($field['field_name']) ?>"
                                         data-field-label="<?= esc($field['field_label']) ?>"
                                         data-field-type="<?= $field['field_type'] ?>"
+                                        data-field-role="<?= $field['field_role'] ?? 'both' ?>"
                                         data-bump-next="<?= $field['bump_next_field'] ?>"
                                         data-required="<?= isset($field['required']) ? $field['required'] : '0' ?>"
                                         data-width="<?= isset($field['width']) ? $field['width'] : '6' ?>"
@@ -94,7 +97,7 @@
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="8" class="text-center">No fields configured for this panel</td>
+                            <td colspan="9" class="text-center">No fields configured for this panel</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -137,8 +140,20 @@
                         </select>
                     </div>
                     
+                    <!-- New field role dropdown -->
                     <div class="mb-3">
-                        <label for="bump_next_field" class="form-label">Auto Move to Next Field</label>
+                        <label for="field_role" class="form-label">Field Role</label>
+                        <select class="form-select" id="field_role" name="field_role">
+                            <option value="both" selected>Both (Requestor & Service Staff)</option>
+                            <option value="requestor">Requestor Only</option>
+                            <option value="service_staff">Service Staff Only</option>
+                            <option value="readonly">Read-only After Submission</option>
+                        </select>
+                        <small class="text-muted">Determines who can view and edit this field</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="bump_next_field" class="form-label">Align next field</label>
                         <select class="form-select" id="bump_next_field" name="bump_next_field">
                             <option value="0">No</option>
                             <option value="1">Yes</option>
@@ -227,8 +242,20 @@
                         </select>
                     </div>
                     
+                    <!-- New field role dropdown for edit modal -->
                     <div class="mb-3">
-                        <label for="edit_bump_next_field" class="form-label">Auto Move to Next Field</label>
+                        <label for="edit_field_role" class="form-label">Field Role</label>
+                        <select class="form-select" id="edit_field_role" name="field_role">
+                            <option value="both">Both (Requestor & Service Staff)</option>
+                            <option value="requestor">Requestor Only</option>
+                            <option value="service_staff">Service Staff Only</option>
+                            <option value="readonly">Read-only After Submission</option>
+                        </select>
+                        <small class="text-muted">Determines who can view and edit this field</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit_bump_next_field" class="form-label">Align next field</label>
                         <select class="form-select" id="edit_bump_next_field" name="bump_next_field">
                             <option value="0">No</option>
                             <option value="1">Yes</option>
@@ -294,6 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const fieldName = this.getAttribute('data-field-name');
             const fieldLabel = this.getAttribute('data-field-label');
             const fieldType = this.getAttribute('data-field-type');
+            const fieldRole = this.getAttribute('data-field-role'); // Get the field role
             const bumpNext = this.getAttribute('data-bump-next');
             const required = this.getAttribute('data-required');
             const width = this.getAttribute('data-width');
@@ -306,6 +334,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit_field_name').value = fieldName;
             document.getElementById('edit_field_label').value = fieldLabel;
             document.getElementById('edit_field_type').value = fieldType;
+            document.getElementById('edit_field_role').value = fieldRole; // Set the field role value
             document.getElementById('edit_bump_next_field').value = bumpNext;
             document.getElementById('edit_required').value = required;
             document.getElementById('edit_width').value = width;

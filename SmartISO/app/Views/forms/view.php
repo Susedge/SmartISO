@@ -29,6 +29,24 @@
                     <?php 
                     $isRowOpen = false;
                     foreach ($panel_fields as $index => $field): 
+                        // Determine if this field should be shown to the current user
+                        $userType = session()->get('user_type');
+                        $fieldRole = $field['field_role'] ?? 'both';
+                        
+                        $showField = false;
+                        if ($fieldRole === 'both') {
+                            $showField = true;
+                        } elseif ($fieldRole === 'requestor' && $userType === 'requestor') {
+                            $showField = true;
+                        } elseif ($fieldRole === 'service_staff' && $userType === 'service_staff') {
+                            $showField = true;
+                        } elseif ($fieldRole === 'readonly') {
+                            $showField = true;
+                            $isReadOnly = true;
+                        }
+                        
+                        if (!$showField) continue;
+                        
                         $fieldWidth = isset($field['width']) ? (int)$field['width'] : 6;
                         $isRequired = isset($field['required']) && $field['required'] == 1;
                         $bumpNext = isset($field['bump_next_field']) && $field['bump_next_field'] == 1;

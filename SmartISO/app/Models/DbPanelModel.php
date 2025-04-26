@@ -15,7 +15,7 @@ class DbpanelModel extends Model
     protected $allowedFields = [
         'panel_name', 'field_name', 'field_label', 'field_type', 
         'bump_next_field', 'code_table', 'length', 'field_order',
-        'required', 'width'
+        'required', 'width', 'field_role'
     ];    
     
     protected $useTimestamps = true;

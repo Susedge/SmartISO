@@ -93,7 +93,7 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="bump_next_field" class="form-label">Auto Move to Next Field</label>
+                        <label for="bump_next_field" class="form-label">Align next field</label>
                         <select class="form-select" id="bump_next_field" name="bump_next_field">
                             <option value="0">No</option>
                             <option value="1">Yes</option>

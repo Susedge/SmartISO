@@ -70,19 +70,10 @@ class Forms extends BaseController
     {
         $formId = $this->request->getPost('form_id');
         $panelName = $this->request->getPost('panel_name');
-
-        log_message('debug', 'POST data: ' . json_encode($this->request->getPost()));
+        $userType = session()->get('user_type');
         
-        if (!$formId || !$panelName) {
-            return redirect()->back()->with('error', 'Form ID and Panel Name are required');
-        }
-        
-        // Get all panel fields to validate
+        // Get all panel fields
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
-        
-        if (empty($panelFields)) {
-            return redirect()->back()->with('error', 'No fields configured for this panel');
-        }
         
         // Create a new submission record
         $submissionId = $this->formSubmissionModel->insert([
@@ -92,19 +83,30 @@ class Forms extends BaseController
             'status' => 'submitted'
         ]);
         
-        // Save each field value
+        // Save each field value based on user role
         foreach ($panelFields as $field) {
             $fieldName = $field['field_name'];
-            $fieldValue = $this->request->getPost($fieldName) ?? '';
+            $fieldRole = $field['field_role'] ?? 'both';
             
-            // Debug each field
-            log_message('debug', "Field {$fieldName}: " . ($this->request->getPost($fieldName) ? 'Has value' : 'No value'));
+            // Only save fields that this user role should be able to edit
+            $canEdit = false;
+            if ($fieldRole === 'both') {
+                $canEdit = true;
+            } elseif ($fieldRole === 'requestor' && $userType === 'requestor') {
+                $canEdit = true;
+            } elseif ($fieldRole === 'service_staff' && $userType === 'service_staff') {
+                $canEdit = true;
+            }
             
-            $this->formSubmissionDataModel->insert([
-                'submission_id' => $submissionId,
-                'field_name' => $fieldName,
-                'field_value' => $fieldValue
-            ]);
+            if ($canEdit) {
+                $fieldValue = $this->request->getPost($fieldName) ?? '';
+                
+                $this->formSubmissionDataModel->insert([
+                    'submission_id' => $submissionId,
+                    'field_name' => $fieldName,
+                    'field_value' => $fieldValue
+                ]);
+            }
         }
         
         return redirect()->to('/forms/my-submissions')
@@ -543,6 +545,9 @@ class Forms extends BaseController
         $userModel = new \App\Models\UserModel();
         $requestor = $userModel->find($submission['submitted_by']);
         
+        // Get current user details - ADD THIS
+        $currentUser = $userModel->find($userId);
+        
         // Get panel fields
         $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
         
@@ -555,7 +560,8 @@ class Forms extends BaseController
             'form' => $form,
             'requestor' => $requestor,
             'panel_fields' => $panelFields,
-            'submission_data' => $submissionData
+            'submission_data' => $submissionData,
+            'current_user' => $currentUser  // ADD THIS
         ];
         
         return view('forms/service_form', $data);
@@ -945,12 +951,45 @@ class Forms extends BaseController
                         ->with('error', 'This form has already been serviced');
         }
         
-        // Record service staff signature
+        // Get panel fields to know which ones the service staff can update
+        $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
+        
+        // Process and save each field value
+        foreach ($panelFields as $field) {
+            $fieldName = $field['field_name'];
+            $fieldRole = $field['field_role'] ?? 'both';
+            
+            // Only process fields that service staff can edit
+            if ($fieldRole === 'service_staff' || $fieldRole === 'both') {
+                $fieldValue = $this->request->getPost($fieldName) ?? '';
+                
+                // Check if this field already has a value in the submission
+                $existingData = $this->formSubmissionDataModel->where('submission_id', $submissionId)
+                                                             ->where('field_name', $fieldName)
+                                                             ->first();
+                
+                if ($existingData) {
+                    // Update existing field value
+                    $this->formSubmissionDataModel->update($existingData['id'], [
+                        'field_value' => $fieldValue
+                    ]);
+                } else {
+                    // Insert new field value
+                    $this->formSubmissionDataModel->insert([
+                        'submission_id' => $submissionId,
+                        'field_name' => $fieldName,
+                        'field_value' => $fieldValue
+                    ]);
+                }
+            }
+        }
+        
+        // Record service staff signature and mark as completed immediately
         $updateData = [
-            'status' => 'completed', // Set status to completed after service
-            'completed' => 1, // Add completed flag
+            'status' => 'completed', // Change from 'awaiting_requestor_signature' to 'completed'
             'service_staff_signature_date' => date('Y-m-d H:i:s'),
-            'service_notes' => $notes
+            'service_notes' => $notes,
+            'requestor_signature_date' => date('Y-m-d H:i:s') // Add this to auto-complete the form
         ];
         
         // Add completed_date if the column exists
@@ -963,7 +1002,7 @@ class Forms extends BaseController
         $this->formSubmissionModel->update($submissionId, $updateData);
         
         return redirect()->to('/forms/serviced-by-me')
-                    ->with('message', 'Service completed and form signed successfully');
+                    ->with('message', 'Service completed and form signed successfully. The form has been marked as completed.');
     }    
 
     public function export($id, $format = 'pdf')
