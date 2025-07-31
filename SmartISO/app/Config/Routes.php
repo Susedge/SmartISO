@@ -115,7 +115,16 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->get('dynamicforms/panel', 'Admin\DynamicForms::panel');
     $routes->get('dynamicforms/panel-config', 'Admin\DynamicForms::panelConfig');
     $routes->get('dynamicforms/edit-panel/(:segment)', 'Admin\DynamicForms::editPanel/$1');
+    $routes->get('dynamicforms/form-builder/(:segment)', 'Admin\DynamicForms::formBuilder/$1');
+    $routes->post('dynamicforms/save-form-builder', 'Admin\DynamicForms::saveFormBuilder');
+    $routes->post('dynamicforms/reorder-fields', 'Admin\DynamicForms::reorderFields');
     $routes->post('dynamicforms/add-panel-field', 'Admin\DynamicForms::addPanelField');
+    $routes->post('dynamicforms/create-panel', 'Admin\DynamicForms::createPanel');
+    $routes->post('dynamicforms/copy-panel', 'Admin\DynamicForms::copyPanel');
+    $routes->post('dynamicforms/create-form', 'Admin\DynamicForms::createForm');
+    $routes->post('dynamicforms/update-form', 'Admin\DynamicForms::updateForm');
+    $routes->post('dynamicforms/delete-form', 'Admin\DynamicForms::deleteForm');
+    $routes->post('dynamicforms/delete-panel', 'Admin\DynamicForms::deletePanel');
     $routes->get('dynamicforms/delete-field/(:num)', 'Admin\DynamicForms::deleteField/$1');
     $routes->post('dynamicforms/update-panel-field', 'Admin\DynamicForms::updatePanelField');
     $routes->post('dynamicforms/submit', 'Admin\DynamicForms::submit');
@@ -124,6 +133,7 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->post('dynamicforms/update-status', 'Admin\DynamicForms::updateStatus');
     $routes->get('dynamicforms/export-submission/(:num)/(:alpha)', 'Admin\DynamicForms::exportSubmission/$1/$2');
     $routes->post('dynamicforms/bulk-action', 'Admin\DynamicForms::bulkAction');
+    $routes->post('dynamicforms/rename-panel', 'Admin\DynamicForms::renamePanel');
     
     // User management (accessible to both admin and superuser)
     $routes->get('users', 'Admin\Users::index');

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Builder Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .error { color: red; background: #ffe6e6; padding: 10px; border: 1px solid red; margin: 10px 0; }
+        .success { color: green; background: #e6ffe6; padding: 10px; border: 1px solid green; margin: 10px 0; }
+        .debug { background: #f0f0f0; padding: 10px; margin: 10px 0; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Form Builder Debug Test</h1>
+    
+    <div id="status"></div>
+    
+    <div class="form-builder-container">
+        <div class="field-palette">
+            <h5>Field Types</h5>
+            <div class="field-type-item" data-field-type="input" draggable="true">Text Input</div>
+        </div>
+        
+        <div class="form-builder-area" id="formBuilderArea">
+            <!-- Empty form builder -->
+        </div>
+    </div>
+
+    <script>
+        // Debug script
+        const status = document.getElementById('status');
+        
+        function addStatus(message, type = 'debug') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            status.appendChild(div);
+        }
+        
+        // Test if basic JavaScript works
+        addStatus('JavaScript is working', 'success');
+        
+        // Test if form builder area exists
+        const formBuilder = document.querySelector('.form-builder-area');
+        if (formBuilder) {
+            addStatus('Form builder area found', 'success');
+        } else {
+            addStatus('Form builder area NOT found', 'error');
+        }
+        
+        // Test drag and drop setup
+        try {
+            formBuilder.addEventListener('drop', function(e) {
+                e.preventDefault();
+                addStatus('Drop event triggered', 'success');
+                
+                // Test the problematic method
+                try {
+                    const fieldElements = [...document.querySelectorAll('.form-field-wrapper')];
+                    addStatus('Found ' + fieldElements.length + ' existing fields', 'debug');
+                    
+                    if (fieldElements.length === 0) {
+                        addStatus('No existing fields - this should work fine', 'success');
+                    }
+                    
+                    // Simulate the error condition
+                    const insertPosition = null; // This simulates the getInsertPosition returning null
+                    
+                    if (insertPosition && insertPosition.nextSibling) {
+                        addStatus('insertPosition check would pass', 'success');
+                    } else {
+                        addStatus('insertPosition is null - fallback to appendChild', 'success');
+                    }
+                    
+                } catch (error) {
+                    addStatus('Error in drop handler: ' + error.message, 'error');
+                }
+            });
+            
+            formBuilder.addEventListener('dragover', function(e) {
+                e.preventDefault();
+            });
+            
+            addStatus('Drop handlers set up successfully', 'success');
+            
+        } catch (error) {
+            addStatus('Error setting up drop handlers: ' + error.message, 'error');
+        }
+        
+        // Test field palette
+        const fieldTypes = document.querySelectorAll('.field-type-item');
+        if (fieldTypes.length > 0) {
+            addStatus('Found ' + fieldTypes.length + ' field types', 'success');
+            
+            fieldTypes.forEach(item => {
+                item.addEventListener('dragstart', function(e) {
+                    e.dataTransfer.setData('text/plain', 'input');
+                    addStatus('Drag started for: ' + this.textContent, 'success');
+                });
+            });
+        } else {
+            addStatus('No field types found', 'error');
+        }
+        
+        addStatus('Debug test completed - try dragging the Text Input to the form builder area', 'debug');
+    </script>
+</body>
+</html>

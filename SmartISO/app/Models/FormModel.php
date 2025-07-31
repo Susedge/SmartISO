@@ -8,7 +8,7 @@ class FormModel extends Model
 {
     protected $table = 'forms';
     protected $primaryKey = 'id';
-    protected $allowedFields = ['code', 'description'];
+    protected $allowedFields = ['code', 'description', 'panel_name'];
     protected $useTimestamps = true;
     protected $dateFormat = 'datetime';
     protected $createdField = 'created_at';

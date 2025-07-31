@@ -12,6 +12,42 @@ use App\Models\FormSubmissionDataModel;
 
 class DynamicForms extends BaseController
 {
+    /**
+     * Rename a panel (update all rows with old_panel_name to new_panel_name)
+     * Expects POST: old_panel_name, new_panel_name
+     * Returns JSON: { success: true/false, message: string }
+     */
+    public function renamePanel()
+    {
+        $oldName = $this->request->getPost('old_panel_name');
+        $newName = $this->request->getPost('new_panel_name');
+        if (!$oldName || !$newName) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Both old and new panel names are required.'
+            ]);
+        }
+        // Check if new name already exists
+        $exists = $this->dbpanelModel->where('panel_name', $newName)->countAllResults();
+        if ($exists) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Panel name already exists.'
+            ]);
+        }
+        $result = $this->dbpanelModel->renamePanel($oldName, $newName);
+        if ($result) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Panel renamed successfully.'
+            ]);
+        } else {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Failed to rename panel.'
+            ]);
+        }
+    }
     protected $dbpanelModel;
     protected $formModel;
     protected $departmentModel;
@@ -29,8 +65,9 @@ class DynamicForms extends BaseController
     public function index()
     {
         $data = [
-            'title' => 'Dynamic Forms',
-            'forms' => $this->formModel->findAll()
+            'title' => 'Forms',
+            'forms' => $this->formModel->findAll(),
+            'panels' => $this->dbpanelModel->getPanels() // Get unique panel names
         ];
         
         return view('admin/dynamicforms/index', $data);
@@ -66,13 +103,106 @@ class DynamicForms extends BaseController
     public function panelConfig()
     {
         $data = [
-            'title' => 'Panel Configuration',
-            'panels' => $this->dbpanelModel->getPanelNames()
+            'title' => 'Form Builder',
+            'panels' => $this->dbpanelModel->getPanels()
         ];
         
         return view('admin/dynamicforms/panel_config', $data);
     }
     
+    public function createPanel()
+    {
+        $rules = [
+            'panel_name' => 'required|max_length[100]|is_unique[dbpanel.panel_name]'
+        ];
+        
+        if ($this->validate($rules)) {
+            $panelName = $this->request->getPost('panel_name');
+            
+            // Create an empty panel entry to establish the panel exists
+            // We'll use a placeholder field that can be removed later
+            $this->dbpanelModel->save([
+                'panel_name' => $panelName,
+                'field_name' => '_placeholder',
+                'field_label' => 'Placeholder Field',
+                'field_type' => 'input',
+                'field_role' => 'both',
+                'field_order' => 0,
+                'width' => 6,
+                'required' => 0,
+                'bump_next_field' => 0,
+                'code_table' => '',
+                'length' => null
+            ]);
+            
+            return redirect()->to('/admin/dynamicforms/form-builder/' . $panelName)
+                            ->with('message', 'Panel created successfully. Start building your form!');
+        } else {
+            $errors = $this->validator->getErrors();
+            return redirect()->to('/admin/dynamicforms/panel-config')
+                            ->with('error', implode(', ', $errors));
+        }
+    }
+    
+    public function copyPanel()
+    {
+        $rules = [
+            'source_panel_name' => 'required|max_length[100]',
+            'new_panel_name' => 'required|max_length[100]|is_unique[dbpanel.panel_name]'
+        ];
+        
+        if ($this->validate($rules)) {
+            $sourcePanelName = $this->request->getPost('source_panel_name');
+            $newPanelName = $this->request->getPost('new_panel_name');
+            
+            // Get all fields from the source panel
+            $sourceFields = $this->dbpanelModel->getPanelFields($sourcePanelName);
+            
+            if (empty($sourceFields)) {
+                return redirect()->to('/admin/dynamicforms/panel-config')
+                                ->with('error', 'Source panel not found or has no fields');
+            }
+            
+            // Copy each field to the new panel
+            foreach ($sourceFields as $field) {
+                $newFieldData = [
+                    'panel_name' => $newPanelName,
+                    'field_name' => $field['field_name'],
+                    'field_label' => $field['field_label'],
+                    'field_type' => $field['field_type'],
+                    'field_role' => $field['field_role'] ?? 'both',
+                    'field_order' => $field['field_order'],
+                    'width' => $field['width'] ?? 6,
+                    'required' => $field['required'] ?? 0,
+                    'bump_next_field' => $field['bump_next_field'] ?? 0,
+                    'code_table' => $field['code_table'] ?? '',
+                    'length' => $field['length'] ?? ''
+                ];
+                
+                $this->dbpanelModel->save($newFieldData);
+            }
+            
+            $fieldCount = count($sourceFields);
+            return redirect()->to('/admin/dynamicforms/panel-config')
+                            ->with('message', "Panel '{$newPanelName}' created successfully with {$fieldCount} fields copied from '{$sourcePanelName}'");
+        } else {
+            $errors = $this->validator->getErrors();
+            return redirect()->to('/admin/dynamicforms/panel-config')
+                            ->with('error', implode(', ', $errors));
+        }
+    }
+    
+    /**
+     * Remove placeholder fields from a panel
+     * This is called automatically when real fields are added
+     */
+    private function removePlaceholderFields($panelName)
+    {
+        $this->dbpanelModel->where('panel_name', $panelName)
+                          ->where('field_name', '_placeholder')
+                          ->delete();
+    }
+
     public function editPanel($panelName = null)
     {
         if (!$panelName) {
@@ -88,6 +218,28 @@ class DynamicForms extends BaseController
         ];
         
         return view('admin/dynamicforms/edit_panel', $data);
+    }
+
+    public function formBuilder($panelName = null)
+    {
+        if (!$panelName) {
+            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Panel name is required');
+        }
+        
+        $panelFields = $this->dbpanelModel->getPanelFields($panelName);
+        
+        // Filter out placeholder fields created during panel creation
+        $panelFields = array_filter($panelFields, function($field) {
+            return $field['field_name'] !== '_placeholder';
+        });
+        
+        $data = [
+            'title' => 'Panel Builder: ' . $panelName,
+            'panel_name' => $panelName,
+            'panel_fields' => $panelFields
+        ];
+        
+        return view('admin/dynamicforms/form_builder', $data);
     }
     
     public function addPanelField()
@@ -581,5 +733,253 @@ class DynamicForms extends BaseController
         
         return redirect()->to('/admin/dynamicforms/view-submission/' . $submissionId)
                         ->with('message', $message);
+    }
+
+    public function saveFormBuilder()
+    {
+        // Check if request is AJAX
+        if (!$this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request']);
+        }
+
+        try {
+            $input = $this->request->getJSON(true);
+            $panelName = $input['panel_name'] ?? '';
+            $fields = $input['fields'] ?? [];
+
+            if (empty($panelName)) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Panel name is required']);
+            }
+
+            if (empty($fields)) {
+                return $this->response->setJSON(['success' => false, 'message' => 'At least one field is required']);
+            }
+
+            // Start transaction
+            $this->db->transStart();
+
+            // Delete existing fields for this panel
+            $this->dbpanelModel->where('panel_name', $panelName)->delete();
+
+            // Insert new fields
+            foreach ($fields as $index => $field) {
+                $fieldData = [
+                    'panel_name' => $panelName,
+                    'field_name' => $field['field_name'] ?? '',
+                    'field_label' => $field['field_label'] ?? '',
+                    'field_type' => $field['field_type'] ?? 'input',
+                    'field_role' => $field['field_role'] ?? 'both',
+                    'required' => isset($field['required']) ? (int)$field['required'] : 0,
+                    'width' => isset($field['width']) ? (int)$field['width'] : 6,
+                    'field_order' => isset($field['field_order']) ? (int)$field['field_order'] : ($index + 1),
+                    'bump_next_field' => isset($field['bump_next_field']) ? (int)$field['bump_next_field'] : 0,
+                    'code_table' => $field['code_table'] ?? '',
+                    'length' => $field['length'] ?? ''
+                ];
+
+                // Validate required fields
+                if (empty($fieldData['field_name']) || empty($fieldData['field_label'])) {
+                    $this->db->transRollback();
+                    return $this->response->setJSON([
+                        'success' => false, 
+                        'message' => 'Field name and label are required for all fields'
+                    ]);
+                }
+
+                $this->dbpanelModel->insert($fieldData);
+            }
+
+            // Complete transaction
+            $this->db->transComplete();
+
+            if ($this->db->transStatus() === false) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Database error occurred']);
+            }
+
+            return $this->response->setJSON([
+                'success' => true, 
+                'message' => 'Form saved successfully',
+                'redirect' => base_url('admin/dynamicforms/panel-config')
+            ]);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Form builder save error: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => 'An error occurred while saving']);
+        }
+    }
+
+    public function reorderFields()
+    {
+        if (!$this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request']);
+        }
+
+        try {
+            $input = $this->request->getJSON(true);
+            $fieldIds = $input['field_ids'] ?? [];
+
+            if (empty($fieldIds)) {
+                return $this->response->setJSON(['success' => false, 'message' => 'No fields to reorder']);
+            }
+
+            // Start transaction
+            $this->db->transStart();
+
+            // Update field order
+            foreach ($fieldIds as $index => $fieldId) {
+                $this->dbpanelModel->update($fieldId, ['field_order' => $index + 1]);
+            }
+
+            // Complete transaction
+            $this->db->transComplete();
+
+            if ($this->db->transStatus() === false) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Database error occurred']);
+            }
+
+            return $this->response->setJSON(['success' => true, 'message' => 'Field order updated']);
+
+        } catch (\Exception $e) {
+            log_message('error', 'Field reorder error: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => 'An error occurred while reordering']);
+        }
+    }
+    
+    public function createForm()
+    {
+        if (!$this->request->getMethod() === 'POST') {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Invalid request method');
+        }
+        
+        $validation = \Config\Services::validation();
+        $validation->setRules([
+            'code' => 'required|max_length[50]|is_unique[forms.code]',
+            'description' => 'required|max_length[255]',
+            'panel_name' => 'permit_empty|max_length[255]'
+        ]);
+        
+        if (!$validation->withRequest($this->request)->run()) {
+            return redirect()->to('/admin/dynamicforms')
+                           ->withInput()
+                           ->with('error', 'Validation failed: ' . implode(', ', $validation->getErrors()));
+        }
+        
+        $data = [
+            'code' => $this->request->getPost('code'),
+            'description' => $this->request->getPost('description'),
+            'panel_name' => $this->request->getPost('panel_name') ?: null
+        ];
+        
+        if ($this->formModel->insert($data)) {
+            return redirect()->to('/admin/dynamicforms')->with('success', 'Form created successfully');
+        } else {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Failed to create form');
+        }
+    }
+    
+    public function updateForm()
+    {
+        if (!$this->request->getMethod() === 'POST') {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Invalid request method');
+        }
+        
+        $formId = $this->request->getPost('form_id');
+        if (!$formId) {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Form ID is required');
+        }
+        
+        $validation = \Config\Services::validation();
+        $validation->setRules([
+            'code' => "required|max_length[50]|is_unique[forms.code,id,{$formId}]",
+            'description' => 'required|max_length[255]',
+            'panel_name' => 'permit_empty|max_length[255]'
+        ]);
+        
+        if (!$validation->withRequest($this->request)->run()) {
+            return redirect()->to('/admin/dynamicforms')
+                           ->withInput()
+                           ->with('error', 'Validation failed: ' . implode(', ', $validation->getErrors()));
+        }
+        
+        $data = [
+            'code' => $this->request->getPost('code'),
+            'description' => $this->request->getPost('description'),
+            'panel_name' => $this->request->getPost('panel_name') ?: null
+        ];
+        
+        if ($this->formModel->update($formId, $data)) {
+            return redirect()->to('/admin/dynamicforms')->with('success', 'Form updated successfully');
+        } else {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Failed to update form');
+        }
+    }
+    
+    public function deleteForm()
+    {
+        // Check if user is admin or superuser
+        if (!in_array(session('user_type'), ['admin', 'superuser'])) {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Unauthorized access. Admin or Superuser privileges required.');
+        }
+        
+        if (!$this->request->getMethod() === 'POST') {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Invalid request method');
+        }
+        
+        $formId = $this->request->getPost('form_id');
+        if (!$formId) {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Form ID is required');
+        }
+        
+        $form = $this->formModel->find($formId);
+        if (!$form) {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Form not found');
+        }
+        
+        // Check if there are any submissions for this form
+        $submissionCount = $this->formSubmissionModel->where('form_id', $formId)->countAllResults();
+        if ($submissionCount > 0) {
+            return redirect()->to('/admin/dynamicforms')
+                           ->with('error', 'Cannot delete form. There are ' . $submissionCount . ' submissions associated with this form.');
+        }
+        
+        if ($this->formModel->delete($formId)) {
+            return redirect()->to('/admin/dynamicforms')->with('success', 'Form "' . $form['code'] . '" deleted successfully');
+        } else {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Failed to delete form');
+        }
+    }
+    
+    public function deletePanel()
+    {
+        // Check if user is admin or superuser
+        if (!in_array(session('user_type'), ['admin', 'superuser'])) {
+            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Unauthorized access. Admin or Superuser privileges required.');
+        }
+        
+        if (!$this->request->getMethod() === 'POST') {
+            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Invalid request method');
+        }
+        
+        $panelName = $this->request->getPost('panel_name');
+        if (!$panelName) {
+            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Panel name is required');
+        }
+        
+        // Check if any forms are using this panel
+        $formsUsingPanel = $this->formModel->where('panel_name', $panelName)->findAll();
+        if (!empty($formsUsingPanel)) {
+            $formCodes = array_column($formsUsingPanel, 'code');
+            return redirect()->to('/admin/dynamicforms/panel-config')
+                           ->with('error', 'Cannot delete panel. It is being used by forms: ' . implode(', ', $formCodes));
+        }
+        
+        // Delete all fields for this panel
+        $deleted = $this->dbpanelModel->where('panel_name', $panelName)->delete();
+        
+        if ($deleted) {
+            return redirect()->to('/admin/dynamicforms/panel-config')->with('success', 'Panel "' . $panelName . '" deleted successfully');
+        } else {
+            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Failed to delete panel or panel not found');
+        }
     }
 }

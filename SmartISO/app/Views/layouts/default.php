@@ -162,12 +162,12 @@
 
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms') ?>">
                             <div class="nav-link-icon"><i class="fas fa-edit me-2"></i></div>
-                            <span>Form Builder</span>
+                            <span>Forms</span>
                         </a>
 
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/panel-config' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/panel-config') ?>">
                             <div class="nav-link-icon"><i class="fas fa-cog me-2"></i></div>
-                            <span>Panel Configuration</span>
+                            <span>Form Builder</span>
                         </a>
 
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/submissions' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/submissions') ?>">
