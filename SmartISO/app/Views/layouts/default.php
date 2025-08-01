@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="<?= base_url('assets/css/pastel.css') ?>">
     <?= $this->renderSection('styles') ?>
 </head>
-<body class="<?= (uri_string() == 'dashboard' || strpos(uri_string(), 'admin/') === 0) ? 'sb-nav-fixed' : '' ?>">
+<body class="<?= session()->get('isLoggedIn') ? 'sb-nav-fixed' : '' ?>">
     <!-- Top navigation-->
     <nav class="sb-topnav navbar navbar-expand navbar-light">
         <div class="container-fluid">
@@ -39,12 +39,27 @@
                 <?php if(session()->get('isLoggedIn')): ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle user-dropdown d-flex align-items-center" id="navbarDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <?php 
+                        // Get current user data for profile image
+                        $userModel = new \App\Models\UserModel();
+                        $currentUser = $userModel->find(session()->get('user_id'));
+                        ?>
+                        <?php if (!empty($currentUser['profile_image'])): ?>
+                            <div class="avatar-circle me-2">
+                                <img src="<?= base_url($currentUser['profile_image']) ?>" alt="Profile">
+                            </div>
+                        <?php else: ?>
+                            <div class="avatar-circle me-2">
+                                <span class="initials"><?= strtoupper(substr(session()->get('full_name') ?? 'U', 0, 1)) ?></span>
+                            </div>
+                        <?php endif; ?>
                         <span class="d-none d-lg-inline"><?= esc(session()->get('username')) ?></span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="navbarDropdown">
                         <li><a class="dropdown-item py-2" href="<?= base_url('profile') ?>"><i class="fas fa-user-circle me-2 text-primary"></i>Profile</a></li>
                         <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
-                        <li><a class="dropdown-item py-2" href="<?= base_url('admin/dashboard') ?>"><i class="fas fa-gauge-high me-2 text-primary"></i>Admin Dashboard</a></li>
+                        <li><a class="dropdown-item py-2" href="<?= base_url('analytics') ?>"><i class="fas fa-chart-line me-2 text-primary"></i>Analytics</a></li>
+                        <li><a class="dropdown-item py-2" href="<?= base_url('admin/users') ?>"><i class="fas fa-users me-2 text-primary"></i>User Management</a></li>
                         <?php endif; ?>
                         <li><hr class="dropdown-divider" /></li>
                         <li><a class="dropdown-item py-2" href="<?= base_url('auth/logout') ?>"><i class="fas fa-sign-out-alt me-2 text-primary"></i>Logout</a></li>
@@ -57,7 +72,7 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="btn btn-primary px-4 py-2 text-dark" href="<?= base_url('auth/register') ?>">
+                    <a class="btn btn-primary px-4 py-2" href="<?= base_url('auth/register') ?>">
                         <i class="fas fa-user-plus me-2"></i>Register
                     </a>
                 </li>
@@ -147,9 +162,14 @@
                         <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <div class="sidebar-heading">ADMINISTRATION</div>
                         
-                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dashboard' ? 'active' : '' ?>" href="<?= base_url('admin/dashboard') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-gauge-high me-2"></i></div>
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'analytics' ? 'active' : '' ?>" href="<?= base_url('analytics') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-chart-line me-2"></i></div>
                             <span>Analytics</span>
+                        </a>
+                        
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
+                            <span>User Management</span>
                         </a>
                         
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/configurations' ? 'active' : '' ?>" href="<?= base_url('admin/configurations') ?>">
@@ -195,7 +215,7 @@
         </div>
         <div id="layoutSidenav_content">
             <main>
-                <div class="container-fluid px-4 py-4">
+                <div class="container-fluid px-4 py-2">
                     <?php if(session()->getFlashdata('message')): ?>
                         <div class="alert alert-success alert-dismissible fade show mb-4 d-flex align-items-center">
                             <i class="fas fa-check-circle me-3 fs-4"></i>
@@ -219,7 +239,7 @@
                     <div class="fade-in">
                         <?= $this->renderSection('content') ?>
                     </div>
-                    </div>
+                </div>
             </main>
             <footer class="py-4 mt-auto">
                 <div class="container-fluid px-4">
@@ -227,9 +247,15 @@
                         <div class="text-muted mb-2 mb-md-0">
                             &copy; <?= date('Y') ?> <span class="fw-bold">SmartISO</span>. All rights reserved.
                         </div>
-                        <div>
-                            <a href="<?= base_url('privacy') ?>" class="text-decoration-none me-3">Privacy Policy</a>
-                            <a href="<?= base_url('terms') ?>" class="text-decoration-none">Terms &amp; Conditions</a>
+                        <div class="d-flex align-items-center">
+                            <span class="text-muted me-3">
+                                <i class="fas fa-clock me-1"></i>
+                                <span id="current-time"><?= now_in_timezone('M j, Y g:i A T') ?></span>
+                            </span>
+                            <div>
+                                <a href="<?= base_url('privacy') ?>" class="text-decoration-none me-3">Privacy Policy</a>
+                                <a href="<?= base_url('terms') ?>" class="text-decoration-none">Terms &amp; Conditions</a>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -239,7 +265,7 @@
     <?php else: ?>
     <!-- Regular layout without sidebar (for non-logged in users) -->
     <main>
-        <div class="container py-5">
+        <div class="container py-3">
             <?php if(session()->getFlashdata('message')): ?>
                 <div class="alert alert-success alert-dismissible fade show mb-4 d-flex align-items-center">
                     <i class="fas fa-check-circle me-3 fs-4"></i>
@@ -292,19 +318,128 @@
     <!-- Additional Modern JS for enhanced interactions -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Enhance sidebar navigation with smooth transitions
-        const navLinks = document.querySelectorAll('.nav-link');
-        navLinks.forEach(link => {
-            link.addEventListener('click', function(e) {
-                if(!this.getAttribute('href').startsWith('#')) return;
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
+        <?php if(session()->get('isLoggedIn')): ?>
+        // Session timeout handling
+        let sessionTimeoutWarning;
+        let sessionTimeoutLogout;
+        
+        // Get session timeout from server (in minutes, convert to milliseconds)
+        const sessionTimeout = <?= (function() {
+            $db = \Config\Database::connect();
+            try {
+                $builder = $db->table('configurations');
+                $config = $builder->where('config_key', 'session_timeout')->get()->getRow();
+                return $config && isset($config->config_value) ? (int)$config->config_value : 30;
+            } catch (\Exception $e) {
+                return 30;
+            }
+        })() ?> * 60 * 1000; // Convert to milliseconds
+        
+        const warningTime = sessionTimeout - (5 * 60 * 1000); // 5 minutes before timeout
+        
+        function showSessionWarning() {
+            if (confirm('Your session will expire in 5 minutes. Do you want to extend it?')) {
+                fetch('<?= base_url('auth/extend-session') ?>', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                }).then(response => {
+                    if (response.ok) {
+                        resetSessionTimer();
+                    }
+                }).catch(error => {
+                    console.error('Error extending session:', error);
                 });
+            }
+        }
+        
+        function resetSessionTimer() {
+            clearTimeout(sessionTimeoutWarning);
+            clearTimeout(sessionTimeoutLogout);
+            
+            // Show warning 5 minutes before timeout
+            sessionTimeoutWarning = setTimeout(showSessionWarning, warningTime);
+            
+            // Auto logout after full timeout
+            sessionTimeoutLogout = setTimeout(function() {
+                alert('Your session has expired. You will be redirected to the login page.');
+                window.location.href = '<?= base_url('auth/logout') ?>';
+            }, sessionTimeout);
+        }
+        
+        // Start session timer
+        resetSessionTimer();
+        
+        // Reset timer on any user activity (throttled)
+        let activityThrottle = false;
+        function handleActivity() {
+            if (!activityThrottle) {
+                activityThrottle = true;
+                setTimeout(() => {
+                    activityThrottle = false;
+                    resetSessionTimer();
+                }, 1000); // Throttle to once per second
+            }
+        }
+        
+        document.addEventListener('click', handleActivity);
+        document.addEventListener('keypress', handleActivity);
+        document.addEventListener('scroll', handleActivity);
+        <?php endif; ?>
+        
+        // Add loading states to forms
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', function() {
+                const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+                if (submitBtn && !submitBtn.disabled) {
+                    submitBtn.disabled = true;
+                    const originalText = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+                    
+                    // Restore button after 10 seconds as fallback
+                    setTimeout(() => {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalText;
+                    }, 10000);
+                }
             });
         });
+        
+        // Auto-dismiss alerts after 5 seconds
+        const alerts = document.querySelectorAll('.alert-dismissible');
+        alerts.forEach(alert => {
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    const closeBtn = alert.querySelector('.btn-close');
+                    if (closeBtn) closeBtn.click();
+                }
+            }, 5000);
+        });
+        
+        // Update current time every minute
+        function updateCurrentTime() {
+            const timeElement = document.getElementById('current-time');
+            if (timeElement) {
+                fetch('<?= base_url('api/current-time') ?>')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.time) {
+                            timeElement.textContent = data.time;
+                        }
+                    })
+                    .catch(error => {
+                        // Silently fail if API is not available
+                        console.debug('Time update failed:', error);
+                    });
+            }
+        }
+        
+        // Update time every minute
+        setInterval(updateCurrentTime, 60000);
     });
     </script>
 </body>
 </html>
-

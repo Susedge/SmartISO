@@ -90,7 +90,8 @@ class Auth extends BaseController
                         'full_name' => $user['full_name'],
                         'user_type' => $user['user_type'],
                         'department_id' => $user['department_id'],
-                        'isLoggedIn' => true
+                        'isLoggedIn' => true,
+                        'last_activity' => time() // Set initial last activity time
                     ];
                     
                     session()->set($sessionData);
@@ -98,11 +99,7 @@ class Auth extends BaseController
                     // Update last login time
                     $userModel->update($user['id'], ['last_login' => date('Y-m-d H:i:s')]);
                     
-                    // Redirect based on user type
-                    if (in_array($user['user_type'], ['admin', 'superuser'])) {
-                        return redirect()->to('/admin/dashboard');
-                    }
-                    
+                    // Redirect to main dashboard for all user types
                     return redirect()->to('/dashboard');
                 } else {
                     return redirect()->back()->with('error', 'Invalid username/email or password');
@@ -119,5 +116,20 @@ class Auth extends BaseController
     {
         session()->destroy();
         return redirect()->to('/auth/login')->with('message', 'You have been logged out successfully');
+    }
+    
+    /**
+     * Extend user session
+     */
+    public function extendSession()
+    {
+        if (!session()->get('isLoggedIn')) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Not logged in']);
+        }
+        
+        // Update last activity time
+        session()->set('last_activity', time());
+        
+        return $this->response->setJSON(['success' => true, 'message' => 'Session extended']);
     }
 }

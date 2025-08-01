@@ -1,13 +1,40 @@
-// Scripts for SB Admin template functionality
+// Scripts for SmartISO functionality
 window.addEventListener('DOMContentLoaded', event => {
-    // Toggle the side navigation
+    // Toggle the side navigation with improved responsive handling
     const sidebarToggle = document.body.querySelector('#sidebarToggle');
     if (sidebarToggle) {
+        // Initialize sidebar state based on screen size
+        function initializeSidebar() {
+            if (window.innerWidth >= 992) {
+                // Desktop: sidebar visible by default, check localStorage for preference
+                const saved = localStorage.getItem('sb-sidebar-toggle');
+                if (saved === 'true') {
+                    document.body.classList.add('sb-sidenav-toggled');
+                } else {
+                    document.body.classList.remove('sb-sidenav-toggled');
+                }
+            } else {
+                // Mobile: sidebar hidden by default
+                document.body.classList.add('sb-sidenav-toggled');
+            }
+        }
+        
+        // Initialize on load
+        initializeSidebar();
+        
+        // Handle sidebar toggle clicks
         sidebarToggle.addEventListener('click', event => {
             event.preventDefault();
             document.body.classList.toggle('sb-sidenav-toggled');
-            localStorage.setItem('sb|sidebar-toggle', document.body.classList.contains('sb-sidenav-toggled'));
+            
+            // Only save preference for desktop screens
+            if (window.innerWidth >= 992) {
+                localStorage.setItem('sb-sidebar-toggle', document.body.classList.contains('sb-sidenav-toggled'));
+            }
         });
+        
+        // Handle window resize
+        window.addEventListener('resize', initializeSidebar);
     }
     
     // Initialize tooltips

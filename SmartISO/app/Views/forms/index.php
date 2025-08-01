@@ -6,13 +6,6 @@
         <h3><?= $title ?></h3>
     </div>
     <div class="card-body">
-        <?php if (session('message')): ?>
-            <div class="alert alert-success"><?= session('message') ?></div>
-        <?php endif; ?>
-        
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
         
         <div class="row">
             <?php foreach ($forms as $form): ?>

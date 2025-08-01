@@ -17,7 +17,7 @@ class UserModel extends Model
     protected $allowedFields = [
         'email', 'username', 'password_hash', 'full_name', 
         'department_id', 'user_type', 'active', 'reset_token', 
-        'reset_expires', 'last_login', 'signature'
+        'reset_expires', 'last_login', 'signature', 'profile_image'
     ];
     
     // Dates

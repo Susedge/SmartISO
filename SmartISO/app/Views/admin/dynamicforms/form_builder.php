@@ -5,6 +5,7 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
+<div class="form-builder-page">
 <div class="form-builder-toolbar">
     <div>
         <h4 class="d-flex align-items-center" style="gap: 8px;">
@@ -192,6 +193,7 @@
             </div>
         </div>
     </div>
+</div>
 </div>
 
 <!-- Pass panel data to JavaScript -->

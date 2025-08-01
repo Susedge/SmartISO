@@ -15,13 +15,6 @@
         </div>
     </div>
     <div class="card-body">
-        <?php if (session('message')): ?>
-            <div class="alert alert-success"><?= session('message') ?></div>
-        <?php endif; ?>
-        
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
         
         <h4>Fields for Panel: <?= esc($panel_name) ?></h4>
         

@@ -1,4 +1,7 @@
-<?= $this->extend('layouts/default') ?>
+<?= $this->ext            <form action="<?= base_url('forms/submit') ?>" method="post" id="dynamicForm" enctype="multipart/form-data">
+                <?= csrf_field() ?>
+                <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
+                <input type="hidden" name="panel_name" value="<?= $panel_name ?>">'layouts/default') ?>
 
 <?= $this->section('content') ?>
 <div class="card">
@@ -7,14 +10,6 @@
         <a href="<?= base_url('forms') ?>" class="btn btn-secondary">Back to Forms</a>
     </div>
     <div class="card-body">
-        <?php if (session('message')): ?>
-            <div class="alert alert-success"><?= session('message') ?></div>
-        <?php endif; ?>
-        
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
-        
         <?php if (empty($panel_fields)): ?>
             <div class="alert alert-warning">
                 No fields configured for this form.
@@ -139,6 +134,56 @@
                         echo '</div>';
                     }
                     ?>
+                </div>
+                
+                <!-- Priority and Reference File Section -->
+                <div class="row mt-4">
+                    <?php 
+                    $userType = session()->get('user_type');
+                    $canSetPriority = in_array($userType, ['service_staff', 'admin']);
+                    ?>
+                    
+                    <?php if ($canSetPriority): ?>
+                    <div class="col-md-6">
+                        <label for="priority" class="form-label">
+                            Priority <span class="text-danger">*</span>
+                        </label>
+                        <select class="form-select" id="priority" name="priority" required>
+                            <option value="">Select Priority</option>
+                            <?php foreach ($priorities as $priority_key => $priority_label): ?>
+                                <option value="<?= esc($priority_key) ?>" 
+                                        <?= ($priority_key === 'normal') ? 'selected' : '' ?>>
+                                    <?= esc($priority_label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="form-text text-muted">
+                            Select the priority level for this request. This affects the Service Level Agreement (SLA) timeline.
+                        </small>
+                    </div>
+                    <?php else: ?>
+                    <div class="col-md-6">
+                        <input type="hidden" name="priority" value="normal">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Priority:</strong> Normal (Default)
+                            <br><small>Only Service Staff and Administrators can modify priority levels.</small>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="col-md-6">
+                        <label for="reference_file" class="form-label">
+                            Reference File <span class="text-muted">(Optional)</span>
+                        </label>
+                        <input type="file" 
+                               class="form-control" 
+                               id="reference_file" 
+                               name="reference_file"
+                               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt">
+                        <small class="form-text text-muted">
+                            Upload a reference file if needed (PDF, Word, Excel, Image, or Text files only).
+                        </small>
+                    </div>
                 </div>
                 
                 <div class="mt-4">

@@ -9,13 +9,6 @@
         </div>
     </div>
     <div class="card-body">
-        <?php if (session('message')): ?>
-            <div class="alert alert-success"><?= session('message') ?></div>
-        <?php endif; ?>
-        
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
         
         <h4 class="mb-3">Current Signatories</h4>
         <div class="table-responsive mb-4">

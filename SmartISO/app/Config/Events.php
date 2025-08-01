@@ -53,3 +53,15 @@ Events::on('pre_system', static function (): void {
         }
     }
 });
+
+/*
+ * --------------------------------------------------------------------
+ * System Timezone Configuration
+ * --------------------------------------------------------------------
+ * Set the system timezone based on configuration
+ */
+Events::on('pre_system', static function (): void {
+    // Set system timezone from configuration
+    helper('timezone');
+    set_system_timezone();
+});

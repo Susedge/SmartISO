@@ -15,14 +15,6 @@
             </div>
         </div>
         <div class="card-body">
-            <?php if (session('error')): ?>
-                <div class="alert alert-danger"><?= session('error') ?></div>
-            <?php endif; ?>
-            
-            <?php if (session('message')): ?>
-                <div class="alert alert-success"><?= session('message') ?></div>
-            <?php endif; ?>
-            
             <div class="row mb-4">
                 <div class="col-md-6">
                     <h5>Requestor Information</h5>

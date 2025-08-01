@@ -6,14 +6,6 @@
         <h3><?= $title ?></h3>
     </div>
     <div class="card-body">
-        <?php if (session('message')): ?>
-            <div class="alert alert-success"><?= session('message') ?></div>
-        <?php endif; ?>
-        
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
-        
         <?php if (empty($submissions)): ?>
             <div class="alert alert-info">You haven't serviced any forms yet.</div>
         <?php else: ?>

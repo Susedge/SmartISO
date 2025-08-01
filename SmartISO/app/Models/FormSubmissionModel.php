@@ -73,7 +73,35 @@ class FormSubmissionModel extends Model
         
         return $builder->get()->getResultArray();
     }
-    
+
+    /**
+     * Get submissions pending approval with optional filters
+     */
+    public function getPendingApprovalsWithFilters($departmentFilter = null, $priorityFilter = null)
+    {
+        $builder = $this->db->table('form_submissions fs');
+        $builder->select('fs.*, f.code as form_code, f.description as form_description, 
+                          u.full_name as submitted_by_name, d.description as department_name')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
+            ->where('fs.status', 'submitted');
+        
+        // Apply department filter
+        if (!empty($departmentFilter)) {
+            $builder->where('d.description', $departmentFilter);
+        }
+        
+        // Apply priority filter
+        if (!empty($priorityFilter)) {
+            $builder->where('fs.priority', $priorityFilter);
+        }
+        
+        $builder->orderBy('fs.created_at', 'ASC');
+        
+        return $builder->get()->getResultArray();
+    }
+
     /**
      * Get submissions pending service
      */

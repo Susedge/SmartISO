@@ -21,7 +21,7 @@ class Users extends BaseController
     {
         // Fetch users with their department names
         $builder = $this->userModel->builder();
-        $builder->select('users.*, departments.code as department_name');
+        $builder->select('users.*, departments.description as department_name');
         $builder->join('departments', 'departments.id = users.department_id', 'left');
         $users = $builder->get()->getResultArray();
         

@@ -7,6 +7,7 @@ use App\Models\DepartmentModel;
 use App\Models\FormModel;
 use App\Models\FormSignatoryModel;
 use App\Models\UserModel;
+use App\Models\ConfigurationModel;
 
 class Configurations extends BaseController
 {
@@ -14,15 +15,15 @@ class Configurations extends BaseController
     protected $formModel;
     protected $formSignatoryModel;
     protected $userModel;
+    protected $configurationModel;
     
     public function __construct()
     {
         $this->departmentModel = new DepartmentModel();
         $this->formModel = new FormModel();
-        
-        // Add new models
         $this->formSignatoryModel = new FormSignatoryModel();
         $this->userModel = new UserModel();
+        $this->configurationModel = new ConfigurationModel();
     }
 
     public function formSignatories($formId = null)
@@ -125,8 +126,8 @@ class Configurations extends BaseController
     {
         $tableType = $this->request->getGet('type') ?? 'departments';
         
-        // Default to departments if invalid type is provided
-        if (!in_array($tableType, ['departments', 'forms'])) {
+        // Update valid types to include system configurations
+        if (!in_array($tableType, ['departments', 'forms', 'system'])) {
             $tableType = 'departments';
         }
         
@@ -134,7 +135,8 @@ class Configurations extends BaseController
             'title' => 'System Configurations',
             'tableType' => $tableType,
             'departments' => ($tableType == 'departments') ? $this->departmentModel->findAll() : [],
-            'forms' => ($tableType == 'forms') ? $this->formModel->findAll() : []
+            'forms' => ($tableType == 'forms') ? $this->formModel->findAll() : [],
+            'configurations' => ($tableType == 'system') ? $this->configurationModel->findAll() : []
         ];
         
         return view('admin/configurations/index', $data);
@@ -416,6 +418,67 @@ public function deleteTemplate($formId = null)
     }
     
     return redirect()->back()->with('error', 'Template file not found');
+}
+
+/**
+ * Update system configuration
+ */
+public function updateSystemConfig()
+{
+    $configKey = $this->request->getPost('config_key');
+    $configValue = $this->request->getPost('config_value');
+    
+    if (!$configKey) {
+        return redirect()->back()->with('error', 'Invalid configuration key');
+    }
+    
+    // Get existing configuration
+    $existingConfig = $this->configurationModel->where('config_key', $configKey)->first();
+    
+    if (!$existingConfig) {
+        return redirect()->back()->with('error', 'Configuration not found');
+    }
+    
+    // Handle boolean values specifically
+    if ($existingConfig['config_type'] == 'boolean') {
+        // For boolean checkboxes, if not checked, the value won't be posted
+        // Check if checkbox was checked (value = 1) or not (no value posted)
+        $configValue = $this->request->getPost('config_value') ? '1' : '0';
+    }
+    
+    // Validate based on config type
+    $rules = [];
+    switch ($existingConfig['config_type']) {
+        case 'integer':
+            $rules['config_value'] = 'required|integer|greater_than[0]';
+            break;
+        case 'boolean':
+            $rules['config_value'] = 'required|in_list[0,1]';
+            break;
+        default:
+            if ($existingConfig['config_key'] == 'system_timezone') {
+                $rules['config_value'] = 'required|in_list[Asia/Singapore,Asia/Shanghai,Asia/Manila,Asia/Kuala_Lumpur,Asia/Hong_Kong,Asia/Taipei]';
+            } else {
+                $rules['config_value'] = 'required|max_length[255]';
+            }
+    }
+    
+    // Create validation data with the processed config value
+    $validationData = ['config_value' => $configValue];
+    
+    if (!$this->validate($rules, $validationData)) {
+        return redirect()->back()
+            ->with('error', 'Invalid configuration value')
+            ->with('validation', $this->validator);
+    }
+    
+    // Update configuration
+    if ($this->configurationModel->update($existingConfig['id'], ['config_value' => $configValue])) {
+        $configName = ucwords(str_replace('_', ' ', $configKey));
+        return redirect()->back()->with('message', $configName . ' updated successfully');
+    } else {
+        return redirect()->back()->with('error', 'Failed to update configuration');
+    }
 }
 
 }

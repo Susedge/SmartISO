@@ -8,6 +8,7 @@ use App\Models\FormSubmissionModel;
 use App\Models\FormSubmissionDataModel;
 use App\Models\DepartmentModel;
 use App\Models\UserModel;
+use App\Models\PriorityConfigurationModel;
 
 class Forms extends BaseController
 {
@@ -17,6 +18,7 @@ class Forms extends BaseController
     protected $formSubmissionDataModel;
     protected $departmentModel;
     protected $userModel;
+    protected $priorityModel;
     
     public function __construct()
     {
@@ -28,6 +30,7 @@ class Forms extends BaseController
         $this->formSubmissionDataModel = new FormSubmissionDataModel();
         $this->departmentModel = new DepartmentModel();
         $this->userModel = new UserModel();
+        $this->priorityModel = new PriorityConfigurationModel();
     }
     
     public function index()
@@ -48,8 +51,9 @@ class Forms extends BaseController
             return redirect()->to('/forms')->with('error', 'Form not found');
         }
         
-        // Get panel fields
-        $panelFields = $this->dbpanelModel->getPanelFields($formCode);
+        // Get panel fields using the panel_name from the form, or fallback to formCode
+        $panelName = !empty($form['panel_name']) ? $form['panel_name'] : $formCode;
+        $panelFields = $this->dbpanelModel->getPanelFields($panelName);
         
         if (empty($panelFields)) {
             return redirect()->to('/forms')->with('error', 'No fields configured for this form');
@@ -58,9 +62,10 @@ class Forms extends BaseController
         $data = [
             'title' => 'Form: ' . $form['description'],
             'form' => $form,
-            'panel_name' => $formCode,
+            'panel_name' => $panelName,
             'panel_fields' => $panelFields,
-            'departments' => $this->departmentModel->findAll()
+            'departments' => $this->departmentModel->findAll(),
+            'priorities' => $this->priorityModel->getPriorityOptions()
         ];
         
         return view('forms/view', $data);
@@ -72,16 +77,60 @@ class Forms extends BaseController
         $panelName = $this->request->getPost('panel_name');
         $userType = session()->get('user_type');
         
+        // Priority setting: Only service_staff and admin can set custom priority
+        $requestedPriority = $this->request->getPost('priority') ?? 'normal';
+        $canSetPriority = in_array($userType, ['service_staff', 'admin']);
+        
+        // If user cannot set priority, force it to 'normal'
+        // This prevents requestors and other users from setting unauthorized priority levels
+        $priority = $canSetPriority ? $requestedPriority : 'normal';
+        
+        // Validate that the priority exists in our system
+        if ($canSetPriority && !empty($requestedPriority)) {
+            $validPriority = $this->priorityModel->getPriorityByLevel($requestedPriority);
+            if (!$validPriority) {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'Invalid priority level selected.');
+            }
+        }
+        
+        // Handle reference file upload
+        $referenceFile = $this->request->getFile('reference_file');
+        $savedFileName = null;
+        $originalFileName = null;
+        
+        if ($referenceFile && $referenceFile->isValid() && !$referenceFile->hasMoved()) {
+            $originalFileName = $referenceFile->getClientName();
+            $savedFileName = $referenceFile->getRandomName();
+            
+            // Create uploads directory if it doesn't exist
+            $uploadPath = WRITEPATH . 'uploads/references/';
+            if (!is_dir($uploadPath)) {
+                mkdir($uploadPath, 0755, true);
+            }
+            
+            $referenceFile->move($uploadPath, $savedFileName);
+        }
+        
         // Get all panel fields
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
         
-        // Create a new submission record
-        $submissionId = $this->formSubmissionModel->insert([
+        // Create a new submission record with priority and reference file
+        $submissionData = [
             'form_id' => $formId,
             'panel_name' => $panelName,
             'submitted_by' => session()->get('user_id'),
-            'status' => 'submitted'
-        ]);
+            'status' => 'submitted',
+            'priority' => $priority
+        ];
+        
+        if ($savedFileName) {
+            $submissionData['reference_file'] = $savedFileName;
+            $submissionData['reference_file_original'] = $originalFileName;
+        }
+        
+        $submissionId = $this->formSubmissionModel->insert($submissionData);
         
         // Save each field value based on user role
         foreach ($panelFields as $field) {
@@ -116,10 +165,16 @@ class Forms extends BaseController
     public function mySubmissions()
     {
         $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+        
+        // Admin and superuser can see all submissions, others see only their own
+        $filterUserId = in_array($userType, ['admin', 'superuser']) ? null : $userId;
+        
+        $title = in_array($userType, ['admin', 'superuser']) ? 'All Form Submissions' : 'My Form Submissions';
         
         $data = [
-            'title' => 'My Form Submissions',
-            'submissions' => $this->formSubmissionModel->getSubmissionsWithDetails($userId)
+            'title' => $title,
+            'submissions' => $this->formSubmissionModel->getSubmissionsWithDetails($filterUserId)
         ];
         
         return view('forms/my_submissions', $data);
@@ -133,9 +188,28 @@ class Forms extends BaseController
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
+        // Get filter parameters
+        $departmentFilter = $this->request->getGet('department');
+        $priorityFilter = $this->request->getGet('priority');
+        
+        // Get pending submissions with filters
+        $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
+        
+        // Get all department names for filter dropdown
+        $departmentNames = $this->db->table('departments')
+            ->select('DISTINCT description')
+            ->orderBy('description')
+            ->get()
+            ->getResultArray();
+        $departments = array_column($departmentNames, 'description');
+        
         $data = [
             'title' => 'Forms Pending Approval',
-            'submissions' => $this->formSubmissionModel->getPendingApprovals()
+            'submissions' => $submissions,
+            'departments' => $departments,
+            'priorities' => $this->priorityModel->getPriorityOptions(),
+            'selectedDepartment' => $departmentFilter,
+            'selectedPriority' => $priorityFilter
         ];
         
         return view('forms/pending_approval', $data);
@@ -912,6 +986,77 @@ class Forms extends BaseController
         
         return redirect()->to('/forms/pending-approval')
                         ->with('message', 'Form rejected successfully');
+    }
+
+    public function approveAll()
+    {
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+        
+        if (!in_array($userType, ['approving_authority', 'admin'])) {
+            return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
+        }
+        
+        $departmentFilter = $this->request->getPost('department_filter');
+        $priorityFilter = $this->request->getPost('priority_filter');
+        
+        // Build query for pending approvals
+        $query = $this->formSubmissionModel
+            ->select('form_submissions.*, users.name as requestor_name, departments.name as department_name')
+            ->join('users', 'users.id = form_submissions.user_id')
+            ->join('departments', 'departments.id = users.department_id', 'left')
+            ->where('status', 'pending_approval');
+        
+        // Apply filters
+        if (!empty($departmentFilter)) {
+            $query->where('departments.name', $departmentFilter);
+        }
+        
+        if (!empty($priorityFilter)) {
+            $query->where('form_submissions.priority', $priorityFilter);
+        }
+        
+        $pendingSubmissions = $query->findAll();
+        
+        if (empty($pendingSubmissions)) {
+            return redirect()->to('/forms/pending-approval')
+                        ->with('error', 'No forms found matching the criteria');
+        }
+        
+        $approvedCount = 0;
+        $errors = [];
+        
+        foreach ($pendingSubmissions as $submission) {
+            try {
+                $updateData = [
+                    'status' => 'approved',
+                    'approver_signature_date' => date('Y-m-d H:i:s'),
+                    'approver_signature' => 'Bulk Approved by ' . session()->get('name')
+                ];
+                
+                if ($this->db->fieldExists('approver_name', 'form_submissions')) {
+                    $updateData['approver_name'] = session()->get('name');
+                }
+                
+                if ($this->db->fieldExists('approver_id', 'form_submissions')) {
+                    $updateData['approver_id'] = $userId;
+                }
+                
+                $this->formSubmissionModel->update($submission['id'], $updateData);
+                $approvedCount++;
+                
+            } catch (Exception $e) {
+                $errors[] = "Failed to approve submission ID {$submission['id']}: " . $e->getMessage();
+            }
+        }
+        
+        $message = "Successfully approved {$approvedCount} forms";
+        if (!empty($errors)) {
+            $message .= ". Errors: " . implode('; ', $errors);
+        }
+        
+        return redirect()->to('/forms/pending-approval')
+                        ->with('message', $message);
     }
 
     public function submitService()

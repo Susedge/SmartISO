@@ -16,7 +16,7 @@
                     </li>
                     <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?= base_url('admin/dashboard') ?>"><i class="fas fa-cogs me-1"></i> Admin</a>
+                        <a class="nav-link" href="<?= base_url('analytics') ?>"><i class="fas fa-chart-line me-1"></i> Analytics</a>
                     </li>
                     <?php endif; ?>
                     <?php endif; ?>

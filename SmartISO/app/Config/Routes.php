@@ -37,13 +37,24 @@ $routes->group('auth', function ($routes) {
     $routes->get('login', 'Auth::login');
     $routes->post('login', 'Auth::login');
     $routes->get('logout', 'Auth::logout');
+    $routes->post('extend-session', 'Auth::extendSession');
 });
 
 // Home/Landing page
 $routes->get('/', 'Home::index');
 
+// API routes (no auth required)
+$routes->get('api/current-time', 'Api::currentTime');
+
 // Dashboard (requires login)
 $routes->get('/dashboard', 'Dashboard::index', ['filter' => 'auth']);
+
+// Analytics routes
+$routes->group('analytics', ['filter' => 'auth'], function($routes) {
+    $routes->get('/', 'Analytics::index');
+    $routes->get('api/(:segment)', 'Analytics::api/$1');
+    $routes->post('export', 'Analytics::exportReport');
+});
 
 // User routes
 $routes->group('', ['filter' => 'auth'], function ($routes) {
@@ -52,6 +63,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('profile/update', 'Profile::update');
     $routes->post('profile/change-password', 'Profile::changePassword');
     $routes->post('profile/upload-signature', 'Profile::uploadSignature');
+    $routes->post('profile/upload-profile-image', 'Profile::uploadProfileImage');
 
     // Form routes for all users
     $routes->get('forms', 'Forms::index');
@@ -80,6 +92,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('forms/approve', 'Forms::submitApproval');
     $routes->get('forms/reject/(:num)', 'Forms::rejectForm/$1');
     $routes->post('forms/reject', 'Forms::submitRejection');
+    $routes->post('forms/approve-all', 'Forms::approveAll');
     $routes->get('forms/service/(:num)', 'Forms::serviceForm/$1');
     $routes->post('forms/service', 'Forms::submitService');
     $routes->post('forms/sign/(:num)', 'Forms::signForm/$1');
@@ -94,8 +107,6 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
 
 // Admin routes
 $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes) {
-    $routes->get('dashboard', 'Admin\Dashboard::index');
-    
     // Configurations - Consolidated lookup tables
     $routes->get('configurations', 'Admin\Configurations::index');
     $routes->get('configurations/new', 'Admin\Configurations::new');
@@ -148,7 +159,8 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
 
     $routes->get('configurations/download-template/(:num)', 'Admin\Configurations::downloadTemplate/$1');
     $routes->get('configurations/delete-template/(:num)', 'Admin\Configurations::deleteTemplate/$1');
-    $routes->post('configurations/upload-template/(:num)', 'Admin\Configurations::uploadTemplate/$1');    
+    $routes->post('configurations/upload-template/(:num)', 'Admin\Configurations::uploadTemplate/$1');
+    $routes->post('configurations/update-system-config', 'Admin\Configurations::updateSystemConfig');    
 });
 
 // Superuser-only routes

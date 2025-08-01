@@ -1,68 +1,90 @@
-# CodeIgniter 4 Application Starter
+# SmartISO - Document Management & Workflow System
 
-## What is CodeIgniter?
+## About SmartISO
 
-CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.
-More information can be found at the [official site](https://codeigniter.com).
+SmartISO is a comprehensive document management and approval workflow system built with CodeIgniter 4. It facilitates the creation, submission, approval, and processing of various organizational forms with role-based access control and digital signature capabilities.
 
-This repository holds a composer-installable app starter.
-It has been built from the
-[development repository](https://github.com/codeigniter4/CodeIgniter4).
+### Key Features
+- **Dynamic Form Builder** with drag-and-drop interface
+- **Role-based Workflow Management** (Requestor → Approver → Service Staff)
+- **Digital Signature Integration** for document authentication  
+- **PDF/Word Document Generation** with professional templates
+- **Analytics & Reporting Dashboard** with Chart.js visualizations
+- **Department-based Organization** structure
+- **Real-time Status Tracking** throughout the workflow process
 
-More information about the plans for version 4 can be found in [CodeIgniter 4](https://forum.codeigniter.com/forumdisplay.php?fid=28) on the forums.
+### User Roles
+- **Superuser**: Full system administration
+- **Admin**: User and form management
+- **Requestor**: Form submission and tracking
+- **Approving Authority**: Form review and approval
+- **Service Staff**: Request processing and completion
 
-You can read the [user guide](https://codeigniter.com/user_guide/)
-corresponding to the latest version of the framework.
+## 📋 Complete System Documentation
 
-## Installation & updates
+For detailed workflow processes, technical architecture, and API documentation, see:
+**[SYSTEM_WORKFLOW.md](SYSTEM_WORKFLOW.md)**
 
-`composer create-project codeigniter4/appstarter` then `composer update` whenever
-there is a new release of the framework.
+## Quick Start
 
-When updating, check the release notes to see if there are any changes you might need to apply
-to your `app` folder. The affected files can be copied or merged from
-`vendor/codeigniter4/framework/app`.
-
-## Setup
-
-Copy `env` to `.env` and tailor for your app, specifically the baseURL
-and any database settings.
-
-## Important Change with index.php
-
-`index.php` is no longer in the root of the project! It has been moved inside the *public* folder,
-for better security and separation of components.
-
-This means that you should configure your web server to "point" to your project's *public* folder, and
-not to the project root. A better practice would be to configure a virtual host to point there. A poor practice would be to point your web server to the project root and expect to enter *public/...*, as the rest of your logic and the
-framework are exposed.
-
-**Please** read the user guide for a better explanation of how CI4 works!
-
-## Repository Management
-
-We use GitHub issues, in our main repository, to track **BUGS** and to track approved **DEVELOPMENT** work packages.
-We use our [forum](http://forum.codeigniter.com) to provide SUPPORT and to discuss
-FEATURE REQUESTS.
-
-This repository is a "distribution" one, built by our release preparation script.
-Problems with it can be raised on our forum, or as issues in the main repository.
-
-## Server Requirements
+### System Requirements
 
 PHP version 8.1 or higher is required, with the following extensions installed:
 
 - [intl](http://php.net/manual/en/intl.requirements.php)
 - [mbstring](http://php.net/manual/en/mbstring.installation.php)
+- [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) for MySQL database
+- [libcurl](http://php.net/manual/en/curl.requirements.php) for HTTP requests
+- json (enabled by default)
 
-> [!WARNING]
-> - The end of life date for PHP 7.4 was November 28, 2022.
-> - The end of life date for PHP 8.0 was November 26, 2023.
-> - If you are still using PHP 7.4 or 8.0, you should upgrade immediately.
-> - The end of life date for PHP 8.1 will be December 31, 2025.
+### Installation
 
-Additionally, make sure that the following extensions are enabled in your PHP:
+1. **Clone the repository**
+   ```bash
+   git clone [repository-url] SmartISO
+   cd SmartISO
+   ```
 
-- json (enabled by default - don't turn it off)
-- [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) if you plan to use MySQL
-- [libcurl](http://php.net/manual/en/curl.requirements.php) if you plan to use the HTTP\CURLRequest library
+2. **Install dependencies**
+   ```bash
+   composer install
+   ```
+
+3. **Configure environment**
+   ```bash
+   cp env .env
+   # Edit .env file with your database settings
+   ```
+
+4. **Set up database**
+   ```bash
+   php spark migrate
+   ```
+
+5. **Configure web server**
+   Point your web server to the `public/` directory
+
+6. **Create initial superuser**
+   Access `/auth/register` to create the first superuser account
+
+### Usage
+
+1. **Login** with your credentials
+2. **Configure departments** and users (Admin/Superuser)
+3. **Create forms** using the drag-and-drop form builder
+4. **Set up approval workflows** and assign signatories
+5. **Start processing** forms through the workflow
+
+### Support & Documentation
+
+- **System Workflow**: See [SYSTEM_WORKFLOW.md](SYSTEM_WORKFLOW.md) for complete documentation
+- **Technical Issues**: Check `writable/logs/` for error logs
+- **Configuration**: Modify settings in `app/Config/` directory
+
+---
+
+## Framework Information
+
+This application is built on **CodeIgniter 4.6.2**. For framework-specific documentation, visit the [CodeIgniter User Guide](https://codeigniter.com/user_guide/).
+
+### Framework Requirements

@@ -7,9 +7,6 @@
         <a href="<?= base_url('admin/forms') ?>" class="btn btn-secondary">Back to Forms</a>
     </div>
     <div class="card-body">
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
         
         <?php if (session('validation')): ?>
             <div class="alert alert-danger">

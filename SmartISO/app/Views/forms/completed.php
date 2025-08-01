@@ -15,16 +15,7 @@
     <div class="card-header">
         <h3><?= $title ?></h3>
     </div>
-    <div class="card-body">
-        <?php if (session('message')): ?>
-            <div class="alert alert-success"><?= session('message') ?></div>
-        <?php endif; ?>
-        
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
-        
-        <?php if (empty($submissions)): ?>
+        <div class="card-body">        <?php if (empty($submissions)): ?>
             <div class="alert alert-info">
                 <i class="fas fa-info-circle me-2"></i>
                 No completed forms found.

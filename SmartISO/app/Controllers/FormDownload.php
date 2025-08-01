@@ -1,0 +1,348 @@
+<?php
+
+namespace App\Controllers;
+
+use App\Models\FormModel;
+use App\Models\DbpanelModel;
+use App\Models\FormSubmissionModel;
+use App\Models\FormSubmissionDataModel;
+
+class FormDownload extends BaseController
+{
+    protected $formModel;
+    protected $dbpanelModel;
+    protected $formSubmissionModel;
+    protected $formSubmissionDataModel;
+    
+    public function __construct()
+    {
+        $this->formModel = new FormModel();
+        $this->dbpanelModel = new DbpanelModel();
+        $this->formSubmissionModel = new FormSubmissionModel();
+        $this->formSubmissionDataModel = new FormSubmissionDataModel();
+    }
+    
+    /**
+     * Generate downloadable PDF form
+     */
+    public function downloadPDF($formCode)
+    {
+        $form = $this->formModel->where('code', $formCode)->first();
+        
+        if (!$form) {
+            return redirect()->to('/forms')->with('error', 'Form not found');
+        }
+        
+        // Get panel fields
+        $panelName = !empty($form['panel_name']) ? $form['panel_name'] : $formCode;
+        $panelFields = $this->dbpanelModel->getPanelFields($panelName);
+        
+        if (empty($panelFields)) {
+            return redirect()->to('/forms')->with('error', 'No fields configured for this form');
+        }
+        
+        // Generate fillable PDF
+        $pdf = new \TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+        
+        // Set document information
+        $pdf->SetCreator('SmartISO System');
+        $pdf->SetAuthor('SmartISO');
+        $pdf->SetTitle($form['description']);
+        $pdf->SetSubject('Fillable Form');
+        
+        // Set margins
+        $pdf->SetMargins(20, 30, 20);
+        $pdf->SetHeaderMargin(10);
+        $pdf->SetFooterMargin(10);
+        
+        // Add a page
+        $pdf->AddPage();
+        
+        // Add header
+        $pdf->SetFont('helvetica', 'B', 16);
+        $pdf->Cell(0, 15, $form['description'], 0, 1, 'C');
+        $pdf->Ln(10);
+        
+        // Add form fields
+        $pdf->SetFont('helvetica', '', 10);
+        $yPosition = 60;
+        
+        foreach ($panelFields as $field) {
+            // Skip service staff only fields for download
+            if (isset($field['field_role']) && $field['field_role'] === 'service_staff') {
+                continue;
+            }
+            
+            $pdf->SetY($yPosition);
+            
+            // Field label
+            $pdf->SetFont('helvetica', 'B', 10);
+            $pdf->Cell(60, 8, $field['field_label'] . ':', 0, 0, 'L');
+            
+            // Field input area based on type
+            $pdf->SetFont('helvetica', '', 10);
+            
+            switch ($field['field_type']) {
+                case 'textarea':
+                    // Multi-line text area
+                    $pdf->Rect(65, $yPosition, 120, 25);
+                    $yPosition += 30;
+                    break;
+                    
+                case 'dropdown':
+                    // Dropdown with checkbox options
+                    $pdf->Cell(120, 8, '☐ Option 1  ☐ Option 2  ☐ Option 3  ☐ Other: ___________', 1, 1, 'L');
+                    $yPosition += 12;
+                    break;
+                    
+                case 'datepicker':
+                    // Date field
+                    $pdf->Cell(30, 8, '___/___/_____', 1, 0, 'C');
+                    $pdf->Cell(90, 8, ' (MM/DD/YYYY)', 0, 1, 'L');
+                    $yPosition += 12;
+                    break;
+                    
+                case 'yesno':
+                    // Yes/No checkboxes
+                    $pdf->Cell(120, 8, '☐ Yes  ☐ No', 1, 1, 'L');
+                    $yPosition += 12;
+                    break;
+                    
+                default: // input
+                    // Single line text
+                    $pdf->Cell(120, 8, '', 1, 1, 'L');
+                    $yPosition += 12;
+                    break;
+            }
+            
+            $yPosition += 5; // Spacing between fields
+            
+            // Add new page if needed
+            if ($yPosition > 250) {
+                $pdf->AddPage();
+                $yPosition = 30;
+            }
+        }
+        
+        // Add QR code for form identification
+        $qrData = json_encode([
+            'form_code' => $formCode,
+            'generated_at' => date('Y-m-d H:i:s'),
+            'user_id' => session()->get('user_id')
+        ]);
+        
+        $pdf->SetY(260);
+        $pdf->SetFont('helvetica', '', 8);
+        $pdf->Cell(0, 5, 'Form ID: ' . $formCode . ' | Generated: ' . date('Y-m-d H:i:s'), 0, 1, 'C');
+        
+        // Output PDF
+        $filename = $form['code'] . '_fillable_form.pdf';
+        $pdf->Output($filename, 'D');
+    }
+    
+    /**
+     * Generate downloadable Word document form
+     */
+    public function downloadWord($formCode)
+    {
+        $form = $this->formModel->where('code', $formCode)->first();
+        
+        if (!$form) {
+            return redirect()->to('/forms')->with('error', 'Form not found');
+        }
+        
+        // Get panel fields
+        $panelName = !empty($form['panel_name']) ? $form['panel_name'] : $formCode;
+        $panelFields = $this->dbpanelModel->getPanelFields($panelName);
+        
+        // Create new Word document
+        $phpWord = new \PhpOffice\PhpWord\PhpWord();
+        
+        // Add document properties
+        $properties = $phpWord->getDocInfo();
+        $properties->setCreator('SmartISO System');
+        $properties->setCompany('SmartISO');
+        $properties->setTitle($form['description']);
+        $properties->setDescription('Fillable form generated by SmartISO');
+        
+        // Add a section
+        $section = $phpWord->addSection([
+            'marginTop' => 1000,
+            'marginBottom' => 1000,
+            'marginLeft' => 1000,
+            'marginRight' => 1000
+        ]);
+        
+        // Add title
+        $section->addText($form['description'], [
+            'name' => 'Arial',
+            'size' => 16,
+            'bold' => true
+        ], ['alignment' => 'center']);
+        
+        $section->addTextBreak(2);
+        
+        // Add form fields
+        foreach ($panelFields as $field) {
+            // Skip service staff only fields
+            if (isset($field['field_role']) && $field['field_role'] === 'service_staff') {
+                continue;
+            }
+            
+            // Add field label
+            $section->addText($field['field_label'] . ':', [
+                'name' => 'Arial',
+                'size' => 11,
+                'bold' => true
+            ]);
+            
+            // Add field input based on type
+            switch ($field['field_type']) {
+                case 'textarea':
+                    // Multi-line input
+                    $section->addText(str_repeat('_', 80), ['name' => 'Arial', 'size' => 10]);
+                    $section->addTextBreak();
+                    $section->addText(str_repeat('_', 80), ['name' => 'Arial', 'size' => 10]);
+                    $section->addTextBreak();
+                    $section->addText(str_repeat('_', 80), ['name' => 'Arial', 'size' => 10]);
+                    break;
+                    
+                case 'dropdown':
+                    $section->addText('☐ Option 1    ☐ Option 2    ☐ Option 3    ☐ Other: _____________', [
+                        'name' => 'Arial', 'size' => 10
+                    ]);
+                    break;
+                    
+                case 'datepicker':
+                    $section->addText('Date: ___/___/_____ (MM/DD/YYYY)', [
+                        'name' => 'Arial', 'size' => 10
+                    ]);
+                    break;
+                    
+                case 'yesno':
+                    $section->addText('☐ Yes    ☐ No', [
+                        'name' => 'Arial', 'size' => 10
+                    ]);
+                    break;
+                    
+                default: // input
+                    $section->addText(str_repeat('_', 50), [
+                        'name' => 'Arial', 'size' => 10
+                    ]);
+                    break;
+            }
+            
+            $section->addTextBreak(2);
+        }
+        
+        // Add footer with form info
+        $section->addTextBreak(3);
+        $section->addText('Form Code: ' . $formCode . ' | Generated: ' . date('Y-m-d H:i:s'), [
+            'name' => 'Arial', 'size' => 8, 'color' => '666666'
+        ], ['alignment' => 'center']);
+        
+        // Save and download
+        $filename = $form['code'] . '_fillable_form.docx';
+        $tempFile = WRITEPATH . 'temp/' . $filename;
+        
+        // Ensure temp directory exists
+        if (!is_dir(WRITEPATH . 'temp/')) {
+            mkdir(WRITEPATH . 'temp/', 0755, true);
+        }
+        
+        $objWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'Word2007');
+        $objWriter->save($tempFile);
+        
+        // Force download
+        return $this->response->download($tempFile, null)->setFileName($filename);
+    }
+    
+    /**
+     * Show import form for completed documents
+     */
+    public function importForm()
+    {
+        $data = [
+            'title' => 'Import Completed Form',
+            'forms' => $this->formModel->findAll()
+        ];
+        
+        return view('forms/import', $data);
+    }
+    
+    /**
+     * Process imported form data
+     */
+    public function processImport()
+    {
+        $formCode = $this->request->getPost('form_code');
+        $importType = $this->request->getPost('import_type'); // 'manual' or 'upload'
+        
+        if ($importType === 'manual') {
+            return $this->processManualImport($formCode);
+        } else {
+            return $this->processFileImport($formCode);
+        }
+    }
+    
+    /**
+     * Process manual data entry import
+     */
+    private function processManualImport($formCode)
+    {
+        $form = $this->formModel->where('code', $formCode)->first();
+        if (!$form) {
+            return redirect()->back()->with('error', 'Form not found');
+        }
+        
+        // Get panel fields
+        $panelName = !empty($form['panel_name']) ? $form['panel_name'] : $formCode;
+        $panelFields = $this->dbpanelModel->getPanelFields($panelName);
+        
+        // Create submission
+        $submissionId = $this->formSubmissionModel->insert([
+            'form_id' => $form['id'],
+            'panel_name' => $panelName,
+            'submitted_by' => session()->get('user_id'),
+            'status' => 'submitted',
+            'import_method' => 'manual_entry'
+        ]);
+        
+        // Save field data
+        foreach ($panelFields as $field) {
+            $fieldValue = $this->request->getPost($field['field_name']) ?? '';
+            
+            if (!empty($fieldValue)) {
+                $this->formSubmissionDataModel->insert([
+                    'submission_id' => $submissionId,
+                    'field_name' => $field['field_name'],
+                    'field_value' => $fieldValue
+                ]);
+            }
+        }
+        
+        return redirect()->to('/forms/my-submissions')
+                        ->with('message', 'Form imported successfully via manual entry');
+    }
+    
+    /**
+     * Process file upload import (future OCR integration)
+     */
+    private function processFileImport($formCode)
+    {
+        $uploadedFile = $this->request->getFile('import_file');
+        
+        if (!$uploadedFile->isValid()) {
+            return redirect()->back()->with('error', 'Invalid file upload');
+        }
+        
+        // For now, just save the file and redirect to manual entry
+        // TODO: Implement OCR or PDF parsing here
+        
+        $newName = $uploadedFile->getRandomName();
+        $uploadedFile->move(WRITEPATH . 'uploads/imports/', $newName);
+        
+        return redirect()->back()->with('message', 
+            'File uploaded successfully. OCR processing will be implemented in future version. Please use manual entry for now.');
+    }
+}

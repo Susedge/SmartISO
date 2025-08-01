@@ -15,16 +15,7 @@
         <h3><?= $title ?></h3>
         <a href="<?= base_url('forms') ?>" class="btn btn-primary">Submit New Form</a>
     </div>
-    <div class="card-body">
-        <?php if (session('message')): ?>
-            <div class="alert alert-success"><?= session('message') ?></div>
-        <?php endif; ?>
-        
-        <?php if (session('error')): ?>
-            <div class="alert alert-danger"><?= session('error') ?></div>
-        <?php endif; ?>
-        
-        <div class="table-responsive">
+        <div class="card-body">        <div class="table-responsive">
             <table class="table table-striped">
                 <thead>
                     <tr>

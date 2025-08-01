@@ -14,7 +14,7 @@
         <div class="border-end bg-dark text-white" id="sidebar-wrapper" style="width: 250px;">
             <div class="sidebar-heading border-bottom bg-primary text-white p-3">SmartISO Admin</div>
             <div class="list-group list-group-flush">
-                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/dashboard') ?>">
+                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('dashboard') ?>">
                     <i class="fas fa-tachometer-alt me-2"></i> Dashboard
                 </a>
                 <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/departments') ?>">
