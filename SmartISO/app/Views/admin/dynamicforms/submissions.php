@@ -9,7 +9,7 @@
     <div class="row mb-4">
         <div class="col-md-8">
             <form action="<?= base_url('admin/dynamicforms/submissions') ?>" method="get" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <select name="form_id" class="form-select" onchange="this.form.submit()">
                         <option value="">All Forms</option>
                         <?php foreach ($forms as $formOption): ?>
@@ -19,12 +19,22 @@
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <select name="status" class="form-select" onchange="this.form.submit()">
                         <option value="">All Statuses</option>
                         <option value="submitted" <?= ($status ?? '') == 'submitted' ? 'selected' : '' ?>>Submitted</option>
                         <option value="approved" <?= ($status ?? '') == 'approved' ? 'selected' : '' ?>>Approved</option>
                         <option value="rejected" <?= ($status ?? '') == 'rejected' ? 'selected' : '' ?>>Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="priority" class="form-select" onchange="this.form.submit()">
+                        <option value="">All Priorities</option>
+                        <?php foreach ($priorities as $priority_key => $priority_label): ?>
+                            <option value="<?= esc($priority_key) ?>" <?= ($priority ?? '') == $priority_key ? 'selected' : '' ?>>
+                                <?= esc($priority_label) ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-4">
@@ -80,6 +90,7 @@
                         <th>Form</th>
                         <th>Panel</th>
                         <th>Submitted By</th>
+                        <th>Priority</th>
                         <th>Status</th>
                         <th>Date</th>
                         <th>Actions</th>
@@ -102,6 +113,39 @@
                                 <td><?= esc($submission['panel_name']) ?></td>
                                 <td><?= esc($submission['submitted_by_name']) ?></td>
                                 <td>
+                                    <?php 
+                                    $priority = $submission['priority'] ?? 'normal';
+                                    $priorityLabel = $priorities[$priority] ?? 'Normal';
+                                    $priorityColors = [
+                                        'low' => 'success',
+                                        'normal' => 'secondary', 
+                                        'high' => 'warning',
+                                        'urgent' => 'danger',
+                                        'critical' => 'dark'
+                                    ];
+                                    $priorityColor = $priorityColors[$priority] ?? 'secondary';
+                                    ?>
+                                    
+                                    <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                                    <div class="priority-container" data-submission-id="<?= $submission['id'] ?>">
+                                        <span class="badge bg-<?= $priorityColor ?> priority-badge" style="cursor: pointer;" onclick="editPriority(<?= $submission['id'] ?>)">
+                                            <?= esc($priorityLabel) ?>
+                                        </span>
+                                        <select class="form-select form-select-sm priority-select d-none" onchange="updatePriority(<?= $submission['id'] ?>, this.value)">
+                                            <?php foreach ($priorities as $priority_key => $priority_label): ?>
+                                                <option value="<?= esc($priority_key) ?>" <?= $priority == $priority_key ? 'selected' : '' ?>>
+                                                    <?= esc($priority_label) ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <?php else: ?>
+                                    <span class="badge bg-<?= $priorityColor ?>">
+                                        <?= esc($priorityLabel) ?>
+                                    </span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
                                     <?php if ($submission['status'] == 'submitted'): ?>
                                         <span class="badge bg-primary">Submitted</span>
                                     <?php elseif ($submission['status'] == 'approved'): ?>
@@ -120,7 +164,7 @@
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="<?= (session()->get('role') == 'admin' || session()->get('role') == 'superuser') ? '8' : '7' ?>" class="text-center">No submissions found</td>
+                            <td colspan="<?= (in_array(session()->get('user_type'), ['admin', 'superuser'])) ? '9' : '8' ?>" class="text-center">No submissions found</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -167,6 +211,89 @@ document.addEventListener('DOMContentLoaded', function() {
         bulkActionBtn.disabled = !(checkedCount > 0 && actionSelected);
     }
 });
+
+// Priority editing functions
+function editPriority(submissionId) {
+    const container = document.querySelector(`[data-submission-id="${submissionId}"]`);
+    const badge = container.querySelector('.priority-badge');
+    const select = container.querySelector('.priority-select');
+    
+    badge.classList.add('d-none');
+    select.classList.remove('d-none');
+    select.focus();
+}
+
+function updatePriority(submissionId, newPriority) {
+    const container = document.querySelector(`[data-submission-id="${submissionId}"]`);
+    const badge = container.querySelector('.priority-badge');
+    const select = container.querySelector('.priority-select');
+    
+    // Show loading
+    select.disabled = true;
+    
+    fetch('<?= base_url('admin/dynamicforms/update-priority') ?>', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: `submission_id=${submissionId}&priority=${newPriority}&<?= csrf_token() ?>=<?= csrf_hash() ?>`
+    })
+    .then(response => response.json())
+    .then(data => {
+        select.disabled = false;
+        
+        if (data.success) {
+            // Update badge with new priority
+            const priorityColors = {
+                'low': 'success',
+                'normal': 'secondary', 
+                'high': 'warning',
+                'urgent': 'danger',
+                'critical': 'dark'
+            };
+            
+            const newColor = priorityColors[newPriority] || 'secondary';
+            badge.className = `badge bg-${newColor} priority-badge`;
+            badge.style.cursor = 'pointer';
+            badge.textContent = select.options[select.selectedIndex].text;
+            
+            // Hide select and show badge
+            select.classList.add('d-none');
+            badge.classList.remove('d-none');
+            
+            // Show success message
+            showAlert('success', data.message);
+        } else {
+            showAlert('danger', data.message);
+            // Hide select and show badge
+            select.classList.add('d-none');
+            badge.classList.remove('d-none');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        select.disabled = false;
+        showAlert('danger', 'An error occurred while updating priority');
+        // Hide select and show badge
+        select.classList.add('d-none');
+        badge.classList.remove('d-none');
+    });
+}
+
+function showAlert(type, message) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show mb-4 d-flex align-items-center">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-3 fs-4"></i>
+            <div>${message}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Insert at the beginning of the card body
+    const cardBody = document.querySelector('.card-body');
+    cardBody.insertAdjacentHTML('afterbegin', alertHtml);
+}
 </script>
 <?= $this->endSection() ?>
 

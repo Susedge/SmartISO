@@ -71,6 +71,94 @@
                 </div>
             </div>
             
+            <!-- Service Staff Assignment -->
+            <?php if ($canAssignServiceStaff && !empty($available_service_staff)): ?>
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0 text-white">
+                        <i class="bi bi-person-plus"></i> Assign Service Staff
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Note:</strong> Assigning service staff will automatically update the form status and notify the selected staff member.
+                    </div>
+                    <form action="<?= base_url('forms/assign-service-staff') ?>" method="post" class="row g-3">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
+                        
+                        <div class="col-md-8">
+                            <label for="service_staff_id" class="form-label">
+                                <i class="bi bi-person"></i> Select Service Staff <span class="text-danger">*</span>
+                            </label>
+                            <select name="service_staff_id" id="service_staff_id" class="form-select" required>
+                                <option value="">-- Choose a service staff member --</option>
+                                <?php foreach ($available_service_staff as $staff): ?>
+                                    <option value="<?= $staff['id'] ?>">
+                                        <?= esc($staff['full_name']) ?> 
+                                        <small>(<?= esc($staff['email']) ?>)</small>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary" 
+                                    onclick="return confirm('Are you sure you want to assign this service staff member?')">
+                                <i class="bi bi-check-circle"></i> Assign Service Staff
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <?php elseif (!empty($service_staff)): ?>
+            <div class="card mb-4 border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0 text-white">
+                        <i class="bi bi-person-check"></i> Assigned Service Staff
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-info bg-opacity-10 rounded-circle p-3 me-3">
+                                    <i class="bi bi-person text-info fs-4"></i>
+                                </div>
+                                <div>
+                                    <h6 class="mb-1"><?= esc($service_staff['full_name']) ?></h6>
+                                    <p class="mb-1 text-muted">
+                                        <i class="bi bi-envelope"></i> <?= esc($service_staff['email']) ?>
+                                    </p>
+                                    <?php if (!empty($submission['service_notes'])): ?>
+                                        <p class="mb-0">
+                                            <strong>Service Notes:</strong> <?= esc($submission['service_notes']) ?>
+                                        </p>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <?php if (!empty($submission['service_staff_signature_date'])): ?>
+                                <span class="badge bg-success fs-6 p-2">
+                                    <i class="bi bi-check-circle"></i> Service Completed
+                                </span>
+                                <br>
+                                <small class="text-muted">
+                                    <?= date('M d, Y h:i A', strtotime($submission['service_staff_signature_date'])) ?>
+                                </small>
+                            <?php else: ?>
+                                <span class="badge bg-warning fs-6 p-2">
+                                    <i class="bi bi-clock"></i> Pending Service
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <!-- Form Data -->
             <div class="card mb-4">
                 <div class="card-header">

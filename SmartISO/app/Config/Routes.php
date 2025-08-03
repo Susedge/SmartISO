@@ -93,6 +93,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/reject/(:num)', 'Forms::rejectForm/$1');
     $routes->post('forms/reject', 'Forms::submitRejection');
     $routes->post('forms/approve-all', 'Forms::approveAll');
+    $routes->post('forms/assign-service-staff', 'Forms::assignServiceStaff');
     $routes->get('forms/service/(:num)', 'Forms::serviceForm/$1');
     $routes->post('forms/service', 'Forms::submitService');
     $routes->post('forms/sign/(:num)', 'Forms::signForm/$1');
@@ -142,6 +143,7 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->get('dynamicforms/submissions', 'Admin\DynamicForms::submissions');
     $routes->get('dynamicforms/view-submission/(:num)', 'Admin\DynamicForms::viewSubmission/$1');
     $routes->post('dynamicforms/update-status', 'Admin\DynamicForms::updateStatus');
+    $routes->post('dynamicforms/update-priority', 'Admin\DynamicForms::updatePriority');
     $routes->get('dynamicforms/export-submission/(:num)/(:alpha)', 'Admin\DynamicForms::exportSubmission/$1/$2');
     $routes->post('dynamicforms/bulk-action', 'Admin\DynamicForms::bulkAction');
     $routes->post('dynamicforms/rename-panel', 'Admin\DynamicForms::renamePanel');

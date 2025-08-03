@@ -13,7 +13,7 @@ class FormSubmissionModel extends Model
     protected $returnType     = 'array';
     
     protected $allowedFields = [
-        'form_id', 'panel_name', 'submitted_by', 'status', 
+        'form_id', 'panel_name', 'submitted_by', 'status', 'priority',
         'approver_id', 'approved_at', 'approval_comments',
         'rejected_reason', 'signature_applied', 'service_staff_id',
         'service_staff_signature_date', 'service_notes',

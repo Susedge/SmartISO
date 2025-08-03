@@ -385,20 +385,30 @@ class DynamicForms extends BaseController
         // Get filters
         $formId = $this->request->getGet('form_id');
         $status = $this->request->getGet('status');
+        $priority = $this->request->getGet('priority');
         $search = $this->request->getGet('search');
         
-        // IMPORTANT: Fix the admin check - handle null role
-        $userRole = session()->get('role');
+        // IMPORTANT: Fix the admin check - handle null user_type
+        $userType = session()->get('user_type');
         
-        // Consider user with ID 1 as admin if role isn't set
+        // Consider user with ID 1 as admin if user_type isn't set
         // Adjust this based on your application's admin user ID
-        $isAdmin = ($userRole === 'admin' || $userRole === 'superuser' || session()->get('user_id') == 1);
+        $isAdmin = (in_array($userType, ['admin', 'superuser']) || session()->get('user_id') == 1);
+        
+        // Debug information
+        log_message('info', 'DynamicForms submissions() - User Type: ' . ($userType ?? 'null'));
+        log_message('info', 'DynamicForms submissions() - User ID: ' . (session()->get('user_id') ?? 'null'));
+        log_message('info', 'DynamicForms submissions() - Is Admin: ' . ($isAdmin ? 'true' : 'false'));
         
         // For admin, show all submissions by NOT filtering by user ID
         $userId = $isAdmin ? null : session()->get('user_id');
         
         // Get all forms for filter dropdown
         $forms = $this->formModel->findAll();
+        
+        // Get priority configurations
+        $priorityModel = new \App\Models\PriorityConfigurationModel();
+        $priorities = $priorityModel->getPriorityOptions();
         
         // Get submissions - use this simplified approach to avoid issues
         if ($isAdmin) {
@@ -429,6 +439,9 @@ class DynamicForms extends BaseController
             if (empty($row['submitted_by_name'])) $row['submitted_by_name'] = 'Unknown User';
         }
         
+        // Debug: Log how many submissions we found
+        log_message('info', 'DynamicForms submissions() - Found ' . count($submissions) . ' submissions');
+        
         // Apply filters if specified
         if ($formId || $status || $search) {
             $filteredSubmissions = [];
@@ -440,6 +453,10 @@ class DynamicForms extends BaseController
                 }
                 
                 if ($status && $submission['status'] != $status) {
+                    $includeSubmission = false;
+                }
+                
+                if ($priority && $submission['priority'] != $priority) {
                     $includeSubmission = false;
                 }
                 
@@ -463,8 +480,10 @@ class DynamicForms extends BaseController
             'title' => 'Form Submissions',
             'submissions' => $submissions,
             'forms' => $forms,
+            'priorities' => $priorities,
             'formId' => $formId,
             'status' => $status,
+            'priority' => $priority,
             'search' => $search
         ];
         
@@ -487,9 +506,9 @@ class DynamicForms extends BaseController
         }
         
         // UPDATED: Check if user has permission to view this submission
-        // Consider user with ID 1 as admin if role isn't set
-        $userRole = session()->get('role');
-        $isAdmin = ($userRole === 'admin' || $userRole === 'superuser' || session()->get('user_id') == 1);
+        // Consider user with ID 1 as admin if user_type isn't set
+        $userType = session()->get('user_type');
+        $isAdmin = (in_array($userType, ['admin', 'superuser']) || session()->get('user_id') == 1);
         
         if (!$isAdmin && $submission['submitted_by'] != session()->get('user_id')) {
             return redirect()->to('/admin/dynamicforms/submissions')
@@ -980,6 +999,46 @@ class DynamicForms extends BaseController
             return redirect()->to('/admin/dynamicforms/panel-config')->with('success', 'Panel "' . $panelName . '" deleted successfully');
         } else {
             return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Failed to delete panel or panel not found');
+        }
+    }
+    
+    /**
+     * Update priority for a form submission
+     */
+    public function updatePriority()
+    {
+        if ($this->request->getMethod() !== 'POST') {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+        }
+        
+        $submissionId = $this->request->getPost('submission_id');
+        $priority = $this->request->getPost('priority');
+        
+        if (!$submissionId || !$priority) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Submission ID and priority are required']);
+        }
+        
+        // Validate priority exists
+        $priorityModel = new \App\Models\PriorityConfigurationModel();
+        $validPriority = $priorityModel->where('priority_level', $priority)->first();
+        
+        if (!$validPriority) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid priority level']);
+        }
+        
+        // Update the submission
+        $submissionModel = new \App\Models\FormSubmissionModel();
+        $result = $submissionModel->update($submissionId, ['priority' => $priority]);
+        
+        if ($result) {
+            return $this->response->setJSON([
+                'success' => true, 
+                'message' => 'Priority updated successfully',
+                'priority_label' => $validPriority['priority_level'],
+                'priority_color' => $validPriority['priority_color']
+            ]);
+        } else {
+            return $this->response->setJSON(['success' => false, 'message' => 'Failed to update priority']);
         }
     }
 }

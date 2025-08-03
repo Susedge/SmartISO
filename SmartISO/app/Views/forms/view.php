@@ -1,7 +1,4 @@
-<?= $this->ext            <form action="<?= base_url('forms/submit') ?>" method="post" id="dynamicForm" enctype="multipart/form-data">
-                <?= csrf_field() ?>
-                <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
-                <input type="hidden" name="panel_name" value="<?= $panel_name ?>">'layouts/default') ?>
+<?= $this->extend('layouts/default') ?>
 
 <?= $this->section('content') ?>
 <div class="card">
@@ -15,7 +12,7 @@
                 No fields configured for this form.
             </div>
         <?php else: ?>
-            <form action="<?= base_url('forms/submit') ?>" method="post" id="dynamicForm">
+            <form action="<?= base_url('forms/submit') ?>" method="post" id="dynamicForm" enctype="multipart/form-data">
                 <?= csrf_field() ?>
                 <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
                 <input type="hidden" name="panel_name" value="<?= $panel_name ?>">
@@ -150,7 +147,16 @@
                         </label>
                         <select class="form-select" id="priority" name="priority" required>
                             <option value="">Select Priority</option>
-                            <?php foreach ($priorities as $priority_key => $priority_label): ?>
+                            <?php 
+                            $safePriorities = $priorities ?? [
+                                'low' => 'Low',
+                                'normal' => 'Normal',
+                                'high' => 'High', 
+                                'urgent' => 'Urgent',
+                                'critical' => 'Critical'
+                            ];
+                            foreach ($safePriorities as $priority_key => $priority_label): 
+                            ?>
                                 <option value="<?= esc($priority_key) ?>" 
                                         <?= ($priority_key === 'normal') ? 'selected' : '' ?>>
                                     <?= esc($priority_label) ?>

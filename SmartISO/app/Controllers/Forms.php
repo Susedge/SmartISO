@@ -65,7 +65,13 @@ class Forms extends BaseController
             'panel_name' => $panelName,
             'panel_fields' => $panelFields,
             'departments' => $this->departmentModel->findAll(),
-            'priorities' => $this->priorityModel->getPriorityOptions()
+            'priorities' => $this->priorityModel->getPriorityOptions() ?? [
+                'low' => 'Low',
+                'normal' => 'Normal', 
+                'high' => 'High',
+                'urgent' => 'Urgent',
+                'critical' => 'Critical'
+            ]
         ];
         
         return view('forms/view', $data);
@@ -87,11 +93,15 @@ class Forms extends BaseController
         
         // Validate that the priority exists in our system
         if ($canSetPriority && !empty($requestedPriority)) {
-            $validPriority = $this->priorityModel->getPriorityByLevel($requestedPriority);
-            if (!$validPriority) {
-                return redirect()->back()
-                    ->withInput()
-                    ->with('error', 'Invalid priority level selected.');
+            try {
+                $validPriority = $this->priorityModel->getPriorityByLevel($requestedPriority);
+                if (!$validPriority) {
+                    // If priority doesn't exist in database, fall back to 'normal'
+                    $priority = 'normal';
+                }
+            } catch (\Exception $e) {
+                // If there's any database error, fall back to 'normal'
+                $priority = 'normal';
             }
         }
         
@@ -182,37 +192,67 @@ class Forms extends BaseController
     
     public function pendingApproval()
     {
-        // Only for approving_authority
-        if (session()->get('user_type') !== 'approving_authority' && 
-            session()->get('user_type') !== 'admin') {
-            return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
+        try {
+            // Only for approving_authority
+            if (session()->get('user_type') !== 'approving_authority' && 
+                session()->get('user_type') !== 'admin') {
+                return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
+            }
+            
+            // Get filter parameters
+            $departmentFilter = $this->request->getGet('department');
+            $priorityFilter = $this->request->getGet('priority');
+            
+            // Get pending submissions with filters
+            try {
+                $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
+            } catch (\Exception $e) {
+                log_message('error', 'Error getting pending approvals: ' . $e->getMessage());
+                $submissions = [];
+            }
+            
+            // Get all department names for filter dropdown
+            try {
+                $departmentNames = $this->db->table('departments')
+                    ->select('DISTINCT description')
+                    ->orderBy('description')
+                    ->get()
+                    ->getResultArray();
+                $departments = array_column($departmentNames, 'description');
+            } catch (\Exception $e) {
+                log_message('error', 'Error getting departments: ' . $e->getMessage());
+                $departments = [];
+            }
+            
+            // Get priority options with fallback
+            try {
+                $priorities = $this->priorityModel->getPriorityOptions();
+            } catch (\Exception $e) {
+                log_message('error', 'Error getting priorities: ' . $e->getMessage());
+                $priorities = [
+                    'low' => 'Low',
+                    'normal' => 'Normal',
+                    'high' => 'High',
+                    'urgent' => 'Urgent',
+                    'critical' => 'Critical'
+                ];
+            }
+            
+            $data = [
+                'title' => 'Forms Pending Approval',
+                'submissions' => $submissions ?? [],
+                'departments' => $departments ?? [],
+                'priorities' => $priorities ?? [],
+                'selectedDepartment' => $departmentFilter ?? '',
+                'selectedPriority' => $priorityFilter ?? ''
+            ];
+            
+            return view('forms/pending_approval', $data);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error in pendingApproval: ' . $e->getMessage());
+            return redirect()->to('/dashboard')->with('error', 'An error occurred while loading pending approvals. Please try again.');
         }
-        
-        // Get filter parameters
-        $departmentFilter = $this->request->getGet('department');
-        $priorityFilter = $this->request->getGet('priority');
-        
-        // Get pending submissions with filters
-        $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
-        
-        // Get all department names for filter dropdown
-        $departmentNames = $this->db->table('departments')
-            ->select('DISTINCT description')
-            ->orderBy('description')
-            ->get()
-            ->getResultArray();
-        $departments = array_column($departmentNames, 'description');
-        
-        $data = [
-            'title' => 'Forms Pending Approval',
-            'submissions' => $submissions,
-            'departments' => $departments,
-            'priorities' => $this->priorityModel->getPriorityOptions(),
-            'selectedDepartment' => $departmentFilter,
-            'selectedPriority' => $priorityFilter
-        ];
-        
-        return view('forms/pending_approval', $data);
     }
     
     public function pendingService()
@@ -376,6 +416,9 @@ class Forms extends BaseController
         // Get form details
         $form = $this->formModel->find($submission['form_id']);
         
+        // Get submitter details
+        $submitter = $this->userModel->find($submission['submitted_by']);
+        
         // Get panel fields
         $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
         
@@ -394,11 +437,22 @@ class Forms extends BaseController
             $serviceStaff = $this->userModel->find($submission['service_staff_id']);
         }
         
+        // Get available service staff for assignment
+        $availableServiceStaff = [];
+        if (in_array($userType, ['admin', 'approving_authority'])) {
+            $availableServiceStaff = $this->userModel->where('user_type', 'service_staff')
+                                                    ->where('active', 1)
+                                                    ->findAll();
+        }
+        
         // Determine if current user can take action on this form
         $canApprove = ($userType === 'approving_authority' && $submission['status'] === 'submitted');
-        $canService = ($userType === 'service_staff' && $submission['status'] === 'approved' && empty($submission['service_staff_id']));
+        $canService = ($userType === 'service_staff' && $submission['status'] === 'pending_service' && $submission['service_staff_id'] == $userId);
         $canSignCompletion = ($userType === 'requestor' && $submission['submitted_by'] == $userId && 
                              !empty($submission['service_staff_signature_date']) && empty($submission['requestor_signature_date']));
+        $canAssignServiceStaff = (in_array($userType, ['admin', 'approving_authority']) && 
+                                 in_array($submission['status'], ['submitted', 'approved']) && 
+                                 empty($submission['service_staff_id']));
         
         // Check if user has signature
         $currentUser = $this->userModel->find($userId);
@@ -408,13 +462,16 @@ class Forms extends BaseController
             'title' => 'View Submission',
             'submission' => $submission,
             'form' => $form,
+            'submitter' => $submitter,
             'panel_fields' => $panelFields,
             'submission_data' => $submissionData,
             'approver' => $approver,
             'service_staff' => $serviceStaff,
+            'available_service_staff' => $availableServiceStaff,
             'canApprove' => $canApprove,
             'canService' => $canService,
             'canSignCompletion' => $canSignCompletion,
+            'canAssignServiceStaff' => $canAssignServiceStaff,
             'hasSignature' => $hasSignature,
             'current_user' => $currentUser
         ];
@@ -528,50 +585,71 @@ class Forms extends BaseController
     
     public function approveForm($submissionId)
     {
-        $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        
-        if ($userType !== 'approving_authority' && $userType !== 'admin') {
-            return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
-        }
-        
-        // Get submission details
-        $submission = $this->formSubmissionModel->find($submissionId);
-        
-        if (!$submission) {
+        try {
+            $userId = session()->get('user_id');
+            $userType = session()->get('user_type');
+            
+            if ($userType !== 'approving_authority' && $userType !== 'admin') {
+                return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
+            }
+            
+            // Get submission details
+            $submission = $this->formSubmissionModel->find($submissionId);
+            
+            if (!$submission) {
+                return redirect()->to('/forms/pending-approval')
+                            ->with('error', 'Submission not found');
+            }
+            
+            // Get form details
+            $form = $this->formModel->find($submission['form_id']);
+            if (!$form) {
+                return redirect()->to('/forms/pending-approval')
+                            ->with('error', 'Form not found');
+            }
+            
+            // Get requestor details
+            $requestor = $this->userModel->find($submission['submitted_by']);
+            if (!$requestor) {
+                return redirect()->to('/forms/pending-approval')
+                            ->with('error', 'Requestor not found');
+            }
+            
+            // Get submission data
+            $submissionData = $this->formSubmissionDataModel->getSubmissionDataAsArray($submissionId);
+            
+            // Get panel fields
+            $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
+            
+            // Get available service staff - NEW CODE
+            $userModel = new \App\Models\UserModel();
+            $serviceStaff = $userModel->where('user_type', 'service_staff')
+                                 ->where('active', 1)
+                                 ->findAll();
+            
+            // Check if user has a signature
+            $currentUser = $this->userModel->find($userId);
+            $hasSignature = !empty($currentUser['signature']);
+            
+            $data = [
+                'title' => 'Approve Form: ' . $form['code'],
+                'submission' => $submission,
+                'form' => $form,
+                'requestor' => $requestor,
+                'submission_data' => $submissionData ?? [],  // Safe fallback
+                'panel_fields' => $panelFields ?? [],        // Safe fallback
+                'serviceStaff' => $serviceStaff ?? [],
+                'hasSignature' => $hasSignature,
+                'current_user' => $currentUser
+            ];
+            
+            return view('forms/approval_form', $data);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error in approveForm: ' . $e->getMessage());
             return redirect()->to('/forms/pending-approval')
-                        ->with('error', 'Submission not found');
+                        ->with('error', 'An error occurred while loading the approval form. Please try again.');
         }
-        
-        // Get form details
-        $form = $this->formModel->find($submission['form_id']);
-        
-        // Get requestor details
-        $requestor = $this->userModel->find($submission['submitted_by']);
-        
-        // Get submission data
-        $submissionData = $this->formSubmissionDataModel->getSubmissionDataAsArray($submissionId);
-        
-        // Get panel fields
-        $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
-        
-        // Get available service staff - NEW CODE
-        $userModel = new \App\Models\UserModel();
-        $serviceStaff = $userModel->where('user_type', 'service_staff')
-                             ->where('active', 1)
-                             ->findAll();
-        
-        $data = [
-            'title' => 'Approve Form: ' . $form['code'],
-            'submission' => $submission,
-            'form' => $form,
-            'requestor' => $requestor,
-            'submissionData' => $submissionData,
-            'panelFields' => $panelFields,
-            'serviceStaff' => $serviceStaff // NEW: Pass service staff to the view
-        ];
-        
-        return view('forms/approve', $data);
     }
 
     /**
@@ -990,73 +1068,59 @@ class Forms extends BaseController
 
     public function approveAll()
     {
-        $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        
-        if (!in_array($userType, ['approving_authority', 'admin'])) {
-            return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
-        }
-        
-        $departmentFilter = $this->request->getPost('department_filter');
-        $priorityFilter = $this->request->getPost('priority_filter');
-        
-        // Build query for pending approvals
-        $query = $this->formSubmissionModel
-            ->select('form_submissions.*, users.name as requestor_name, departments.name as department_name')
-            ->join('users', 'users.id = form_submissions.user_id')
-            ->join('departments', 'departments.id = users.department_id', 'left')
-            ->where('status', 'pending_approval');
-        
-        // Apply filters
-        if (!empty($departmentFilter)) {
-            $query->where('departments.name', $departmentFilter);
-        }
-        
-        if (!empty($priorityFilter)) {
-            $query->where('form_submissions.priority', $priorityFilter);
-        }
-        
-        $pendingSubmissions = $query->findAll();
-        
-        if (empty($pendingSubmissions)) {
-            return redirect()->to('/forms/pending-approval')
-                        ->with('error', 'No forms found matching the criteria');
-        }
-        
-        $approvedCount = 0;
-        $errors = [];
-        
-        foreach ($pendingSubmissions as $submission) {
-            try {
-                $updateData = [
-                    'status' => 'approved',
-                    'approver_signature_date' => date('Y-m-d H:i:s'),
-                    'approver_signature' => 'Bulk Approved by ' . session()->get('name')
-                ];
-                
-                if ($this->db->fieldExists('approver_name', 'form_submissions')) {
-                    $updateData['approver_name'] = session()->get('name');
-                }
-                
-                if ($this->db->fieldExists('approver_id', 'form_submissions')) {
-                    $updateData['approver_id'] = $userId;
-                }
-                
-                $this->formSubmissionModel->update($submission['id'], $updateData);
-                $approvedCount++;
-                
-            } catch (Exception $e) {
-                $errors[] = "Failed to approve submission ID {$submission['id']}: " . $e->getMessage();
+        try {
+            $userId = session()->get('user_id');
+            $userType = session()->get('user_type');
+            
+            if (!in_array($userType, ['approving_authority', 'admin'])) {
+                return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
             }
+            
+            $departmentFilter = $this->request->getPost('department_filter');
+            $priorityFilter = $this->request->getPost('priority_filter');
+            
+            // Use the same method as pendingApproval to get submissions
+            $pendingSubmissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
+            
+            if (empty($pendingSubmissions)) {
+                return redirect()->to('/forms/pending-approval')
+                            ->with('error', 'No forms found matching the criteria');
+            }
+            
+            $approvedCount = 0;
+            $errors = [];
+            
+            foreach ($pendingSubmissions as $submission) {
+                try {
+                    $updateData = [
+                        'status' => 'pending_service',
+                        'approver_id' => $userId,
+                        'approved_at' => date('Y-m-d H:i:s'),
+                        'approval_comments' => 'Bulk approved'
+                    ];
+                    
+                    $this->formSubmissionModel->update($submission['id'], $updateData);
+                    $approvedCount++;
+                    
+                } catch (\Exception $e) {
+                    $errors[] = "Failed to approve submission ID {$submission['id']}: " . $e->getMessage();
+                    log_message('error', "Bulk approval error for submission {$submission['id']}: " . $e->getMessage());
+                }
+            }
+            
+            $message = "Successfully approved {$approvedCount} forms";
+            if (!empty($errors)) {
+                $message .= ". " . count($errors) . " errors occurred - check logs for details.";
+            }
+            
+            return redirect()->to('/forms/pending-approval')
+                            ->with('message', $message);
+                            
+        } catch (\Exception $e) {
+            log_message('error', 'Error in approveAll: ' . $e->getMessage());
+            return redirect()->to('/forms/pending-approval')
+                        ->with('error', 'An error occurred during bulk approval. Please try again.');
         }
-        
-        $message = "Successfully approved {$approvedCount} forms";
-        if (!empty($errors)) {
-            $message .= ". Errors: " . implode('; ', $errors);
-        }
-        
-        return redirect()->to('/forms/pending-approval')
-                        ->with('message', $message);
     }
 
     public function submitService()
@@ -1164,6 +1228,68 @@ class Forms extends BaseController
         return redirect()->back()->with('error', 'Invalid export format');
     }
     
+    /**
+     * Assign service staff to a submission
+     */
+    public function assignServiceStaff()
+    {
+        try {
+            $userId = session()->get('user_id');
+            $userType = session()->get('user_type');
+            
+            // Only admins and approving authorities can assign service staff
+            if (!in_array($userType, ['admin', 'approving_authority'])) {
+                return redirect()->back()->with('error', 'Unauthorized access');
+            }
+            
+            $submissionId = $this->request->getPost('submission_id');
+            $serviceStaffId = $this->request->getPost('service_staff_id');
+            
+            if (empty($submissionId) || empty($serviceStaffId)) {
+                return redirect()->back()->with('error', 'Missing required fields');
+            }
+            
+            // Get the submission
+            $submission = $this->formSubmissionModel->find($submissionId);
+            if (!$submission) {
+                return redirect()->back()->with('error', 'Submission not found');
+            }
+            
+            // Verify the service staff exists and is active
+            $serviceStaff = $this->userModel->where('id', $serviceStaffId)
+                                          ->where('user_type', 'service_staff')
+                                          ->where('active', 1)
+                                          ->first();
+            
+            if (!$serviceStaff) {
+                return redirect()->back()->with('error', 'Invalid service staff selected');
+            }
+            
+            // Update the submission with service staff assignment
+            $updateData = [
+                'service_staff_id' => $serviceStaffId,
+                'updated_at' => date('Y-m-d H:i:s')
+            ];
+            
+            // If submission is not yet approved, also update status
+            if ($submission['status'] === 'submitted') {
+                $updateData['status'] = 'pending_service';
+                $updateData['approver_id'] = $userId;
+                $updateData['approved_at'] = date('Y-m-d H:i:s');
+                $updateData['approval_comments'] = 'Auto-approved with service staff assignment';
+            }
+            
+            $this->formSubmissionModel->update($submissionId, $updateData);
+            
+            log_message('info', "Service staff {$serviceStaff['full_name']} assigned to submission {$submissionId} by user {$userId}");
+            
+            return redirect()->back()->with('message', 'Service staff assigned successfully');
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error in assignServiceStaff: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'An error occurred while assigning service staff');
+        }
+    }
 
 
 }

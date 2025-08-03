@@ -43,7 +43,12 @@ class PriorityConfigurationModel extends Model
      */
     public function getPriorityByLevel($level)
     {
-        return $this->where('priority_level', $level)->first();
+        try {
+            return $this->where('priority_level', $level)->first();
+        } catch (\Exception $e) {
+            // Return null if there's any database error
+            return null;
+        }
     }
     
     /**
@@ -51,14 +56,43 @@ class PriorityConfigurationModel extends Model
      */
     public function getPriorityOptions()
     {
-        $priorities = $this->orderBy('priority_weight', 'ASC')->findAll();
-        $options = [];
-        
-        foreach ($priorities as $priority) {
-            $options[$priority['priority_level']] = ucfirst($priority['priority_level']) . 
-                ' (' . $priority['sla_hours'] . 'h SLA)';
+        try {
+            $priorities = $this->orderBy('priority_weight', 'ASC')->findAll();
+            $options = [];
+            
+            if (empty($priorities)) {
+                // Fallback to default priorities if table is empty
+                return [
+                    'low' => 'Low',
+                    'normal' => 'Normal',
+                    'high' => 'High',
+                    'urgent' => 'Urgent',
+                    'critical' => 'Critical'
+                ];
+            }
+            
+            foreach ($priorities as $priority) {
+                $options[$priority['priority_level']] = ucfirst($priority['priority_level']);
+            }
+            
+            return $options;
+        } catch (\Exception $e) {
+            // Fallback to default priorities if there's any database error
+            return [
+                'low' => 'Low',
+                'normal' => 'Normal',
+                'high' => 'High',
+                'urgent' => 'Urgent',
+                'critical' => 'Critical'
+            ];
         }
-        
-        return $options;
+    }
+    
+    /**
+     * Get all priorities as key-value pairs (level => label)
+     */
+    public function getAllPriorities()
+    {
+        return $this->getPriorityOptions();
     }
 }
