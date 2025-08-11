@@ -1,0 +1,481 @@
+SmartISO System - VAPT Testing Documentation
+
+Vulnerability Assessment and Penetration Testing (VAPT) Guide
+
+Document Version: 1.0
+Date: August 12, 2025
+System: SmartISO Service Request Management System
+Framework: CodeIgniter 4.6.2
+
+================================================================================
+
+1. EXECUTIVE SUMMARY
+
+This document provides a comprehensive guide for conducting Vulnerability Assessment and Penetration Testing (VAPT) on the SmartISO system. It includes security checklists, testing methodologies, and remediation guidelines specific to the CodeIgniter-based application.
+
+================================================================================
+
+2. SCOPE OF TESTING
+
+2.1 Application Components to Test
+• Web Application Frontend (User Interface)
+• Backend API Endpoints
+• Authentication & Authorization System
+• File Upload/Download Functionality
+• Database Layer (MySQL)
+• Session Management
+• Form Processing & Validation
+• PDF/Document Generation
+• Notification System
+• Scheduling Module
+• Feedback System
+
+2.2 User Roles to Test
+• Admin - Full system access
+• Approving Authority - Form approval rights
+• Service Staff - Service processing rights
+• Requestor - Basic user rights
+• Unauthenticated Users - Public access
+
+================================================================================
+
+3. VULNERABILITY ASSESSMENT CHECKLIST
+
+3.1 OWASP Top 10 Security Risks
+
+A01: Broken Access Control
+☐ Test horizontal privilege escalation (user accessing other user's data)
+☐ Test vertical privilege escalation (user gaining admin privileges)
+☐ Verify role-based access controls
+☐ Test direct object references (IDOR)
+☐ Check for missing function-level access controls
+
+Test Cases:
+1. Access /admin/* routes without admin privileges
+2. Modify user_id parameters in requests
+3. Access other users' form submissions
+4. Test office management without admin role
+5. Verify schedule access restrictions
+
+A02: Cryptographic Failures
+☐ Test password storage (should be hashed with bcrypt/argon2)
+☐ Verify session token generation
+☐ Check file encryption for sensitive uploads
+☐ Test HTTPS enforcement
+☐ Verify database password encryption
+
+Test Cases:
+1. Check password hashing in users table
+2. Analyze session tokens for randomness
+3. Test man-in-the-middle attacks
+4. Verify sensitive data encryption
+
+A03: Injection Attacks
+☐ SQL Injection testing on all input fields
+☐ NoSQL injection (if applicable)
+☐ Command injection in file processing
+☐ LDAP injection (if LDAP is used)
+☐ XPath injection
+
+Test Cases:
+1. Form fields: ' OR '1'='1' --
+2. Search functionality: '; DROP TABLE users; --
+3. File upload names: ../../../etc/passwd
+4. PDF generation parameters
+5. Notification message injection
+
+A04: Insecure Design
+☐ Review business logic flaws
+☐ Test workflow bypass vulnerabilities
+☐ Check for race conditions
+☐ Verify proper error handling
+☐ Test backup/recovery procedures
+
+Test Cases:
+1. Submit form without proper approval
+2. Schedule conflicts exploitation
+3. Bulk operations without limits
+4. Feedback manipulation
+5. Office assignment bypass
+
+A05: Security Misconfiguration
+☐ Check default credentials
+☐ Verify error page information disclosure
+☐ Test directory traversal
+☐ Check HTTP headers security
+☐ Verify file permissions
+
+Test Cases:
+1. Access /.env file
+2. Directory listing: /writable/
+3. Check HTTP security headers
+4. Test debug mode information
+5. Verify CORS configuration
+
+A06: Vulnerable and Outdated Components
+☐ Check CodeIgniter version
+☐ Verify third-party library versions
+☐ Test composer dependencies
+☐ Check JavaScript libraries
+☐ Verify PDF generation libraries
+
+Test Cases:
+1. composer show --outdated
+2. Check for known CVEs in dependencies
+3. Verify jQuery/Bootstrap versions
+4. Test TCPDF/mPDF vulnerabilities
+
+A07: Identification and Authentication Failures
+☐ Test brute force protection
+☐ Verify session management
+☐ Check password policies
+☐ Test multi-factor authentication (if enabled)
+☐ Verify logout functionality
+
+Test Cases:
+1. Brute force login attempts
+2. Session fixation attacks
+3. Weak password acceptance
+4. Account enumeration
+5. Password reset vulnerabilities
+
+A08: Software and Data Integrity Failures
+☐ Test file upload integrity
+☐ Verify digital signatures
+☐ Check CI/CD pipeline security
+☐ Test auto-update mechanisms
+☐ Verify backup integrity
+
+Test Cases:
+1. Upload malicious files
+2. Modify uploaded signatures
+3. Test form data integrity
+4. Verify PDF generation integrity
+
+A09: Security Logging and Monitoring Failures
+☐ Test logging mechanisms
+☐ Verify log tampering protection
+☐ Check sensitive data in logs
+☐ Test monitoring alerts
+☐ Verify audit trails
+
+Test Cases:
+1. Check login attempt logging
+2. Verify form submission logs
+3. Test log file access
+4. Monitor system alerts
+
+A10: Server-Side Request Forgery (SSRF)
+☐ Test URL validation
+☐ Check file retrieval functions
+☐ Test webhook endpoints
+☐ Verify external service calls
+☐ Check PDF generation URLs
+
+================================================================================
+
+4. PENETRATION TESTING METHODOLOGY
+
+4.1 Information Gathering
+
+Passive Reconnaissance
+• DNS enumeration: nslookup smartiso.com
+• DNS records: dig smartiso.com ANY
+• Web technology identification: whatweb http://smartiso.com
+• Wappalyzer analysis
+• Search engine reconnaissance: Google dorks site:smartiso.com filetype:pdf
+
+Active Reconnaissance
+• Port scanning: nmap -sV -sC target_ip
+• Directory enumeration: dirb http://smartiso.com /usr/share/wordlists/dirb/common.txt
+• Directory bruteforce: gobuster dir -u http://smartiso.com -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+• Technology fingerprinting: nikto -h http://smartiso.com
+
+4.2 Vulnerability Scanning
+
+Automated Scanning Tools
+• OWASP ZAP: zap-baseline.py -t http://smartiso.com
+• Burp Suite: Configure proxy and spider the application
+• SQLMap for SQL injection: sqlmap -u "http://smartiso.com/forms/view/1" --dbs
+• Nuclei scanner: nuclei -t nuclei-templates/ -u http://smartiso.com
+
+4.3 Manual Testing
+
+Authentication Testing
+• Test login bypass
+  Username: admin' OR '1'='1' --
+  Password: anything
+• Session testing: Capture and analyze session tokens
+• Test session fixation
+• Test concurrent sessions
+
+Authorization Testing
+• Test role escalation
+• Modify user_type in session/cookies
+• Access admin functions with regular user
+• Test IDOR vulnerabilities
+
+Input Validation Testing
+• XSS payloads:
+  <script>alert('XSS')</script>
+  <img src=x onerror=alert('XSS')>
+• SQL injection payloads:
+  ' OR 1=1 --
+  '; DROP TABLE users; --
+  UNION SELECT 1,2,3,4,5--
+• File upload testing: Upload PHP shells, Test file type bypasses, Test path traversal
+
+================================================================================
+
+5. SPECIFIC SMARTISO TESTING SCENARIOS
+
+5.1 Form Management Security
+• Test form creation without admin rights: POST /admin/dynamicforms/create-form
+• Test form submission manipulation: Modify form_id in submission
+• Test approval bypass
+• Test PDF generation vulnerabilities: XXE attacks in PDF generation, Path traversal in template files
+
+5.2 File Upload Security
+• Test signature upload bypass: Upload executable files as signatures
+• Test path traversal: ../../../shell.php
+• Test profile image upload: Upload malicious images with embedded code
+• Test file size limits
+
+5.3 Scheduling System Security
+• Test scheduling conflicts: Double-book appointments
+• Access other users' schedules
+• Test notification injection: XSS in notification messages
+• SQL injection in notification data
+
+5.4 Office Management Security
+• Test office assignment bypass: Modify office_id without authorization
+• Test department/office confusion
+• Test user enumeration: Enumerate users by office
+• Test office deletion with assigned users
+
+================================================================================
+
+6. TESTING TOOLS AND SETUP
+
+6.1 Required Tools
+
+Web Application Testing
+• Burp Suite Professional - Primary testing platform
+• OWASP ZAP - Free alternative scanner
+• Nikto - Web server scanner
+• Dirb/Gobuster - Directory enumeration
+
+Database Testing
+• SQLMap - SQL injection testing
+• MySQL Client - Direct database testing
+
+Network Testing
+• Nmap - Port scanning and service detection
+• Wireshark - Network traffic analysis
+
+Source Code Analysis
+• SonarQube - Static code analysis
+• Bandit - Python security linter (if applicable)
+
+6.2 Testing Environment Setup
+
+Local Testing Environment
+• Install dependencies: sudo apt-get install nmap nikto dirb sqlmap
+• Setup Burp Suite: Configure browser proxy settings, Import SSL certificate
+• Setup OWASP ZAP: docker run -u zap -p 8080:8080 -i owasp/zap2docker-stable zap-webswing.sh
+
+Database Access (if available)
+• Test database queries: SELECT * FROM users WHERE id = 1;
+• Check submissions: SELECT * FROM form_submissions WHERE status = 'pending';
+• Check for sensitive data exposure
+
+================================================================================
+
+7. REMEDIATION GUIDELINES
+
+7.1 High Priority Fixes
+
+Authentication & Authorization
+Implement proper role checking:
+if (!in_array(session()->get('user_type'), ['admin', 'superuser'])) {
+    return redirect()->back()->with('error', 'Access denied');
+}
+
+Use CodeIgniter's built-in CSRF protection:
+In Config/Filters.php
+public $globals = [
+    'before' => [
+        'csrf' => ['except' => ['api/*']],
+    ],
+];
+
+Input Validation
+Use CodeIgniter validation:
+$validation = $this->validate([
+    'email' => 'required|valid_email',
+    'name'  => 'required|alpha_space|min_length[3]|max_length[50]',
+]);
+
+Sanitize output:
+echo esc($user_input, 'html');
+
+SQL Injection Prevention
+Use Query Builder (already implemented):
+$this->db->table('users')
+         ->where('email', $email)
+         ->get();
+
+Never use raw queries with user input:
+BAD: $this->db->query("SELECT * FROM users WHERE id = " . $id);
+GOOD: $this->db->query("SELECT * FROM users WHERE id = ?", [$id]);
+
+7.2 Security Headers
+In public/.htaccess or Config/App.php:
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+Header always set Content-Security-Policy "default-src 'self'"
+
+7.3 File Upload Security
+Secure file upload implementation:
+public function uploadFile()
+{
+    $file = $this->request->getFile('upload');
+    
+    // Validate file type
+    $allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (!in_array($file->getMimeType(), $allowedTypes)) {
+        return redirect()->back()->with('error', 'Invalid file type');
+    }
+    
+    // Validate file size
+    if ($file->getSize() > 5242880) { // 5MB
+        return redirect()->back()->with('error', 'File too large');
+    }
+    
+    // Generate secure filename
+    $newName = $file->getRandomName();
+    
+    // Move to secure location outside webroot
+    $file->move(WRITEPATH . 'uploads/', $newName);
+}
+
+================================================================================
+
+8. SECURITY TESTING CHECKLIST
+
+8.1 Pre-Testing Checklist
+☐ Backup production database
+☐ Setup isolated testing environment
+☐ Configure testing tools
+☐ Document current system state
+☐ Inform stakeholders of testing schedule
+
+8.2 Testing Execution Checklist
+☐ Information gathering completed
+☐ Automated scans executed
+☐ Manual testing performed
+☐ All user roles tested
+☐ Business logic flaws identified
+☐ Security controls verified
+
+8.3 Post-Testing Checklist
+☐ Vulnerabilities documented
+☐ Risk ratings assigned
+☐ Remediation plan created
+☐ Stakeholders notified
+☐ Retesting scheduled
+
+================================================================================
+
+9. REPORTING TEMPLATE
+
+9.1 Vulnerability Report Format
+
+Executive Summary
+• Total vulnerabilities found
+• Risk distribution (Critical/High/Medium/Low)
+• Business impact assessment
+• Recommended actions
+
+Technical Details
+For each vulnerability:
+• Title: Descriptive name
+• Severity: CVSS score and rating
+• Description: Technical explanation
+• Impact: Business and technical impact
+• Proof of Concept: Steps to reproduce
+• Remediation: Specific fix recommendations
+• Timeline: Suggested fix timeline
+
+Sample Vulnerability Entry
+Title: SQL Injection in User Search Function
+Severity: High (CVSS 8.2)
+Location: /admin/users?search=[PAYLOAD]
+Description: The user search functionality is vulnerable to SQL injection attacks
+Impact: Complete database compromise, data theft, system takeover
+Proof of Concept:
+1. Navigate to /admin/users
+2. Enter payload: admin' UNION SELECT 1,2,3,4,5--
+3. Observe database content disclosure
+Remediation: Implement parameterized queries using CodeIgniter Query Builder
+Timeline: Fix within 7 days
+
+================================================================================
+
+10. COMPLIANCE CONSIDERATIONS
+
+10.1 Data Protection
+• GDPR Compliance (if handling EU data)
+• Data encryption requirements
+• Audit logging for sensitive operations
+• Data retention policies
+
+10.2 Industry Standards
+• ISO 27001 security management
+• NIST Cybersecurity Framework
+• OWASP ASVS (Application Security Verification Standard)
+
+================================================================================
+
+11. CONTINUOUS SECURITY MONITORING
+
+11.1 Automated Security Checks
+Daily security scans:
+0 2 * * * /usr/bin/nuclei -t nuclei-templates/ -u http://smartiso.com
+
+Weekly dependency checks:
+0 0 * * 0 cd /path/to/smartiso && composer audit
+
+Monthly penetration testing:
+0 0 1 * * /scripts/monthly-pentest.sh
+
+11.2 Security Metrics
+• Number of vulnerabilities by severity
+• Time to remediation
+• Security scan coverage
+• User security training completion
+
+================================================================================
+
+12. EMERGENCY RESPONSE
+
+12.1 Incident Response Plan
+1. Detection - Automated alerts and monitoring
+2. Containment - Isolate affected systems
+3. Investigation - Determine scope and impact
+4. Remediation - Apply fixes and patches
+5. Recovery - Restore normal operations
+6. Lessons Learned - Update security measures
+
+12.2 Contact Information
+• Security Team Lead: [Name] - [Email] - [Phone]
+• System Administrator: [Name] - [Email] - [Phone]
+• Management Contact: [Name] - [Email] - [Phone]
+
+================================================================================
+
+Document End
+
+This document should be updated regularly and reviewed after each testing cycle or significant system changes.
