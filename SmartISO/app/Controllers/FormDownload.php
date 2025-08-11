@@ -23,7 +23,7 @@ class FormDownload extends BaseController
     }
     
     /**
-     * Generate downloadable PDF form
+     * Generate downloadable PDF form without placeholders
      */
     public function downloadPDF($formCode)
     {
@@ -48,7 +48,7 @@ class FormDownload extends BaseController
         $pdf->SetCreator('SmartISO System');
         $pdf->SetAuthor('SmartISO');
         $pdf->SetTitle($form['description']);
-        $pdf->SetSubject('Fillable Form');
+        $pdf->SetSubject('Fillable Form Template');
         
         // Set margins
         $pdf->SetMargins(20, 30, 20);
@@ -58,17 +58,27 @@ class FormDownload extends BaseController
         // Add a page
         $pdf->AddPage();
         
-        // Add header
+        // Add header with current date
         $pdf->SetFont('helvetica', 'B', 16);
         $pdf->Cell(0, 15, $form['description'], 0, 1, 'C');
+        
+        // Add date filled (system date)
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->Cell(0, 8, 'Date: ' . date('F j, Y'), 0, 1, 'R');
         $pdf->Ln(10);
         
-        // Add form fields
+        // Office field (not predefined)
+        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->Cell(60, 8, 'Office/Department:', 0, 0, 'L');
         $pdf->SetFont('helvetica', '', 10);
-        $yPosition = 60;
+        $pdf->Cell(120, 8, '', 1, 1, 'L');
+        $pdf->Ln(5);
+        
+        // Add form fields
+        $yPosition = $pdf->GetY() + 10;
         
         foreach ($panelFields as $field) {
-            // Skip service staff only fields for download
+            // Skip service staff only fields for template download
             if (isset($field['field_role']) && $field['field_role'] === 'service_staff') {
                 continue;
             }
@@ -79,7 +89,7 @@ class FormDownload extends BaseController
             $pdf->SetFont('helvetica', 'B', 10);
             $pdf->Cell(60, 8, $field['field_label'] . ':', 0, 0, 'L');
             
-            // Field input area based on type
+            // Field input area based on type - clean template without placeholders
             $pdf->SetFont('helvetica', '', 10);
             
             switch ($field['field_type']) {
@@ -90,14 +100,14 @@ class FormDownload extends BaseController
                     break;
                     
                 case 'dropdown':
-                    // Dropdown with checkbox options
-                    $pdf->Cell(120, 8, '☐ Option 1  ☐ Option 2  ☐ Option 3  ☐ Other: ___________', 1, 1, 'L');
+                    // Empty checkbox options for clean template
+                    $pdf->Cell(120, 8, '☐ __________ ☐ __________ ☐ __________ ☐ Other: ___________', 1, 1, 'L');
                     $yPosition += 12;
                     break;
                     
                 case 'datepicker':
-                    // Date field
-                    $pdf->Cell(30, 8, '___/___/_____', 1, 0, 'C');
+                    // Clean date field
+                    $pdf->Cell(30, 8, '', 1, 0, 'C');
                     $pdf->Cell(90, 8, ' (MM/DD/YYYY)', 0, 1, 'L');
                     $yPosition += 12;
                     break;
@@ -124,19 +134,31 @@ class FormDownload extends BaseController
             }
         }
         
-        // Add QR code for form identification
-        $qrData = json_encode([
-            'form_code' => $formCode,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'user_id' => session()->get('user_id')
-        ]);
+        // Add signature section
+        $pdf->SetY(max($yPosition + 20, 220));
+        $pdf->SetFont('helvetica', 'B', 10);
+        $pdf->Cell(0, 8, 'Signatures:', 0, 1, 'L');
+        $pdf->Ln(5);
         
-        $pdf->SetY(260);
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->Cell(80, 8, 'Requestor Signature:', 0, 0, 'L');
+        $pdf->Cell(80, 8, 'Date:', 0, 1, 'L');
+        $pdf->Cell(80, 15, '', 1, 0, 'L');
+        $pdf->Cell(80, 15, '', 1, 1, 'L');
+        $pdf->Ln(10);
+        
+        $pdf->Cell(80, 8, 'Approving Authority Signature:', 0, 0, 'L');
+        $pdf->Cell(80, 8, 'Date:', 0, 1, 'L');
+        $pdf->Cell(80, 15, '', 1, 0, 'L');
+        $pdf->Cell(80, 15, '', 1, 1, 'L');
+        
+        // Add footer with form info
+        $pdf->SetY(280);
         $pdf->SetFont('helvetica', '', 8);
-        $pdf->Cell(0, 5, 'Form ID: ' . $formCode . ' | Generated: ' . date('Y-m-d H:i:s'), 0, 1, 'C');
+        $pdf->Cell(0, 5, 'Form Template: ' . $formCode . ' | Downloaded: ' . date('Y-m-d H:i:s'), 0, 1, 'C');
         
         // Output PDF
-        $filename = $form['code'] . '_fillable_form.pdf';
+        $filename = $form['code'] . '_template.pdf';
         $pdf->Output($filename, 'D');
     }
     

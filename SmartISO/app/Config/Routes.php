@@ -104,6 +104,36 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
 
     // PDF viewer
     $routes->get('pdfgenerator/generateFormPdf/(:num)', 'PdfGenerator::generateFormPdf/$1');
+    
+    // Form download routes (fillable forms without placeholders)
+    $routes->get('forms/download/pdf/(:segment)', 'FormDownload::downloadPDF/$1');
+    $routes->get('forms/download/word/(:segment)', 'FormDownload::downloadWord/$1');
+    
+    // Scheduling routes
+    $routes->get('schedule', 'Schedule::index');
+    $routes->get('schedule/create/(:num)', 'Schedule::create/$1');
+    $routes->post('schedule/store', 'Schedule::store');
+    $routes->get('schedule/edit/(:num)', 'Schedule::edit/$1');
+    $routes->post('schedule/update/(:num)', 'Schedule::update/$1');
+    $routes->get('schedule/delete/(:num)', 'Schedule::delete/$1');
+    $routes->get('schedule/calendar', 'Schedule::calendar');
+    $routes->post('schedule/mark-complete/(:num)', 'Schedule::markComplete/$1');
+    
+    // Feedback routes
+    $routes->get('feedback', 'Feedback::index');
+    $routes->get('feedback/create/(:num)', 'Feedback::create/$1');
+    $routes->post('feedback/store', 'Feedback::store');
+    $routes->get('feedback/view/(:num)', 'Feedback::view/$1');
+    $routes->post('feedback/mark-reviewed/(:num)', 'Feedback::markReviewed/$1');
+    $routes->get('feedback/analytics', 'Feedback::analytics');
+    $routes->get('feedback/export', 'Feedback::export');
+    
+    // Notification routes
+    $routes->get('notifications', 'Notifications::index');
+    $routes->get('notifications/unread', 'Notifications::getUnread');
+    $routes->post('notifications/mark-read/(:num)', 'Notifications::markAsRead/$1');
+    $routes->post('notifications/mark-all-read', 'Notifications::markAsRead');
+    $routes->post('notifications/delete/(:num)', 'Notifications::delete/$1');
 });
 
 // Admin routes
@@ -162,7 +192,19 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->get('configurations/download-template/(:num)', 'Admin\Configurations::downloadTemplate/$1');
     $routes->get('configurations/delete-template/(:num)', 'Admin\Configurations::deleteTemplate/$1');
     $routes->post('configurations/upload-template/(:num)', 'Admin\Configurations::uploadTemplate/$1');
-    $routes->post('configurations/update-system-config', 'Admin\Configurations::updateSystemConfig');    
+    $routes->post('configurations/update-system-config', 'Admin\Configurations::updateSystemConfig');
+    
+    // Office management routes (replaces departments)
+    $routes->get('office', 'Admin\Office::index');
+    $routes->get('office/create', 'Admin\Office::create');
+    $routes->post('office/store', 'Admin\Office::store');
+    $routes->get('office/edit/(:num)', 'Admin\Office::edit/$1');
+    $routes->post('office/update/(:num)', 'Admin\Office::update/$1');
+    $routes->get('office/delete/(:num)', 'Admin\Office::delete/$1');
+    $routes->get('office/active', 'Admin\Office::getActiveOffices');
+    
+    // Admin notification cleanup
+    $routes->post('notifications/cleanup', 'Notifications::cleanup');
 });
 
 // Superuser-only routes

@@ -16,7 +16,7 @@ class UserModel extends Model
     
     protected $allowedFields = [
         'email', 'username', 'password_hash', 'full_name', 
-        'department_id', 'user_type', 'active', 'reset_token', 
+        'department_id', 'office_id', 'user_type', 'active', 'reset_token', 
         'reset_expires', 'last_login', 'signature', 'profile_image'
     ];
     
@@ -33,6 +33,7 @@ class UserModel extends Model
         'password_hash' => 'required',
         'full_name'     => 'required|min_length[3]|max_length[100]',
         'department_id' => 'permit_empty|integer',
+        'office_id'     => 'permit_empty|integer',
         'user_type'     => 'required|in_list[admin,requestor,approving_authority,service_staff]',
     ];
     
@@ -42,6 +43,26 @@ class UserModel extends Model
     public function getUsersByType($type)
     {
         return $this->where('user_type', $type)->findAll();
+    }
+
+    /**
+     * Get users with office information
+     */
+    public function getUsersWithOffice()
+    {
+        return $this->db->table('users u')
+                       ->select('u.*, o.code as office_code, o.description as office_name')
+                       ->join('offices o', 'o.id = u.office_id', 'left')
+                       ->get()
+                       ->getResultArray();
+    }
+
+    /**
+     * Get users by office
+     */
+    public function getUsersByOffice($officeId)
+    {
+        return $this->where('office_id', $officeId)->findAll();
     }
     
     /**

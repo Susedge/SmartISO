@@ -1,24 +1,73 @@
-# SmartISO - Document Management & Workflow System
+# SmartISO - Intelligent Service Request & Workflow Management System
 
 ## About SmartISO
 
-SmartISO is a comprehensive document management and approval workflow system built with CodeIgniter 4. It facilitates the creation, submission, approval, and processing of various organizational forms with role-based access control and digital signature capabilities.
+SmartISO is a comprehensive service request management and approval workflow system built with CodeIgniter 4. It facilitates the complete lifecycle of organizational service requests from creation to completion, featuring automated scheduling, real-time notifications, and comprehensive feedback collection.
 
 ### Key Features
-- **Dynamic Form Builder** with drag-and-drop interface
-- **Role-based Workflow Management** (Requestor → Approver → Service Staff)
-- **Digital Signature Integration** for document authentication  
-- **PDF/Word Document Generation** with professional templates
-- **Analytics & Reporting Dashboard** with Chart.js visualizations
-- **Department-based Organization** structure
-- **Real-time Status Tracking** throughout the workflow process
 
-### User Roles
-- **Superuser**: Full system administration
-- **Admin**: User and form management
-- **Requestor**: Form submission and tracking
-- **Approving Authority**: Form review and approval
-- **Service Staff**: Request processing and completion
+#### 🔄 **Complete Workflow Management**
+- **Dynamic Form Builder** with drag-and-drop interface
+- **Role-based Workflow Process** (Admin → Requestor → Approver → Service Staff)
+- **Automated Service Scheduling** with conflict detection
+- **Real-time Notifications** for all workflow stages
+- **Digital Signature Integration** for document authentication
+
+#### 📊 **Advanced Management Tools**
+- **Office-based Organization** (replaces departments)
+- **Service Scheduling Module** with calendar integration
+- **Comprehensive Feedback System** with analytics
+- **PDF/Word Template Downloads** (clean, fillable forms)
+- **Analytics & Reporting Dashboard** with detailed metrics
+
+#### 🔔 **Smart Notification System**
+- **Automatic notifications** for new submissions, approvals, scheduling, and completion
+- **Real-time status updates** throughout the entire process
+- **Customizable notification preferences** by user role
+
+#### 📝 **Enhanced Form Management**
+- **Template downloads** without placeholders for offline completion
+- **System date auto-fill** for all generated forms
+- **Office selection** (not predefined) during account creation
+- **Import capabilities** for completed offline forms
+
+### Complete Workflow Process
+
+#### 1. **Admin Setup Phase**
+- ✅ Admin creates forms with templates using the dynamic form builder
+- ✅ Admin sets approver staff for each form type
+- ✅ Admin configures offices and assigns users
+- ✅ System automatically tracks all changes with timestamps
+
+#### 2. **Request Submission Phase**
+- ✅ Requestor fills up forms online OR downloads fillable templates (PDF/Word)
+- ✅ Requestor can download clean templates without placeholders
+- ✅ System auto-fills current date and allows office selection
+- ✅ Automatic notifications sent to designated approvers
+
+#### 3. **Approval Phase**
+- ✅ Approver receives notification of new request
+- ✅ Approver reviews and approves/rejects the form
+- ✅ Approver assigns service staff for approved requests
+- ✅ Automatic notifications sent to requestor and service staff
+
+#### 4. **Service Scheduling Phase**
+- ✅ Service staff receives notification of assignment
+- ✅ System provides scheduling module with conflict detection
+- ✅ Service staff schedules the service with specific date/time
+- ✅ Automatic notifications sent to requestor about schedule
+
+#### 5. **Service Completion Phase**
+- ✅ Service staff processes and completes the request
+- ✅ System tracks completion with timestamps
+- ✅ Automatic notifications sent requesting feedback
+- ✅ Comprehensive feedback collection with analytics
+
+### User Roles & Permissions
+- **Admin**: Full system management, form creation, user management, office configuration
+- **Requestor**: Form submission, status tracking, feedback provision, template downloads
+- **Approving Authority**: Request review, approval/rejection, service staff assignment
+- **Service Staff**: Request processing, scheduling, service completion
 
 ## 📋 Complete System Documentation
 

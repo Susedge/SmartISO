@@ -25,6 +25,27 @@ class FormSubmissionModel extends Model
     protected $updatedField  = 'updated_at';
     
     /**
+     * Override insert to create notifications
+     */
+    public function insert($data = null, bool $returnID = true)
+    {
+        $result = parent::insert($data, $returnID);
+        
+        if ($result && $returnID) {
+            // Create notification for new submission
+            $formModel = new \App\Models\FormModel();
+            $form = $formModel->find($data['form_id']);
+            
+            if ($form) {
+                $notificationModel = new \App\Models\NotificationModel();
+                $notificationModel->createSubmissionNotification($result, $form['code']);
+            }
+        }
+        
+        return $result;
+    }
+    
+    /**
      * Get submissions with form details
      */
     public function getSubmissionsWithDetails($userId = null)
@@ -156,13 +177,22 @@ class FormSubmissionModel extends Model
      */
     public function approveSubmission($submissionId, $approverId, $comments = '')
     {
-        return $this->update($submissionId, [
+        $result = $this->update($submissionId, [
             'status' => 'approved',
             'approver_id' => $approverId,
             'approved_at' => date('Y-m-d H:i:s'),
             'approval_comments' => $comments,
             'signature_applied' => 1
         ]);
+        
+        if ($result) {
+            // Create notification for requestor
+            $submission = $this->find($submissionId);
+            $notificationModel = new \App\Models\NotificationModel();
+            $notificationModel->createApprovalNotification($submissionId, $submission['submitted_by'], true);
+        }
+        
+        return $result;
     }
     
     /**
@@ -170,12 +200,21 @@ class FormSubmissionModel extends Model
      */
     public function rejectSubmission($submissionId, $approverId, $reason = '')
     {
-        return $this->update($submissionId, [
+        $result = $this->update($submissionId, [
             'status' => 'rejected',
             'approver_id' => $approverId,
             'approved_at' => date('Y-m-d H:i:s'),
             'rejected_reason' => $reason
         ]);
+        
+        if ($result) {
+            // Create notification for requestor
+            $submission = $this->find($submissionId);
+            $notificationModel = new \App\Models\NotificationModel();
+            $notificationModel->createApprovalNotification($submissionId, $submission['submitted_by'], false);
+        }
+        
+        return $result;
     }
     
     /**
@@ -183,12 +222,51 @@ class FormSubmissionModel extends Model
      */
     public function markAsServiced($submissionId, $serviceStaffId, $notes = '')
     {
-        return $this->update($submissionId, [
+        $result = $this->update($submissionId, [
             'service_staff_id' => $serviceStaffId,
             'service_staff_signature_date' => date('Y-m-d H:i:s'),
             'service_notes' => $notes,
             'status' => 'completed'
         ]);
+        
+        if ($result) {
+            // Create notification for requestor
+            $submission = $this->find($submissionId);
+            $notificationModel = new \App\Models\NotificationModel();
+            $notificationModel->createServiceCompletionNotification($submissionId, $submission['submitted_by']);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Assign service staff to a submission
+     */
+    public function assignServiceStaff($submissionId, $serviceStaffId)
+    {
+        $result = $this->update($submissionId, [
+            'service_staff_id' => $serviceStaffId
+        ]);
+        
+        if ($result) {
+            // Get form code for notification
+            $submission = $this->getSubmissionsWithDetails();
+            $currentSubmission = array_filter($submission, function($item) use ($submissionId) {
+                return $item['id'] == $submissionId;
+            });
+            
+            if (!empty($currentSubmission)) {
+                $currentSubmission = reset($currentSubmission);
+                $notificationModel = new \App\Models\NotificationModel();
+                $notificationModel->createServiceStaffAssignmentNotification(
+                    $submissionId, 
+                    $serviceStaffId, 
+                    $currentSubmission['form_code']
+                );
+            }
+        }
+        
+        return $result;
     }
     
     /**
