@@ -15,12 +15,20 @@ class SuperuserSeeder extends Seeder
             ->getRow()
             ->id ?? 1;
 
+        // Get office ID for Administration Office
+        $officeId = $this->db->table('offices')
+            ->where('code', 'ADM')
+            ->get()
+            ->getRow()
+            ->id ?? 1;
+
         $data = [
             'email' => 'admin@smartiso.com',
             'username' => 'admin',
             'password_hash' => password_hash('admin123', PASSWORD_DEFAULT),
             'full_name' => 'System Administrator',
             'department_id' => $departmentId,
+            'office_id' => $officeId,
             'user_type' => 'superuser',
             'active' => 1,
             'created_at' => date('Y-m-d H:i:s'),

@@ -17,8 +17,8 @@
                 <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('dashboard') ?>">
                     <i class="fas fa-tachometer-alt me-2"></i> Dashboard
                 </a>
-                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/departments') ?>">
-                    <i class="fas fa-building me-2"></i> Departments
+                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/configurations?type=offices') ?>">
+                    <i class="fas fa-building me-2"></i> Offices
                 </a>
                 <?php if(session()->get('user_type') === 'superuser'): ?>
                 <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/users') ?>">

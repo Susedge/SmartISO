@@ -200,28 +200,29 @@ class Forms extends BaseController
             }
             
             // Get filter parameters
-            $departmentFilter = $this->request->getGet('department');
+            $officeFilter = $this->request->getGet('office');
             $priorityFilter = $this->request->getGet('priority');
             
             // Get pending submissions with filters
             try {
-                $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
+                $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($officeFilter, $priorityFilter);
             } catch (\Exception $e) {
                 log_message('error', 'Error getting pending approvals: ' . $e->getMessage());
                 $submissions = [];
             }
             
-            // Get all department names for filter dropdown
+            // Get all office names for filter dropdown
             try {
-                $departmentNames = $this->db->table('departments')
+                $officeNames = $this->db->table('offices')
                     ->select('DISTINCT description')
+                    ->where('active', 1)
                     ->orderBy('description')
                     ->get()
                     ->getResultArray();
-                $departments = array_column($departmentNames, 'description');
+                $offices = array_column($officeNames, 'description');
             } catch (\Exception $e) {
-                log_message('error', 'Error getting departments: ' . $e->getMessage());
-                $departments = [];
+                log_message('error', 'Error getting offices: ' . $e->getMessage());
+                $offices = [];
             }
             
             // Get priority options with fallback
@@ -241,9 +242,9 @@ class Forms extends BaseController
             $data = [
                 'title' => 'Forms Pending Approval',
                 'submissions' => $submissions ?? [],
-                'departments' => $departments ?? [],
+                'offices' => $offices ?? [],
                 'priorities' => $priorities ?? [],
-                'selectedDepartment' => $departmentFilter ?? '',
+                'selectedOffice' => $officeFilter ?? '',
                 'selectedPriority' => $priorityFilter ?? ''
             ];
             
@@ -271,11 +272,11 @@ class Forms extends BaseController
             forms.code as form_code, 
             forms.description as form_description,
             requestor.full_name as requestor_name,
-            departments.description as department_name
+            offices.description as office_name
         ');
         $builder->join('forms', 'forms.id = form_submissions.form_id');
         $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
-        $builder->join('departments', 'departments.id = requestor.department_id', 'left');
+        $builder->join('offices', 'offices.id = requestor.office_id', 'left');
         
         // Filter for forms assigned to this service staff and with status 'pending_service'
         $builder->where('form_submissions.service_staff_id', $userId);
@@ -693,9 +694,21 @@ class Forms extends BaseController
         // Get form details
         $form = $this->formModel->find($submission['form_id']);
         
-        // Get requestor details
+        // Get requestor details with office information
         $userModel = new \App\Models\UserModel();
-        $requestor = $userModel->find($submission['submitted_by']);
+        $requestorWithOffice = $userModel->getUsersWithOffice();
+        $requestor = null;
+        foreach ($requestorWithOffice as $user) {
+            if ($user['id'] == $submission['submitted_by']) {
+                $requestor = $user;
+                break;
+            }
+        }
+        
+        // Fallback if office data not found
+        if (!$requestor) {
+            $requestor = $userModel->find($submission['submitted_by']);
+        }
         
         // Get current user details - ADD THIS
         $currentUser = $userModel->find($userId);
@@ -1076,11 +1089,11 @@ class Forms extends BaseController
                 return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
             }
             
-            $departmentFilter = $this->request->getPost('department_filter');
+            $officeFilter = $this->request->getPost('office_filter');
             $priorityFilter = $this->request->getPost('priority_filter');
             
             // Use the same method as pendingApproval to get submissions
-            $pendingSubmissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
+            $pendingSubmissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($officeFilter, $priorityFilter);
             
             if (empty($pendingSubmissions)) {
                 return redirect()->to('/forms/pending-approval')

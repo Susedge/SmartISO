@@ -10,7 +10,7 @@
                     <?= $tableType == 'system' ? 'System Settings' : ucfirst($tableType) ?>
                 </button>
                 <ul class="dropdown-menu" aria-labelledby="tableTypeDropdown">
-                    <li><a class="dropdown-item <?= $tableType == 'departments' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=departments') ?>">Departments</a></li>
+                    <li><a class="dropdown-item <?= $tableType == 'offices' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=offices') ?>">Offices</a></li>
                     <li><a class="dropdown-item <?= $tableType == 'forms' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=forms') ?>">Forms</a></li>
                     <li><a class="dropdown-item <?= $tableType == 'system' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=system') ?>">System Settings</a></li>
                 </ul>
@@ -81,7 +81,7 @@
                 <?php endforeach; ?>
             </div>
         <?php else: ?>
-            <!-- Existing tables for departments and forms -->
+            <!-- Existing tables for offices and forms -->
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead>
@@ -95,8 +95,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($tableType == 'departments'): ?>
-                            <?php foreach ($departments as $item): ?>
+                        <?php if ($tableType == 'offices'): ?>
+                            <?php foreach ($offices as $item): ?>
                             <tr>
                                 <td><?= $item['id'] ?></td>
                                 <td><?= esc($item['code']) ?></td>
@@ -115,7 +115,7 @@
                                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                 </div>
                                                 <div class="modal-body">
-                                                    Are you sure you want to delete department <strong><?= esc($item['code']) ?> - <?= esc($item['description']) ?></strong>?
+                                                    Are you sure you want to delete office <strong><?= esc($item['code']) ?> - <?= esc($item['description']) ?></strong>?
                                                 </div>
                                                 <div class="modal-footer">
                                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -128,9 +128,9 @@
                             </tr>
                             <?php endforeach; ?>
                             
-                            <?php if (empty($departments)): ?>
+                            <?php if (empty($offices)): ?>
                             <tr>
-                                <td colspan="5" class="text-center">No departments found</td>
+                                <td colspan="5" class="text-center">No offices found</td>
                             </tr>
                             <?php endif; ?>
                         <?php elseif ($tableType == 'forms'): ?>

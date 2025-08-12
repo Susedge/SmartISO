@@ -20,7 +20,7 @@
                         <th>Username</th>
                         <th>Email</th>
                         <th>Role</th>
-                        <th>Department</th>
+                        <th>Office</th>
                         <th>Status</th>
                         <th>Action</th>
                     </tr>
@@ -59,7 +59,7 @@
                                     <?= ucwords(str_replace('_', ' ', $user['user_type'])) ?>
                                 </span>
                             </td>
-                            <td><?= esc($user['department_name'] ?? 'None') ?></td>
+                            <td><?= esc($user['office_name'] ?? 'None') ?></td>
                             <td>
                                 <?php if ($user['active']): ?>
                                     <span class="badge bg-success">Active</span>

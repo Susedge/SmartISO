@@ -3,7 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
-use App\Models\DepartmentModel;
+use App\Models\OfficeModel;
 use App\Models\FormModel;
 use App\Models\FormSignatoryModel;
 use App\Models\UserModel;
@@ -11,7 +11,7 @@ use App\Models\ConfigurationModel;
 
 class Configurations extends BaseController
 {
-    protected $departmentModel;
+    protected $officeModel;
     protected $formModel;
     protected $formSignatoryModel;
     protected $userModel;
@@ -19,7 +19,7 @@ class Configurations extends BaseController
     
     public function __construct()
     {
-        $this->departmentModel = new DepartmentModel();
+        $this->officeModel = new OfficeModel();
         $this->formModel = new FormModel();
         $this->formSignatoryModel = new FormSignatoryModel();
         $this->userModel = new UserModel();
@@ -124,17 +124,17 @@ class Configurations extends BaseController
     }    
     public function index()
     {
-        $tableType = $this->request->getGet('type') ?? 'departments';
+        $tableType = $this->request->getGet('type') ?? 'offices';
         
         // Update valid types to include system configurations
-        if (!in_array($tableType, ['departments', 'forms', 'system'])) {
-            $tableType = 'departments';
+        if (!in_array($tableType, ['offices', 'forms', 'system'])) {
+            $tableType = 'offices';
         }
         
         $data = [
             'title' => 'System Configurations',
             'tableType' => $tableType,
-            'departments' => ($tableType == 'departments') ? $this->departmentModel->findAll() : [],
+            'offices' => ($tableType == 'offices') ? $this->officeModel->findAll() : [],
             'forms' => ($tableType == 'forms') ? $this->formModel->findAll() : [],
             'configurations' => ($tableType == 'system') ? $this->configurationModel->findAll() : []
         ];
@@ -144,11 +144,11 @@ class Configurations extends BaseController
     
     public function new()
     {
-        $tableType = $this->request->getGet('type') ?? 'departments';
+        $tableType = $this->request->getGet('type') ?? 'offices';
         
-        // Default to departments if invalid type is provided
-        if (!in_array($tableType, ['departments', 'forms'])) {
-            $tableType = 'departments';
+        // Default to offices if invalid type is provided
+        if (!in_array($tableType, ['offices', 'forms'])) {
+            $tableType = 'offices';
         }
         
         $data = [
@@ -161,10 +161,10 @@ class Configurations extends BaseController
     
     public function create()
     {
-        $tableType = $this->request->getPost('table_type') ?? 'departments';
+        $tableType = $this->request->getPost('table_type') ?? 'offices';
         
-        if ($tableType == 'departments') {
-            return $this->createDepartment();
+        if ($tableType == 'offices') {
+            return $this->createOffice();
         } else if ($tableType == 'forms') {
             return $this->createForm();
         }
@@ -172,23 +172,23 @@ class Configurations extends BaseController
         return redirect()->to('/admin/configurations')->with('error', 'Invalid table type');
     }
     
-    private function createDepartment()
+    private function createOffice()
     {
         $rules = [
-            'code' => 'required|alpha_numeric|min_length[2]|max_length[20]|is_unique[departments.code]',
+            'code' => 'required|alpha_numeric|min_length[2]|max_length[20]|is_unique[offices.code]',
             'description' => 'required|min_length[3]|max_length[255]'
         ];
         
         if ($this->validate($rules)) {
-            $this->departmentModel->save([
+            $this->officeModel->save([
                 'code' => $this->request->getPost('code'),
                 'description' => $this->request->getPost('description')
             ]);
             
-            return redirect()->to('/admin/configurations?type=departments')->with('message', 'Department added successfully');
+            return redirect()->to('/admin/configurations?type=offices')->with('message', 'Office added successfully');
         } else {
             return redirect()->back()
-                ->with('error', 'There was a problem adding the department')
+                ->with('error', 'There was a problem adding the office')
                 ->withInput()
                 ->with('validation', $this->validator);
         }
@@ -218,10 +218,10 @@ class Configurations extends BaseController
     
     public function edit($id = null)
     {
-        $tableType = $this->request->getGet('type') ?? 'departments';
+        $tableType = $this->request->getGet('type') ?? 'offices';
         
-        if ($tableType == 'departments') {
-            $item = $this->departmentModel->find($id);
+        if ($tableType == 'offices') {
+            $item = $this->officeModel->find($id);
         } else if ($tableType == 'forms') {
             $item = $this->formModel->find($id);
         } else {
@@ -243,10 +243,10 @@ class Configurations extends BaseController
     
     public function update($id = null)
     {
-        $tableType = $this->request->getPost('table_type') ?? 'departments';
+        $tableType = $this->request->getPost('table_type') ?? 'offices';
         
-        if ($tableType == 'departments') {
-            return $this->updateDepartment($id);
+        if ($tableType == 'offices') {
+            return $this->updateOffice($id);
         } else if ($tableType == 'forms') {
             return $this->updateForm($id);
         }
@@ -254,23 +254,23 @@ class Configurations extends BaseController
         return redirect()->to('/admin/configurations')->with('error', 'Invalid table type');
     }
     
-    private function updateDepartment($id)
+    private function updateOffice($id)
     {
         $rules = [
-            'code' => "required|alpha_numeric|min_length[2]|max_length[20]|is_unique[departments.code,id,$id]",
+            'code' => "required|alpha_numeric|min_length[2]|max_length[20]|is_unique[offices.code,id,$id]",
             'description' => 'required|min_length[3]|max_length[255]'
         ];
         
         if ($this->validate($rules)) {
-            $this->departmentModel->update($id, [
+            $this->officeModel->update($id, [
                 'code' => $this->request->getPost('code'),
                 'description' => $this->request->getPost('description')
             ]);
             
-            return redirect()->to('/admin/configurations?type=departments')->with('message', 'Department updated successfully');
+            return redirect()->to('/admin/configurations?type=offices')->with('message', 'Office updated successfully');
         } else {
             return redirect()->back()
-                ->with('error', 'There was a problem updating the department')
+                ->with('error', 'There was a problem updating the office')
                 ->withInput()
                 ->with('validation', $this->validator);
         }
@@ -300,19 +300,48 @@ class Configurations extends BaseController
     
     public function delete($id = null)
     {
-        $tableType = $this->request->getGet('type') ?? 'departments';
+        $tableType = $this->request->getGet('type') ?? 'offices';
         
-        if ($tableType == 'departments') {
-            $item = $this->departmentModel->find($id);
+        if ($tableType == 'offices') {
+            $item = $this->officeModel->find($id);
             if ($item) {
-                $this->departmentModel->delete($id);
-                return redirect()->to('/admin/configurations?type=departments')->with('message', 'Department deleted successfully');
+                try {
+                    // Check if office has users assigned to it
+                    $userModel = new \App\Models\UserModel();
+                    $usersCount = $userModel->where('office_id', $id)->countAllResults();
+                    
+                    if ($usersCount > 0) {
+                        return redirect()->to('/admin/configurations?type=offices')
+                            ->with('error', 'Cannot delete office "' . $item['code'] . '" because it has ' . $usersCount . ' user(s) assigned to it. Please reassign the users to another office before deleting.');
+                    }
+                    
+                    $this->officeModel->delete($id);
+                    return redirect()->to('/admin/configurations?type=offices')->with('message', 'Office deleted successfully');
+                } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
+                    // Handle foreign key constraint errors
+                    if (strpos($e->getMessage(), 'foreign key constraint fails') !== false) {
+                        return redirect()->to('/admin/configurations?type=offices')
+                            ->with('error', 'Cannot delete office "' . $item['code'] . '" because it is being used by other records in the system. Please remove all dependencies before deleting.');
+                    }
+                    // Re-throw other database exceptions
+                    throw $e;
+                }
             }
         } else if ($tableType == 'forms') {
             $item = $this->formModel->find($id);
             if ($item) {
-                $this->formModel->delete($id);
-                return redirect()->to('/admin/configurations?type=forms')->with('message', 'Form deleted successfully');
+                try {
+                    $this->formModel->delete($id);
+                    return redirect()->to('/admin/configurations?type=forms')->with('message', 'Form deleted successfully');
+                } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
+                    // Handle foreign key constraint errors for forms
+                    if (strpos($e->getMessage(), 'foreign key constraint fails') !== false) {
+                        return redirect()->to('/admin/configurations?type=forms')
+                            ->with('error', 'Cannot delete form "' . $item['code'] . '" because it has submissions or other dependencies. Please remove all dependencies before deleting.');
+                    }
+                    // Re-throw other database exceptions
+                    throw $e;
+                }
             }
         }
         

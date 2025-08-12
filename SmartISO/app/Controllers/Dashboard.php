@@ -2,7 +2,7 @@
 
 namespace App\Controllers;
 
-use App\Models\DepartmentModel;
+use App\Models\OfficeModel;
 use App\Models\FormSubmissionModel;
 
 class Dashboard extends BaseController
@@ -12,12 +12,12 @@ class Dashboard extends BaseController
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
         
-        // Get department info if available
-        $departmentId = session()->get('department_id');
-        $department = null;
-        if ($departmentId) {
-            $departmentModel = new \App\Models\DepartmentModel();
-            $department = $departmentModel->find($departmentId);
+        // Get office info if available
+        $officeId = session()->get('office_id');
+        $office = null;
+        if ($officeId) {
+            $officeModel = new \App\Models\OfficeModel();
+            $office = $officeModel->find($officeId);
         }
         
         // Get form status summary based on user type
@@ -80,7 +80,7 @@ class Dashboard extends BaseController
         
         $data = [
             'title' => 'Dashboard',
-            'department' => $department,
+            'office' => $office,
             'statusSummary' => $statusSummary
         ];
         

@@ -321,6 +321,27 @@
                     </a>
                 <?php endif; ?>
             </div>
+            
+            <!-- Submit Feedback Button for Requestors -->
+            <?php
+            // Only show feedback button if requestor, completed, and no feedback yet
+            $userType = session()->get('user_type');
+            $userId = session()->get('user_id');
+            $isCompleted = !empty($submission['completed']) && $submission['completed'] == 1;
+            $statusCompleted = $submission['status'] === 'completed';
+
+            if ($userType === 'requestor' && ($isCompleted || $statusCompleted)) {
+                $feedbackModel = new \App\Models\FeedbackModel();
+                $hasFeedback = $feedbackModel->hasFeedback($submission['id'], $userId);
+                if (!$hasFeedback) {
+            ?>
+                <a href="<?= base_url('feedback/create/' . $submission['id']) ?>" class="btn btn-outline-primary mt-3">
+                    <i class="fas fa-comment-dots me-1"></i> Submit Feedback
+                </a>
+            <?php
+                }
+            }
+            ?>
         </div>
     </div>
 </div>

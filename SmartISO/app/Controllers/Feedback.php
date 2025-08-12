@@ -67,7 +67,8 @@ class Feedback extends BaseController
 
         // Check if user is the requestor and submission is completed
         $userId = session()->get('user_id');
-        if ($submission['submitted_by'] != $userId || !$submission['completed']) {
+        $isCompleted = $submission['completed'] == 1 || $submission['status'] === 'completed';
+        if ($submission['submitted_by'] != $userId || !$isCompleted) {
             return redirect()->back()->with('error', 'You can only provide feedback for your completed requests');
         }
 
@@ -106,7 +107,8 @@ class Feedback extends BaseController
 
         // Verify submission belongs to user and is completed
         $submission = $this->submissionModel->find($submissionId);
-        if (!$submission || $submission['submitted_by'] != $userId || !$submission['completed']) {
+        $isCompleted = $submission['completed'] == 1 || $submission['status'] === 'completed';
+        if (!$submission || $submission['submitted_by'] != $userId || !$isCompleted) {
             return redirect()->back()->with('error', 'Invalid submission');
         }
 

@@ -42,12 +42,12 @@
                     <input type="text" class="form-control" id="username" name="username" value="<?= old('username', isset($user) ? $user['username'] : '') ?>" required>
                 </div>
                 <div class="col-md-6">
-                    <label for="department_id" class="form-label">Department</label>
-                    <select class="form-select" id="department_id" name="department_id">
-                        <option value="">-- Select Department --</option>
-                        <?php foreach ($departments as $department): ?>
-                            <option value="<?= $department['id'] ?>" <?= old('department_id', isset($user) ? $user['department_id'] : '') == $department['id'] ? 'selected' : '' ?>>
-                                <?= esc($department['code']) ?> - <?= esc($department['description']) ?>
+                    <label for="office_id" class="form-label">Office</label>
+                    <select class="form-select" id="office_id" name="office_id">
+                        <option value="">-- Select Office --</option>
+                        <?php foreach ($offices as $office): ?>
+                            <option value="<?= $office['id'] ?>" <?= old('office_id', isset($user) ? ($user['office_id'] ?? '') : '') == $office['id'] ? 'selected' : '' ?>>
+                                <?= esc($office['code']) ?> - <?= esc($office['description']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

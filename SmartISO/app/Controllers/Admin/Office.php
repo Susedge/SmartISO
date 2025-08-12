@@ -145,12 +145,22 @@ class Office extends BaseController
         
         if ($usersCount > 0) {
             return redirect()->back()
-                           ->with('error', "Cannot delete office. It is currently assigned to {$usersCount} user(s).");
+                           ->with('error', "Cannot delete office '{$office['code']}' because it has {$usersCount} user(s) assigned to it. Please reassign the users to another office before deleting.");
         }
 
-        if ($this->officeModel->delete($id)) {
-            return redirect()->to('/admin/office')
-                           ->with('success', 'Office deleted successfully');
+        try {
+            if ($this->officeModel->delete($id)) {
+                return redirect()->to('/admin/office')
+                               ->with('success', 'Office deleted successfully');
+            }
+        } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
+            // Handle foreign key constraint errors
+            if (strpos($e->getMessage(), 'foreign key constraint fails') !== false) {
+                return redirect()->back()
+                               ->with('error', "Cannot delete office '{$office['code']}' because it is being used by other records in the system. Please remove all dependencies before deleting.");
+            }
+            // Re-throw other database exceptions
+            throw $e;
         }
 
         return redirect()->back()

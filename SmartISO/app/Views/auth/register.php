@@ -33,12 +33,12 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="department_id" class="form-label">Department</label>
-                        <select class="form-select" id="department_id" name="department_id" required>
-                            <option value="">Select Department</option>
-                            <?php foreach ($departments as $department): ?>
-                                <option value="<?= $department['id'] ?>" <?= old('department_id') == $department['id'] ? 'selected' : '' ?>>
-                                    <?= esc($department['description']) ?>
+                        <label for="office_id" class="form-label">Office</label>
+                        <select class="form-select" id="office_id" name="office_id" required>
+                            <option value="">Select Office</option>
+                            <?php foreach ($offices as $office): ?>
+                                <option value="<?= $office['id'] ?>" <?= old('office_id') == $office['id'] ? 'selected' : '' ?>>
+                                    <?= esc($office['description']) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

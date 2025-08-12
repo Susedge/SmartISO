@@ -98,6 +98,11 @@
                             <span>Dashboard</span>
                         </a>
                         
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'schedule' ? 'active' : '' ?>" href="<?= base_url('schedule') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-calendar-alt me-2"></i></div>
+                            <span>Schedule</span>
+                        </a>
+                        
                         <!-- For regular users (requestor) -->
                         <?php if(session()->get('user_type') === 'requestor'): ?>
                             <div class="sidebar-heading">FORMS</div>
@@ -198,6 +203,11 @@
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
                             <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
                             <span>Users</span>
+                        </a>
+
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'feedback' ? 'active' : '' ?>" href="<?= base_url('feedback') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-comments me-2"></i></div>
+                            <span>Feedback</span>
                         </a>
                         <?php endif; ?>
                     </div>

@@ -4,25 +4,25 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\UserModel;
-use App\Models\DepartmentModel;
+use App\Models\OfficeModel;
 
 class Users extends BaseController
 {
     protected $userModel;
-    protected $departmentModel;
+    protected $officeModel;
     
     public function __construct()
     {
         $this->userModel = new UserModel();
-        $this->departmentModel = new DepartmentModel();
+        $this->officeModel = new OfficeModel();
     }
     
     public function index()
     {
-        // Fetch users with their department names
+        // Fetch users with their office names
         $builder = $this->userModel->builder();
-        $builder->select('users.*, departments.description as department_name');
-        $builder->join('departments', 'departments.id = users.department_id', 'left');
+        $builder->select('users.*, offices.description as office_name');
+        $builder->join('offices', 'offices.id = users.office_id', 'left');
         $users = $builder->get()->getResultArray();
         
         $data = [
@@ -37,7 +37,7 @@ class Users extends BaseController
     {
         $data = [
             'title' => 'Create New User',
-            'departments' => $this->departmentModel->findAll()
+            'offices' => $this->officeModel->where('active', 1)->findAll()
         ];
         
         return view('admin/users/form', $data);
@@ -49,7 +49,7 @@ class Users extends BaseController
             'email' => 'required|valid_email|is_unique[users.email]',
             'username' => 'required|alpha_numeric_punct|min_length[3]|max_length[30]|is_unique[users.username]',
             'full_name' => 'required|min_length[3]|max_length[100]',
-            'department_id' => 'permit_empty|integer',
+            'office_id' => 'permit_empty|integer',
             'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser]',
             'password' => 'required|min_length[8]',
             'password_confirm' => 'required|matches[password]'
@@ -73,7 +73,7 @@ class Users extends BaseController
             'email' => $this->request->getPost('email'),
             'username' => $this->request->getPost('username'),
             'full_name' => $this->request->getPost('full_name'),
-            'department_id' => $this->request->getPost('department_id') ?: null,
+            'office_id' => $this->request->getPost('office_id') ?: null,
             'user_type' => $this->request->getPost('user_type'),
             'active' => $this->request->getPost('active'),
             'password_hash' => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT)
@@ -107,7 +107,7 @@ class Users extends BaseController
         $data = [
             'title' => 'Edit User',
             'user' => $user,
-            'departments' => $this->departmentModel->findAll()
+            'offices' => $this->officeModel->where('active', 1)->findAll()
         ];
         
         return view('admin/users/form', $data);
@@ -132,7 +132,7 @@ class Users extends BaseController
             'email' => "required|valid_email|is_unique[users.email,id,$id]",
             'username' => "required|alpha_numeric_punct|min_length[3]|max_length[30]|is_unique[users.username,id,$id]",
             'full_name' => 'required|min_length[3]|max_length[100]',
-            'department_id' => 'permit_empty|integer',
+            'office_id' => 'permit_empty|integer',
             'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser]',
         ];
         
@@ -160,7 +160,7 @@ class Users extends BaseController
             'email' => $this->request->getPost('email'),
             'username' => $this->request->getPost('username'),
             'full_name' => $this->request->getPost('full_name'),
-            'department_id' => $this->request->getPost('department_id') ?: null,
+            'office_id' => $this->request->getPost('office_id') ?: null,
             'user_type' => $this->request->getPost('user_type'),
             'active' => $this->request->getPost('active')
         ];

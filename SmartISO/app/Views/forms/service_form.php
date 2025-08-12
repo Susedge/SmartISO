@@ -19,7 +19,7 @@
                 <div class="col-md-6">
                     <h5>Requestor Information</h5>
                     <p><strong>Submitted By:</strong> <?= esc($requestor['full_name']) ?></p>
-                    <p><strong>Department:</strong> <?= esc($requestor['department_name'] ?? 'Not specified') ?></p>
+                    <p><strong>Office:</strong> <?= esc($requestor['office_name'] ?? 'Not specified') ?></p>
                     <p><strong>Submission Date:</strong> <?= date('M d, Y h:i A', strtotime($submission['created_at'])) ?></p>
                 </div>
             </div>

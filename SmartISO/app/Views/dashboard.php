@@ -15,7 +15,7 @@
             <div class="card-body">
                 <p><strong>Username:</strong> <?= session()->get('username') ?></p>
                 <p><strong>Email:</strong> <?= session()->get('email') ?></p>
-                <p><strong>Department:</strong> <?= isset($department) ? esc($department['code'] . ' - ' . $department['description']) : 'Not assigned' ?></p>
+                <p><strong>Office:</strong> <?= isset($office) ? esc($office['code'] . ' - ' . $office['description']) : 'Not assigned' ?></p>
                 <a href="<?= base_url('profile') ?>" class="btn btn-primary">Edit Profile</a>
             </div>
         </div>

@@ -121,12 +121,13 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     
     // Feedback routes
     $routes->get('feedback', 'Feedback::index');
-    $routes->get('feedback/create/(:num)', 'Feedback::create/$1');
+    $routes->get('feedback/create', 'Feedback::create');
     $routes->post('feedback/store', 'Feedback::store');
     $routes->get('feedback/view/(:num)', 'Feedback::view/$1');
     $routes->post('feedback/mark-reviewed/(:num)', 'Feedback::markReviewed/$1');
     $routes->get('feedback/analytics', 'Feedback::analytics');
     $routes->get('feedback/export', 'Feedback::export');
+    $routes->get('feedback/create/(:num)', 'Feedback::create/$1');
     
     // Notification routes
     $routes->get('notifications', 'Notifications::index');

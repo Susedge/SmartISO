@@ -98,19 +98,19 @@ class FormSubmissionModel extends Model
     /**
      * Get submissions pending approval with optional filters
      */
-    public function getPendingApprovalsWithFilters($departmentFilter = null, $priorityFilter = null)
+    public function getPendingApprovalsWithFilters($officeFilter = null, $priorityFilter = null)
     {
         $builder = $this->db->table('form_submissions fs');
         $builder->select('fs.*, f.code as form_code, f.description as form_description, 
-                          u.full_name as submitted_by_name, d.description as department_name')
+                          u.full_name as submitted_by_name, o.description as office_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
-            ->join('departments d', 'd.id = u.department_id', 'left')
+            ->join('offices o', 'o.id = u.office_id', 'left')
             ->where('fs.status', 'submitted');
         
-        // Apply department filter
-        if (!empty($departmentFilter)) {
-            $builder->where('d.description', $departmentFilter);
+        // Apply office filter
+        if (!empty($officeFilter)) {
+            $builder->where('o.description', $officeFilter);
         }
         
         // Apply priority filter
