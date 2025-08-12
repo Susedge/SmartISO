@@ -18,7 +18,6 @@ class CreateOfficesTable extends Migration
             'code' => [
                 'type'       => 'VARCHAR',
                 'constraint' => 10,
-                'unique'     => true,
             ],
             'description' => [
                 'type'       => 'VARCHAR',
@@ -40,7 +39,7 @@ class CreateOfficesTable extends Migration
         ]);
         
         $this->forge->addKey('id', true);
-        $this->forge->addKey('code');
+        $this->forge->addUniqueKey('code');
         $this->forge->createTable('offices');
         
         // Run the seeder immediately after creating the table
