@@ -22,7 +22,7 @@
                         <tr>
                             <td><?= esc($schedule['id']) ?></td>
                             <td><?= esc($schedule['service'] ?? $schedule['service_name'] ?? '-') ?></td>
-                            <td><?= esc($schedule['date'] ?? $schedule['scheduled_date'] ?? '-') ?></td>
+                            <td><?= esc($schedule['scheduled_date'] ?? '-') ?></td>
                             <td><?= esc($schedule['status'] ?? '-') ?></td>
                         </tr>
                         <?php endforeach; ?>

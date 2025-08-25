@@ -281,4 +281,32 @@ class FormSubmissionModel extends Model
             'status' => 'completed'
         ]);
     }
+
+    /**
+     * Check if a submission is completed.
+     * Accepts either a submission array or an ID.
+     * Returns boolean.
+     */
+    public function isCompleted($submissionOrId): bool
+    {
+        if (is_array($submissionOrId)) {
+            $submission = $submissionOrId;
+        } else {
+            $submission = $this->find($submissionOrId);
+            if (empty($submission)) {
+                return false;
+            }
+        }
+
+        // Consider completed if completed flag is set or status is 'completed'
+        if (!empty($submission['completed']) && $submission['completed'] == 1) {
+            return true;
+        }
+
+        if (!empty($submission['status']) && $submission['status'] === 'completed') {
+            return true;
+        }
+
+        return false;
+    }
 }

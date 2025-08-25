@@ -105,11 +105,24 @@ class PdfGenerator extends BaseController
             // Load the Word template
             $templateProcessor = new TemplateProcessor($templatePath);
             
-            // Replace all text placeholders
-            foreach ($placeholderValues as $placeholder => $value) {
-                // Remove {{ }} for PHPWord format
-                $placeholderName = trim($placeholder, '{}');
-                $templateProcessor->setValue($placeholderName, $value ?? '');
+            // Replace all text placeholders using any variables present in the template
+            // This ensures placeholders are removed even if the uploaded template contains extra variables
+            try {
+                $templateVars = $templateProcessor->getVariables();
+            } catch (\Exception $e) {
+                $templateVars = [];
+            }
+
+            foreach ($templateVars as $var) {
+                // Map back to our placeholder values which include braces
+                $placeholderKey = '{{' . $var . '}}';
+                $value = $placeholderValues[$placeholderKey] ?? '';
+                try {
+                    $templateProcessor->setValue($var, $value);
+                } catch (\Exception $e) {
+                    // Log and continue; don't break document generation for a single variable
+                    log_message('warning', 'Failed to set template variable ' . $var . ': ' . $e->getMessage());
+                }
             }
             
             // Add signature images

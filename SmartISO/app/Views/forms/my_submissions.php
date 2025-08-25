@@ -66,6 +66,12 @@
                                         </ul>
                                     </div>
                                     <?php endif; ?>
+                                    <!-- Template download (PDF primary) -->
+                                    <div class="ms-1 d-inline-block">
+                                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/download/uploaded/' . esc($submission['form_code'])) ?>" title="Download PDF template">
+                                            <i class="fas fa-file-download"></i>
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>

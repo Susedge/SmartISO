@@ -14,12 +14,17 @@
                 <select class="form-control" id="form-select">
                     <option value="">-- Select a form --</option>
                     <?php foreach ($forms as $form): ?>
-                        <option value="<?= $form['id'] ?>"><?= $form['description'] ?> (<?= $form['code'] ?>)</option>
+                        <option value="<?= $form['id'] ?>" data-code="<?= esc($form['code']) ?>"><?= $form['description'] ?> (<?= $form['code'] ?>)</option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="mt-3">
                 <button id="load-form" class="btn btn-primary">Load Form</button>
+                <div class="ms-2 d-inline-block">
+                    <button id="download-pdf" class="btn btn-outline-secondary" title="Download PDF template">
+                        <i class="fas fa-file-download"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -33,6 +38,28 @@ document.getElementById('load-form').addEventListener('click', function() {
     } else {
         alert('Please select a form first');
     }
+});
+
+document.getElementById('download-pdf').addEventListener('click', function() {
+    const sel = document.getElementById('form-select');
+    const opt = sel.options[sel.selectedIndex];
+    const code = opt ? opt.getAttribute('data-code') : '';
+    if (!code) {
+        alert('Please select a form first');
+        return;
+    }
+    window.location.href = '<?= base_url('forms/download/pdf/') ?>' + code;
+});
+
+document.getElementById('download-word').addEventListener('click', function() {
+    const sel = document.getElementById('form-select');
+    const opt = sel.options[sel.selectedIndex];
+    const code = opt ? opt.getAttribute('data-code') : '';
+    if (!code) {
+        alert('Please select a form first');
+        return;
+    }
+    window.location.href = '<?= base_url('forms/download/word/') ?>' + code;
 });
 </script>
 <?= $this->endSection() ?>

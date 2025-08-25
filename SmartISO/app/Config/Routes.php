@@ -41,7 +41,6 @@ $routes->group('auth', function ($routes) {
 });
 
 // Home/Landing page
-$routes->get('/', 'Home::index');
 
 // API routes (no auth required)
 $routes->get('api/current-time', 'Api::currentTime');
@@ -108,6 +107,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     // Form download routes (fillable forms without placeholders)
     $routes->get('forms/download/pdf/(:segment)', 'FormDownload::downloadPDF/$1');
     $routes->get('forms/download/word/(:segment)', 'FormDownload::downloadWord/$1');
+    // Download the uploaded raw template (PDF or DOCX)
+    $routes->get('forms/download/uploaded/(:segment)', 'FormDownload::downloadUploaded/$1');
     
     // Scheduling routes
     $routes->get('schedule', 'Schedule::index');
@@ -118,6 +119,9 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('schedule/delete/(:num)', 'Schedule::delete/$1');
     $routes->get('schedule/calendar', 'Schedule::calendar');
     $routes->post('schedule/mark-complete/(:num)', 'Schedule::markComplete/$1');
+    $routes->post('schedule/toggle-priority/(:num)', 'Schedule::togglePriority/$1');
+    $routes->get('schedule/priorities', 'Schedule::priorities');
+    $routes->post('schedule/priorities/clear', 'Schedule::bulkUnmarkPriorities');
     
     // Feedback routes
     $routes->get('feedback', 'Feedback::index');

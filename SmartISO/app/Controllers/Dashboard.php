@@ -38,8 +38,9 @@ class Dashboard extends BaseController
                                                         ->where('status', 'rejected')
                                                         ->countAllResults();
                                                         
-            $statusSummary['completed'] = $formSubmissionModel->where('submitted_by', $userId)
-                                                         ->where('status', 'completed')
+            // Count completed using completion flag where possible for consistency
++            $statusSummary['completed'] = $formSubmissionModel->where('submitted_by', $userId)
+                                                         ->where('completed', 1)
                                                          ->countAllResults();
         } 
         elseif ($userType === 'approving_authority') {
@@ -56,7 +57,7 @@ class Dashboard extends BaseController
                                                               ->countAllResults();
                                                               
             $statusSummary['completed'] = $formSubmissionModel->where('approver_id', $userId)
-                                                         ->where('status', 'completed')
+                                                         ->where('completed', 1)
                                                          ->countAllResults();
         }
         elseif ($userType === 'service_staff') {
@@ -74,7 +75,7 @@ class Dashboard extends BaseController
                                                         ->countAllResults();
                                                         
             $statusSummary['completed'] = $formSubmissionModel->where('service_staff_id', $userId)
-                                                         ->where('status', 'completed')
+                                                         ->where('completed', 1)
                                                          ->countAllResults();
         }
         

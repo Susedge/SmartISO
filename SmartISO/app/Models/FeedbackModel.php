@@ -88,10 +88,18 @@ class FeedbackModel extends Model
      */
     public function getPendingReview()
     {
-        return $this->getFeedbackWithDetails()
-                   ->where('f.status', 'pending')
-                   ->orWhere('f.rating <=', 2) // Low ratings need attention
-                   ->get()->getResultArray();
+        $builder = $this->db->table('feedback f');
+        $builder->select('f.*, fs.form_id, fs.panel_name,
+                          form.code as form_code, form.description as form_description,
+                          u.full_name as user_name')
+            ->join('form_submissions fs', 'fs.id = f.submission_id', 'left')
+            ->join('forms form', 'form.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = f.user_id', 'left')
+            ->where('f.status', 'pending')
+            ->orWhere('f.rating <=', 2)
+            ->orderBy('f.created_at', 'DESC');
+
+        return $builder->get()->getResultArray();
     }
 
     /**

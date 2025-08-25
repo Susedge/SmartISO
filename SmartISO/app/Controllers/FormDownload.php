@@ -278,6 +278,73 @@ class FormDownload extends BaseController
         // Force download
         return $this->response->download($tempFile, null)->setFileName($filename);
     }
+
+    /**
+     * Download the uploaded template file (prefer PDF if uploaded, otherwise DOCX)
+     */
+    public function downloadUploaded($formCode)
+    {
+        $form = $this->formModel->where('code', $formCode)->first();
+        if (!$form) {
+            return redirect()->to('/forms')->with('error', 'Form not found');
+        }
+
+        // Check for uploaded PDF first
+        $pdfPath = FCPATH . 'templates/pdf/' . $form['code'] . '.pdf';
+        if (file_exists($pdfPath)) {
+            return $this->response->download($pdfPath, null)->setFileName($form['code'] . '_template.pdf');
+        }
+
+        // Fall back to DOCX uploaded template
+        $docxPath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
+        if (file_exists($docxPath)) {
+            // Attempt to convert DOCX -> PDF on the fly using PhpWord + Dompdf (if available)
+            try {
+                // Ensure temp directory
+                $tempDir = WRITEPATH . 'temp/';
+                if (!is_dir($tempDir)) {
+                    mkdir($tempDir, 0755, true);
+                }
+
+                // Load the DOCX
+                $phpWord = \PhpOffice\PhpWord\IOFactory::load($docxPath);
+
+                // If Dompdf is available via Composer, register it as the PDF renderer
+                if (class_exists('\\Dompdf\\Dompdf')) {
+                    try {
+                        \PhpOffice\PhpWord\Settings::setPdfRendererName('DomPDF');
+                    } catch (\Exception $e) {
+                        // Ignore; createWriter may still work depending on environment
+                    }
+                }
+
+                $tempPdf = $tempDir . uniqid($form['code'] . '_') . '.pdf';
+                $pdfWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'PDF');
+                $pdfWriter->save($tempPdf);
+
+                // Schedule temp PDF for cleanup after request completes
+                if (file_exists($tempPdf)) {
+                    register_shutdown_function(function($path) {
+                        try {
+                            if (file_exists($path)) {
+                                @unlink($path);
+                            }
+                        } catch (\Exception $e) {
+                            log_message('warning', 'Failed to delete temp PDF: ' . $e->getMessage());
+                        }
+                    }, $tempPdf);
+                }
+
+                return $this->response->download($tempPdf, null)->setFileName($form['code'] . '_template.pdf');
+            } catch (\Exception $e) {
+                // Log and fall back to returning the docx if conversion fails
+                log_message('error', 'DOCX to PDF conversion failed for ' . $docxPath . ': ' . $e->getMessage());
+                return $this->response->download($docxPath, null)->setFileName($form['code'] . '_template.docx');
+            }
+        }
+
+        return redirect()->back()->with('error', 'No uploaded template found for this form');
+    }
     
     /**
      * Show import form for completed documents

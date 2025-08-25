@@ -15,7 +15,7 @@ class ScheduleModel extends Model
     
     protected $allowedFields = [
         'submission_id', 'scheduled_date', 'scheduled_time', 'duration_minutes',
-        'location', 'notes', 'status', 'assigned_staff_id', 'completion_notes'
+    'location', 'notes', 'status', 'assigned_staff_id', 'completion_notes', 'priority'
     ];
     
     // Dates
@@ -110,6 +110,22 @@ class ScheduleModel extends Model
     }
 
     /**
+     * Get prioritized schedules for admin overview
+     */
+    public function getPrioritizedSchedules()
+    {
+        $builder = $this->db->table('schedules s');
+        $builder->select('s.*, fs.form_id, f.code as form_code, u.full_name as requestor_name')
+            ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->where('s.priority', 1)
+            ->orderBy('s.scheduled_date', 'ASC');
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
      * Check for scheduling conflicts
      */
     public function checkConflicts($staffId, $date, $time, $duration, $excludeId = null)
@@ -137,5 +153,19 @@ class ScheduleModel extends Model
         }
         
         return false; // No conflicts
+    }
+
+    /**
+     * Toggle priority flag for a schedule
+     */
+    public function togglePriority($id)
+    {
+        $schedule = $this->find($id);
+        if (!$schedule) {
+            return false;
+        }
+
+        $new = empty($schedule['priority']) ? 1 : 0;
+        return $this->update($id, ['priority' => $new]);
     }
 }

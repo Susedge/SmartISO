@@ -320,6 +320,23 @@
                         <i class="bi bi-check2-circle"></i> Confirm Completion
                     </a>
                 <?php endif; ?>
+                
+                <div>
+                    <!-- Template download for requestors and other users -->
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            Template
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="<?= base_url('forms/download/pdf/' . esc($form['code'])) ?>">
+                                <i class="fas fa-file-pdf me-2 text-danger"></i> PDF Template
+                            </a></li>
+                            <li><a class="dropdown-item" href="<?= base_url('forms/download/word/' . esc($form['code'])) ?>">
+                                <i class="fas fa-file-word me-2 text-primary"></i> Word Template
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
             </div>
             
             <!-- Submit Feedback Button for Requestors -->
@@ -327,10 +344,12 @@
             // Only show feedback button if requestor, completed, and no feedback yet
             $userType = session()->get('user_type');
             $userId = session()->get('user_id');
-            $isCompleted = !empty($submission['completed']) && $submission['completed'] == 1;
-            $statusCompleted = $submission['status'] === 'completed';
 
-            if ($userType === 'requestor' && ($isCompleted || $statusCompleted)) {
+            // Use model helper to determine completion status to avoid divergent checks
++            $submissionModel = new \App\Models\FormSubmissionModel();
+            $isCompleted = $submissionModel->isCompleted($submission);
+
+            if ($userType === 'requestor' && $isCompleted) {
                 $feedbackModel = new \App\Models\FeedbackModel();
                 $hasFeedback = $feedbackModel->hasFeedback($submission['id'], $userId);
                 if (!$hasFeedback) {

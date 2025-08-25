@@ -40,11 +40,7 @@ class CreateOfficesTable extends Migration
         
         $this->forge->addKey('id', true);
         $this->forge->addUniqueKey('code');
-        $this->forge->createTable('offices');
-        
-        // Run the seeder immediately after creating the table
-        $seeder = \Config\Database::seeder();
-        $seeder->call('OfficeSeeder');
+    $this->forge->createTable('offices');
     }
 
     public function down()

@@ -110,13 +110,14 @@ class Schedule extends BaseController
                            ->with('error', 'Schedule conflict detected. Please choose a different time.');
         }
 
-        if ($this->scheduleModel->insert($data)) {
+        $insertId = $this->scheduleModel->insert($data, true);
+        if ($insertId) {
             // Get submission details for notification
             $submission = $this->submissionModel->find($data['submission_id']);
-            
+
             // Create notification for requestor
             $this->notificationModel->createScheduleNotification(
-                $this->scheduleModel->getInsertID(),
+                $insertId,
                 $submission['submitted_by'],
                 $data['scheduled_date'],
                 $data['scheduled_time']
@@ -236,18 +237,64 @@ class Schedule extends BaseController
         // Format schedules for calendar display
         $calendarEvents = [];
         foreach ($schedules as $schedule) {
+            $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
+            $title .= $schedule['form_code'] ?? 'Service';
+
             $calendarEvents[] = [
                 'id' => $schedule['id'],
-                'title' => $schedule['form_code'] ?? 'Service',
+                'title' => $title,
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'],
-                'status' => $schedule['status']
+                'status' => $schedule['status'],
+                'priority' => (int)($schedule['priority'] ?? 0)
             ];
         }
         
         $data['events'] = json_encode($calendarEvents);
         
         return view('schedule/calendar', $data);
+    }
+
+    /**
+     * Admin view: list prioritized schedules
+     */
+    public function priorities()
+    {
+        $userType = session()->get('user_type');
+        if ($userType !== 'admin' && $userType !== 'superuser') {
+            return redirect()->to('/dashboard')->with('error', 'Unauthorized');
+        }
+
+        $data['title'] = 'Prioritized Schedules';
+        $data['schedules'] = $this->scheduleModel->getPrioritizedSchedules();
+
+        return view('schedule/priorities', $data);
+    }
+
+    /**
+     * Bulk unmark priorities (admin)
+     */
+    public function bulkUnmarkPriorities()
+    {
+        $userType = session()->get('user_type');
+        if ($userType !== 'admin' && $userType !== 'superuser') {
+            return $this->response->setJSON(['success' => false, 'message' => 'Unauthorized']);
+        }
+
+        $ids = $this->request->getPost('ids'); // expected CSV or array
+        if (is_string($ids)) {
+            $ids = array_filter(array_map('intval', explode(',', $ids)));
+        }
+
+        if (empty($ids) || !is_array($ids)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'No schedules selected']);
+        }
+
+        foreach ($ids as $id) {
+            $this->scheduleModel->update($id, ['priority' => 0]);
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => 'Priorities cleared']);
     }
 
     public function markComplete($id)
@@ -285,5 +332,28 @@ class Schedule extends BaseController
         }
 
         return $this->response->setJSON(['success' => false, 'message' => 'Failed to mark service as completed']);
+    }
+
+    /**
+     * Toggle priority flag for a schedule (admin only)
+     */
+    public function togglePriority($id)
+    {
+        $userType = session()->get('user_type');
+        if ($userType !== 'admin' && $userType !== 'superuser') {
+            return $this->response->setJSON(['success' => false, 'message' => 'Unauthorized']);
+        }
+
+        $schedule = $this->scheduleModel->find($id);
+        if (!$schedule) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Schedule not found']);
+        }
+
+        $result = $this->scheduleModel->togglePriority($id);
+        if ($result) {
+            return $this->response->setJSON(['success' => true, 'priority' => (int)!empty($schedule['priority']) ? 0 : 1]);
+        }
+
+        return $this->response->setJSON(['success' => false, 'message' => 'Failed to toggle priority']);
     }
 }

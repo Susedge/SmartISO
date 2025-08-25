@@ -394,6 +394,31 @@ public function uploadTemplate($formId = null)
     
     try {
         $file->move($templateDir, $fileName, true); // Overwrite if exists
+        // Attempt to create a PDF version of the uploaded DOCX for faster downloads
+        try {
+            $docxPath = $templateDir . $fileName;
+            $pdfDir = FCPATH . 'templates/pdf/';
+            if (!is_dir($pdfDir)) {
+                mkdir($pdfDir, 0755, true);
+            }
+            $pdfPath = $pdfDir . $form['code'] . '.pdf';
+
+            // Load and convert using PhpWord if available
+            try {
+                $phpWord = \PhpOffice\PhpWord\IOFactory::load($docxPath);
+                if (class_exists('\\Dompdf\\Dompdf')) {
+                    \PhpOffice\PhpWord\Settings::setPdfRendererName('DomPDF');
+                }
+                $pdfWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'PDF');
+                $pdfWriter->save($pdfPath);
+            } catch (\Exception $e) {
+                // Log but do not fail the upload
+                log_message('warning', 'Failed to pre-generate PDF for form ' . $form['code'] . ': ' . $e->getMessage());
+            }
+        } catch (\Exception $e) {
+            log_message('warning', 'Error during PDF pre-generation: ' . $e->getMessage());
+        }
+
         return redirect()->back()->with('message', 'Template uploaded successfully');
     } catch (\Exception $e) {
         return redirect()->back()->with('error', 'Error saving template: ' . $e->getMessage());

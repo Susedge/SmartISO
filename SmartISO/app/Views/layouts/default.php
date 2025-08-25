@@ -372,10 +372,39 @@
             // Show warning 5 minutes before timeout
             sessionTimeoutWarning = setTimeout(showSessionWarning, warningTime);
             
-            // Auto logout after full timeout
+            // Auto logout after full timeout — show modal with countdown then redirect
             sessionTimeoutLogout = setTimeout(function() {
-                alert('Your session has expired. You will be redirected to the login page.');
-                window.location.href = '<?= base_url('auth/logout') ?>';
+                const logoutUrl = '<?= base_url('auth/logout') ?>';
+                const modalEl = document.getElementById('sessionExpiredModal');
+                if (modalEl && window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                    const sessionModal = new bootstrap.Modal(modalEl, {backdrop: 'static', keyboard: false});
+                    const countdownEl = document.getElementById('sessionExpiredRedirectCountdown');
+                    let countdown = 5; // seconds until redirect
+                    if (countdownEl) countdownEl.textContent = countdown;
+                    // Show modal
+                    sessionModal.show();
+
+                    // Attach immediate-login button
+                    const loginBtn = document.getElementById('sessionExpiredLoginBtn');
+                    if (loginBtn) {
+                        loginBtn.addEventListener('click', function() {
+                            window.location.href = logoutUrl;
+                        });
+                    }
+
+                    const interval = setInterval(() => {
+                        countdown -= 1;
+                        if (countdownEl) countdownEl.textContent = countdown;
+                        if (countdown <= 0) {
+                            clearInterval(interval);
+                            window.location.href = logoutUrl;
+                        }
+                    }, 1000);
+                } else {
+                    // Fallback: plain redirect if modal or bootstrap isn't available
+                    alert('Your session has expired. You will be redirected to the login page.');
+                    window.location.href = logoutUrl;
+                }
             }, sessionTimeout);
         }
         
@@ -449,7 +478,25 @@
         
         // Update time every minute
         setInterval(updateCurrentTime, 60000);
-    });
-    </script>
+        });
+        </script>
+
+        <!-- Session expired modal -->
+        <div class="modal fade" id="sessionExpiredModal" tabindex="-1" aria-labelledby="sessionExpiredModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="sessionExpiredModalLabel">Session Expired</h5>
+                    </div>
+                    <div class="modal-body">
+                        <p>Your session has expired. You will be redirected to the login page in <strong><span id="sessionExpiredRedirectCountdown">5</span></strong> seconds.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <a id="sessionExpiredLoginBtn" href="<?= base_url('auth/logout') ?>" class="btn btn-primary">Login now</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 </body>
 </html>
