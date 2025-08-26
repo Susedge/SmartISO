@@ -67,3 +67,7 @@
 #--------------------------------------------------------------------
 
 # logger.threshold = 4
+
+# iLovePDF API keys (set these to your credentials)
+ILOVEPDF_PUBLIC_KEY=project_public_6692c26dfe4b0d3da6dd1a6685aa3cc2_XSRk3beffece0ad5de068ece2039317436938
+ILOVEPDF_SECRET_KEY=secret_key_a67d1dad50c69d43fd138001330a1efc_x4jBw45848a67df9fdb0df4b2f464c3853479

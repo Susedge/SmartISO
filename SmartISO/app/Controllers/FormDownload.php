@@ -6,6 +6,7 @@ use App\Models\FormModel;
 use App\Models\DbpanelModel;
 use App\Models\FormSubmissionModel;
 use App\Models\FormSubmissionDataModel;
+use PhpOffice\PhpWord\TemplateProcessor;
 
 class FormDownload extends BaseController
 {
@@ -298,48 +299,119 @@ class FormDownload extends BaseController
         // Fall back to DOCX uploaded template
         $docxPath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
         if (file_exists($docxPath)) {
-            // Attempt to convert DOCX -> PDF on the fly using PhpWord + Dompdf (if available)
+            // If the current user is a requestor, replace any template placeholders with empty strings
+            // so the downloaded template does not contain unreplaced variables.
             try {
-                // Ensure temp directory
                 $tempDir = WRITEPATH . 'temp/';
                 if (!is_dir($tempDir)) {
                     mkdir($tempDir, 0755, true);
                 }
 
-                // Load the DOCX
-                $phpWord = \PhpOffice\PhpWord\IOFactory::load($docxPath);
+                $servePath = $docxPath;
 
-                // If Dompdf is available via Composer, register it as the PDF renderer
-                if (class_exists('\\Dompdf\\Dompdf')) {
+                if (session()->get('user_type') === 'requestor') {
                     try {
-                        \PhpOffice\PhpWord\Settings::setPdfRendererName('DomPDF');
+                        $template = new TemplateProcessor($docxPath);
+                        $vars = [];
+                        try {
+                            $vars = $template->getVariables();
+                        } catch (\Exception $e) {
+                            // If TemplateProcessor cannot list variables, ignore and continue
+                            $vars = [];
+                        }
+
+                        foreach ($vars as $v) {
+                            // set empty value for every placeholder
+                            try {
+                                $template->setValue($v, '');
+                            } catch (\Exception $e) {
+                                // ignore failures for individual vars
+                            }
+                        }
+
+                        $tempDocx = $tempDir . uniqid($form['code'] . '_') . '.docx';
+                        $template->saveAs($tempDocx);
+
+                        // schedule cleanup
+                        register_shutdown_function(function($path) {
+                            try {
+                                if (file_exists($path)) {
+                                    @unlink($path);
+                                }
+                            } catch (\Exception $e) {
+                                log_message('warning', 'Failed to delete temp DOCX: ' . $e->getMessage());
+                            }
+                        }, $tempDocx);
+
+                        $servePath = $tempDocx;
                     } catch (\Exception $e) {
-                        // Ignore; createWriter may still work depending on environment
+                        // If placeholder processing fails, fall back to original docx
+                        log_message('warning', 'Failed to strip placeholders from template: ' . $e->getMessage());
+                        $servePath = $docxPath;
                     }
                 }
 
-                $tempPdf = $tempDir . uniqid($form['code'] . '_') . '.pdf';
-                $pdfWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'PDF');
-                $pdfWriter->save($tempPdf);
+                // Prefer iLovePDF conversion when SDK and credentials are available (better fidelity)
+                $ilovepdfPublic = env('ILOVEPDF_PUBLIC_KEY') ?: getenv('ILOVEPDF_PUBLIC_KEY');
+                $ilovepdfSecret = env('ILOVEPDF_SECRET_KEY') ?: getenv('ILOVEPDF_SECRET_KEY');
 
-                // Schedule temp PDF for cleanup after request completes
-                if (file_exists($tempPdf)) {
-                    register_shutdown_function(function($path) {
-                        try {
-                            if (file_exists($path)) {
-                                @unlink($path);
-                            }
-                        } catch (\Exception $e) {
-                            log_message('warning', 'Failed to delete temp PDF: ' . $e->getMessage());
+        if (!empty($ilovepdfPublic) && !empty($ilovepdfSecret) && class_exists('\\Ilovepdf\\Ilovepdf')) {
+                    try {
+            $ilovepdf = new \Ilovepdf\Ilovepdf($ilovepdfPublic, $ilovepdfSecret);
+                        $task = $ilovepdf->newTask('officepdf');
+                        $task->addFile($servePath);
+                        $task->execute();
+
+                        // download to temp dir
+                        $task->download($tempDir);
+
+                        // Find newest PDF in temp dir produced by ilovepdf
+                        $pdfMatches = glob($tempDir . '*.pdf');
+                        usort($pdfMatches, function($a, $b) { return filemtime($b) <=> filemtime($a); });
+                        if (!empty($pdfMatches) && file_exists($pdfMatches[0])) {
+                            $tempPdf = $pdfMatches[0];
+                            register_shutdown_function(function($path) {
+                                try { if (file_exists($path)) { @unlink($path); } } catch (\Exception $e) {}
+                            }, $tempPdf);
+
+                            return $this->response->download($tempPdf, null)->setFileName($form['code'] . '_template.pdf');
                         }
-                    }, $tempPdf);
+                    } catch (\Exception $e) {
+                        log_message('warning', 'iLovePDF conversion failed or returned no PDF: ' . $e->getMessage());
+                        // fall through to next conversion/mime serving strategy
+                    }
                 }
 
-                return $this->response->download($tempPdf, null)->setFileName($form['code'] . '_template.pdf');
+                // Attempt to convert to PDF if environment supports it, otherwise serve DOCX
+                if (class_exists('\\PhpOffice\\PhpWord\\IOFactory') && class_exists('\\Dompdf\\Dompdf')) {
+                    try {
+                        $phpWord = \PhpOffice\PhpWord\IOFactory::load($servePath);
+                        // register DomPDF renderer if possible
+                        try {
+                            \PhpOffice\PhpWord\Settings::setPdfRendererName('DomPDF');
+                        } catch (\Exception $e) {
+                            // ignore
+                        }
+
+                        $tempPdf = $tempDir . uniqid($form['code'] . '_') . '.pdf';
+                        $pdfWriter = \PhpOffice\PhpWord\IOFactory::createWriter($phpWord, 'PDF');
+                        $pdfWriter->save($tempPdf);
+
+                        register_shutdown_function(function($path) {
+                            try { if (file_exists($path)) { @unlink($path); } } catch (\Exception $e) {}
+                        }, $tempPdf);
+
+                        return $this->response->download($tempPdf, null)->setFileName($form['code'] . '_template.pdf');
+                    } catch (\Exception $e) {
+                        log_message('warning', 'DOCX->PDF conversion failed: ' . $e->getMessage());
+                        return $this->response->download($servePath, null)->setFileName($form['code'] . '_template.docx');
+                    }
+                }
+
+                return $this->response->download($servePath, null)->setFileName($form['code'] . '_template.docx');
             } catch (\Exception $e) {
-                // Log and fall back to returning the docx if conversion fails
-                log_message('error', 'DOCX to PDF conversion failed for ' . $docxPath . ': ' . $e->getMessage());
-                return $this->response->download($docxPath, null)->setFileName($form['code'] . '_template.docx');
+                log_message('error', 'Error serving uploaded template: ' . $e->getMessage());
+                return redirect()->back()->with('error', 'No uploaded template found for this form');
             }
         }
 
