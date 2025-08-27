@@ -44,6 +44,7 @@
         "sort-packages": true
     },
     "scripts": {
-        "test": "phpunit"
+    "test": "phpunit",
+    "controllers:test": "php scripts/run_controllers_tests.php"
     }
 }

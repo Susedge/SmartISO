@@ -137,3 +137,42 @@ PHP version 8.1 or higher is required, with the following extensions installed:
 This application is built on **CodeIgniter 4.6.2**. For framework-specific documentation, visit the [CodeIgniter User Guide](https://codeigniter.com/user_guide/).
 
 ### Framework Requirements
+
+## Running unit tests
+
+Follow these steps to run the project's PHPUnit unit tests and save TestDox-style output to a text file with controller-level details.
+
+1. Open PowerShell and change to the project root (where `composer.json` is):
+
+```powershell
+Set-Location -Path "C:\xampp\htdocs\SmartISO-3\SmartISO"
+```
+
+2. Run PHPUnit and write TestDox output to a text file (`build/logs/controllers_unit_tests.txt`) and JUnit XML (`build/logs/controllers_test_junit.xml`):
+
+```powershell
+# Create logs dir if missing
+if (-not (Test-Path -Path "build/logs")) { New-Item -ItemType Directory -Path "build/logs" | Out-Null }
+
+# Run tests (TestDox -> human readable text, and JUnit xml)
+vendor\bin\phpunit --testdox > build\logs\controllers_unit_tests.txt; vendor\bin\phpunit --log-junit build\logs\controllers_test_junit.xml
+```
+
+3. Notes
+- The first command writes TestDox (human-readable) output to `build/logs/controllers_unit_tests.txt`.
+- The second command writes JUnit XML suitable for CI systems to `build/logs/controllers_test_junit.xml`.
+- You can run a single `phpunit` invocation with multiple log options if desired; the example above separates them so the TestDox text file is easy to inspect.
+- If your environment requires `php` prefix on Windows (sometimes `vendor\bin\phpunit` is a PHP file), use `php vendor\bin\phpunit` instead.
+
+If you'd like, I can add a small npm-style script or a `Makefile` target to make this a single command.
+
+Single-command to run tests (what I added)
+
+You can run both TestDox and JUnit generation with a single composer command that was added to the project:
+
+```powershell
+Set-Location -Path "C:\xampp\htdocs\SmartISO-3\SmartISO"
+composer run controllers:test
+```
+
+This executes `scripts/run_controllers_tests.php` and writes human-readable TestDox output to `build/logs/controllers_unit_tests.txt` and JUnit XML to `build/logs/controllers_test_junit.xml`.
