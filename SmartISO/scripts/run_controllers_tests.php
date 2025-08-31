@@ -38,6 +38,8 @@ $phpunit = $projectRoot . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR .
 $summaryFile = $logsDir . DIRECTORY_SEPARATOR . 'controllers_unit_tests_summary.txt';
 $verboseFile = $logsDir . DIRECTORY_SEPARATOR . 'controllers_unit_tests_verbose.txt';
 $junitFile = $logsDir . DIRECTORY_SEPARATOR . 'controllers_test_junit.xml';
+// File to store PHPUnit TestDox (human-readable) output
+$testdoxFile = $logsDir . DIRECTORY_SEPARATOR . 'controllers_unit_tests.txt';
 
 $header = "PHPUnit run: " . date('Y-m-d H:i:s') . PHP_EOL . "Command: phpunit --testdox --debug --log-junit " . basename($junitFile) . PHP_EOL . str_repeat('=', 80) . PHP_EOL;
 echo "Running PHPUnit (TestDox + JUnit) -> $summaryFile and $junitFile\n";
@@ -47,6 +49,9 @@ $cmd = escapeshellcmd($php) . ' ' . escapeshellarg($phpunit) . ' --testdox --col
 $output = [];
 $exit = 0;
 exec($cmd, $output, $exit);
+
+// Write full TestDox output to a dedicated file for easier inspection
+file_put_contents($testdoxFile, implode(PHP_EOL, $output));
 
 // Build a concise report: list controllers/tests first, then overall status and short logs
 $reportLines = [];
@@ -137,7 +142,7 @@ file_put_contents($verboseFile, implode(PHP_EOL, $output));
 file_put_contents($summaryFile, implode(PHP_EOL, $reportLines));
 
 if ($failures === 0 && $errors === 0) {
-    echo "Done. Summary written to $summaryFile | Verbose: $verboseFile | JUnit: $junitFile\n";
+    echo "Done. Summary written to $summaryFile | Verbose: $verboseFile | TestDox: $testdoxFile | JUnit: $junitFile\n";
     exit(0);
 }
 

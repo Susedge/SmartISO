@@ -41,3 +41,8 @@ password: password123
 - approver_user
 - requestor_user
 - service_user
+
+
+# For unit testing
+ - run: composer run controllers:test
+ - then navigate to: SmartISO/app/build/logs/

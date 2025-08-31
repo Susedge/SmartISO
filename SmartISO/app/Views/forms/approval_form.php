@@ -83,6 +83,31 @@
                         <div class="card-body">
                             <form action="<?= base_url('forms/sign/' . $submission['id']) ?>" method="post">
                                 <?= csrf_field() ?>
+                                <?php
+                                // Accept either $serviceStaff (set by approveForm) or $available_service_staff (used elsewhere)
+                                $staffList = [];
+                                if (!empty($serviceStaff) && is_array($serviceStaff)) {
+                                    $staffList = $serviceStaff;
+                                } elseif (!empty($available_service_staff) && is_array($available_service_staff)) {
+                                    $staffList = $available_service_staff;
+                                }
+                                if (!empty($staffList)):
+                                ?>
+                                    <div class="mb-3">
+                                        <label for="service_staff_id" class="form-label">Assign Service Staff (Optional)</label>
+                                        <select name="service_staff_id" id="service_staff_id" class="form-select">
+                                            <option value="">-- No assignment --</option>
+                                            <?php foreach ($staffList as $s): ?>
+                                                <option value="<?= esc($s['id']) ?>" <?= (!empty($submission['service_staff_id']) && $submission['service_staff_id'] == $s['id']) ? 'selected' : '' ?>><?= esc($s['full_name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="mb-3 text-muted">
+                                        <small>No active service staff available to assign.</small>
+                                    </div>
+                                <?php endif; ?>
+
                                 <div class="mb-3">
                                     <label for="approval_comments" class="form-label">Comments (Optional)</label>
                                     <textarea class="form-control" id="approval_comments" name="approval_comments" rows="3"></textarea>

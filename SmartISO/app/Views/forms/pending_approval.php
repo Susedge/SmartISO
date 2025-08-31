@@ -53,10 +53,11 @@
             </div>
             <div class="col-md-6 text-end">
                 <?php if (!empty($submissions)): ?>
-                    <form method="post" action="<?= base_url('forms/approve-all') ?>" style="display: inline;" 
-                          onsubmit="return confirm('Are you sure you want to approve all filtered forms? This action cannot be undone.')">
-                        <input type="hidden" name="office_filter" value="<?= esc($selectedOffice ?? '') ?>">
-                        <input type="hidden" name="priority_filter" value="<?= esc($selectedPriority) ?>">
+                                        <form method="post" action="<?= base_url('forms/approve-all') ?>" style="display: inline;" 
+                                                    onsubmit="return confirm('Are you sure you want to approve all filtered forms? This action cannot be undone.')">
+                                                <?= csrf_field() ?>
+                                                <input type="hidden" name="office_filter" value="<?= esc($selectedOffice ?? '') ?>">
+                                                <input type="hidden" name="priority_filter" value="<?= esc($selectedPriority) ?>">
                         <button type="submit" class="btn btn-success">
                             <i class="fas fa-check-double me-1"></i> Approve All Filtered
                         </button>

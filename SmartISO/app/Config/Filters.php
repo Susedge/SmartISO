@@ -70,12 +70,14 @@ class Filters extends BaseFilters
      * @var array<string, array<string, array<string, string>>>|array<string, list<string>>
      */
     public array $globals = [
-        'before' => [
+        // During automated tests (ENVIRONMENT === 'testing') disable the global CSRF
+        // filter so FeatureTestTrait can call controller routes without needing tokens.
+        'before' => (ENVIRONMENT !== 'testing') ? [
             // 'honeypot',
             // Apply CSRF globally (notifications endpoints will now require CSRF tokens)
             'csrf',
             // 'invalidchars',
-        ],
+        ] : [],
         'after' => [
             // 'honeypot',
             // 'secureheaders',

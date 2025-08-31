@@ -35,20 +35,39 @@ class Forms extends BaseController
         $this->priorityModel = new PriorityConfigurationModel();
         $this->officeModel = new OfficeModel();
     }
+
+    /**
+     * Return a Request instance, falling back to the global service when
+     * the controller property is not populated (e.g. in unit tests).
+     */
+    protected function getRequest()
+    {
+        return $this->request ?? \Config\Services::request();
+    }
     
     public function index()
     {
-        // Get office filter from request
-        $selectedOffice = $this->request->getGet('office');
+    // Get office filter from request (use fallback when running under tests)
+    $req = $this->getRequest();
+    $selectedOffice = $req->getGet('office');
         
-        // Get all active offices for the dropdown
-        $offices = $this->officeModel->getActiveOffices();
-        
-        // Get forms based on office filter
-        if ($selectedOffice) {
-            $forms = $this->formModel->getFormsByOfficeWithOffice($selectedOffice);
-        } else {
-            $forms = $this->formModel->getFormsWithOffice();
+        // Get all active offices for the dropdown if model available
+        $offices = [];
+        if (isset($this->officeModel) && method_exists($this->officeModel, 'getActiveOffices')) {
+            $offices = $this->officeModel->getActiveOffices();
+        }
+
+        // Get forms based on office filter; allow unit tests to set a simple formModel stub
+        $forms = [];
+        if (isset($this->formModel)) {
+            if ($selectedOffice && method_exists($this->formModel, 'getFormsByOfficeWithOffice')) {
+                $forms = $this->formModel->getFormsByOfficeWithOffice($selectedOffice);
+            } elseif (method_exists($this->formModel, 'getFormsWithOffice')) {
+                $forms = $this->formModel->getFormsWithOffice();
+            } elseif (method_exists($this->formModel, 'findAll')) {
+                // Fallback for simple test stubs
+                $forms = $this->formModel->findAll();
+            }
         }
         
         $data = [
@@ -579,9 +598,24 @@ class Forms extends BaseController
             
             // Get approval comment
             $comments = $this->request->getPost('approval_comments') ?? '';
+            // Optional: assign service staff if provided on the approval form
+            $serviceStaffId = $this->request->getPost('service_staff_id') ?? null;
             
             // Record approver signature and update status
+            // Use model method to mark approved
             $this->formSubmissionModel->approveSubmission($id, $userId, $comments);
+
+            // If a service staff was selected, persist it and move to pending_service
+            if (!empty($serviceStaffId)) {
+                try {
+                    $this->formSubmissionModel->update($id, [
+                        'service_staff_id' => $serviceStaffId,
+                        'status' => 'pending_service'
+                    ]);
+                } catch (\Exception $e) {
+                    log_message('error', 'Failed to assign service staff during signForm: ' . $e->getMessage());
+                }
+            }
             
             return redirect()->to('/forms/pending-approval')
                             ->with('message', 'Form approved and signed successfully');

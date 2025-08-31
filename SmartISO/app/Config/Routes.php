@@ -94,6 +94,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('forms/approve-all', 'Forms::approveAll');
     $routes->post('forms/assign-service-staff', 'Forms::assignServiceStaff');
     $routes->get('forms/service/(:num)', 'Forms::serviceForm/$1');
+    // Backwards-compatible URL used in some views
+    $routes->get('forms/service-form/(:num)', 'Forms::serviceForm/$1');
     $routes->post('forms/service', 'Forms::submitService');
     $routes->post('forms/sign/(:num)', 'Forms::signForm/$1');
     

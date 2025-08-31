@@ -171,7 +171,6 @@ Single-command to run tests (what I added)
 You can run both TestDox and JUnit generation with a single composer command that was added to the project:
 
 ```powershell
-Set-Location -Path "C:\xampp\htdocs\SmartISO-3\SmartISO"
 composer run controllers:test
 ```
 

@@ -123,18 +123,25 @@ class Auth extends BaseController
      */
     public function extendSession()
     {
-        if (!session()->get('isLoggedIn')) {
-            return $this->response->setJSON(['success' => false, 'message' => 'Not logged in']);
+        $sess = session() ?? \Config\Services::session();
+        $resp = $this->response ?? \Config\Services::response();
+
+        if (!$sess->get('isLoggedIn')) {
+            return $resp->setJSON(['success' => false, 'message' => 'Not logged in']);
         }
-        
+
         // Update last activity time
-        session()->set('last_activity', time());
-        
-        return $this->response->setJSON([
+        $sess->set('last_activity', time());
+
+        // Safely get CSRF tokens if helper available
+        $csrfName = function_exists('csrf_token') ? csrf_token() : '';
+        $csrfHash = function_exists('csrf_hash') ? csrf_hash() : '';
+
+        return $resp->setJSON([
             'success' => true,
             'message' => 'Session extended',
-            'csrf_name' => csrf_token(),
-            'csrf_hash' => csrf_hash()
+            'csrf_name' => $csrfName,
+            'csrf_hash' => $csrfHash
         ]);
     }
 }
