@@ -46,3 +46,8 @@ password: password123
 # For unit testing
  - run: composer run controllers:test
  - then navigate to: SmartISO/app/build/logs/
+
+# Run codeigniter app
+- run: composer install
+- run: php spark migrate
+- run: php spark serve
