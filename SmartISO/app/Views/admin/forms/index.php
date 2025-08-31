@@ -15,6 +15,7 @@
                         <th>Code</th>
                         <th>Description</th>
                         <th>Created</th>
+                        <th>Template</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -48,6 +49,54 @@
                                 </div>
                             </div>
                         </td>
+                        <?php 
+                        $templatePath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
+                        $hasTemplate = file_exists($templatePath);
+                        ?>
+                        <td>
+                            <?php if ($hasTemplate): ?>
+                                <span class="badge bg-success">Available</span>
+                            <?php else: ?>
+                                <span class="badge bg-warning text-dark">Default</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <!-- Upload / Download template actions -->
+                            <button type="button" class="btn btn-sm btn-outline-success me-1" data-bs-toggle="modal" data-bs-target="#uploadModal<?= $form['id'] ?>">
+                                <i class="fas fa-upload"></i> Upload
+                            </button>
+                            <?php if ($hasTemplate): ?>
+                                <a href="<?= base_url('admin/configurations/download-template/' . $form['id']) ?>" class="btn btn-sm btn-outline-info me-1"><i class="fas fa-download"></i> Download</a>
+                            <?php endif; ?>
+                            
+                            <a href="<?= base_url('admin/forms/edit/' . $form['id']) ?>" class="btn btn-sm btn-primary">Edit</a>
+                            <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $form['id'] ?>">Delete</button>
+
+                            <!-- Upload Modal -->
+                            <div class="modal fade" id="uploadModal<?= $form['id'] ?>" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Upload Template for <?= esc($form['code']) ?></h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <form action="<?= base_url('admin/configurations/upload-template/' . $form['id']) ?>" method="post" enctype="multipart/form-data">
+                                            <?= csrf_field() ?>
+                                            <div class="modal-body">
+                                                <div class="mb-3">
+                                                    <label for="template<?= $form['id'] ?>" class="form-label">Choose DOCX Template</label>
+                                                    <input type="file" id="template<?= $form['id'] ?>" name="template" class="form-control" accept=".docx" required>
+                                                    <div class="form-text">Max 5MB. DOCX only.</div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-success"><?= $hasTemplate ? 'Replace Template' : 'Upload Template' ?></button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
                     </tr>
                     <?php endforeach; ?>
                     

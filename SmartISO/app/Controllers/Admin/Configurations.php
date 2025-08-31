@@ -353,6 +353,11 @@ class Configurations extends BaseController
  */
 public function uploadTemplate($formId = null)
 {
+    // Allow formId to be provided either via route param or POST (hidden input)
+    if (!$formId) {
+        $formId = $this->request->getPost('form_id') ?? null;
+    }
+
     if (!$formId) {
         return redirect()->to('/admin/configurations?type=forms')
             ->with('error', 'Invalid form ID');
@@ -502,9 +507,15 @@ public function updateSystemConfig()
     
     // Validate based on config type
     $rules = [];
-    switch ($existingConfig['config_type']) {
+        switch ($existingConfig['config_type']) {
         case 'integer':
-            $rules['config_value'] = 'required|integer|greater_than[0]';
+            // Allow zero for specific config keys (e.g., session_timeout = 0 disables timeout)
+            if ($existingConfig['config_key'] === 'session_timeout') {
+                // Allow 0 and positive integers
+                $rules['config_value'] = 'required|integer|greater_than_equal_to[0]';
+            } else {
+                $rules['config_value'] = 'required|integer|greater_than[0]';
+            }
             break;
         case 'boolean':
             $rules['config_value'] = 'required|in_list[0,1]';

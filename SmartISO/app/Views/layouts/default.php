@@ -14,7 +14,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="<?= base_url('assets/css/pastel.css') ?>">
+    <!-- Optional Toastify for non-blocking toasts -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <!-- CSRF tokens for AJAX -->
+    <meta name="csrf-name" content="<?= csrf_token() ?>">
+    <meta name="csrf-hash" content="<?= csrf_hash() ?>">
     <?= $this->renderSection('styles') ?>
+    <style>
+    /* Notification visuals */
+    .notif-item, .notification-row { cursor: pointer; transition: transform .18s ease, background-color .18s ease, box-shadow .18s ease; }
+    .notif-item.unread, .notification-row.unread { background-color: #f8fafc; }
+    .notif-item .icon, .notification-row .icon { width:38px; height:38px; min-width:38px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#eef2f7; margin-right:10px; }
+    .notif-item:hover, .notification-row:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(15,23,42,0.06); }
+    .notif-item .meta-time, .notification-row .meta-time { font-size: 0.75rem; color: #6c757d; }
+    .notif-badge-pulse { animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0% { transform: scale(1);} 50% { transform: scale(1.08);} 100% { transform: scale(1);} }
+    .notif-actions .btn { padding: 0.18rem 0.36rem; }
+    /* Center the notification bell and keep badge aligned */
+    #notificationsToggle { display:flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:6px; }
+    #notificationsToggle .fa-bell { font-size:1.05rem; line-height:1; }
+    /* Slightly nudge the badge so it sits visually centered at top-right of the bell */
+    #notifCount { transform: translate(40%, -40%); top: 6px; right: 6px; }
+    /* small top offset so bell aligns better with avatar */
+    #notifIconText { margin-top: 4px; }
+    </style>
 </head>
 <body class="<?= session()->get('isLoggedIn') ? 'sb-nav-fixed' : '' ?>">
     <!-- Top navigation-->
@@ -37,6 +60,34 @@
             <ul class="navbar-nav ms-auto">
                 <!-- User Menu -->
                 <?php if(session()->get('isLoggedIn')): ?>
+                <!-- Notifications bell as a separate dropdown (bell, then user menu) -->
+                <li class="nav-item dropdown me-3">
+                    <a class="nav-link position-relative d-flex align-items-center justify-content-center" id="notifDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span id="notifIconText" role="button" class="text-decoration-none text-muted d-none d-lg-inline d-flex align-items-center" title="Notifications">
+                            <i class="fas fa-bell" style="font-size:1.05rem; line-height:1;"></i>
+                            <span id="notifBadge" class="badge bg-danger rounded-pill ms-2" style="display:none; font-size:0.7rem; position:relative; top:-6px;">0</span>
+                        </span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="notifDropdown">
+                        <li class="dropdown-header d-flex justify-content-between align-items-center px-3">
+                            <strong>Notifications</strong>
+                            <small><a href="#" id="markAllReadBtn">Mark all read</a></small>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li id="notificationsList" style="max-height:260px; overflow:auto;">
+                            <div class="text-center p-3 text-muted">Loading...</div>
+                        </li>
+                        <li id="notificationsMessage" style="display:none;">
+                            <div class="p-2"><div id="notificationsMessageText" class="small text-center text-danger"></div></div>
+                        </li>
+                        <li><hr class="dropdown-divider" /></li>
+                        <li class="px-3 py-2 text-center">
+                            <a href="<?= base_url('notifications') ?>" class="small text-decoration-none">View all notifications</a>
+                        </li>
+                    </ul>
+                </li>
+
+                <!-- User Menu (avatar + username) -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle user-dropdown d-flex align-items-center" id="navbarDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <?php 
@@ -45,15 +96,17 @@
                         $currentUser = $userModel->find(session()->get('user_id'));
                         ?>
                         <?php if (!empty($currentUser['profile_image'])): ?>
-                            <div class="avatar-circle me-2">
+                            <div class="avatar-circle ms-2 me-2">
                                 <img src="<?= base_url($currentUser['profile_image']) ?>" alt="Profile">
                             </div>
                         <?php else: ?>
-                            <div class="avatar-circle me-2">
+                            <div class="avatar-circle ms-2 me-2">
                                 <span class="initials"><?= strtoupper(substr(session()->get('full_name') ?? 'U', 0, 1)) ?></span>
                             </div>
                         <?php endif; ?>
-                        <span class="d-none d-lg-inline"><?= esc(session()->get('username')) ?></span>
+                        <span class="d-none d-lg-inline d-flex align-items-center">
+                            <?= esc(session()->get('username')) ?>
+                        </span>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="navbarDropdown">
                         <li><a class="dropdown-item py-2" href="<?= base_url('profile') ?>"><i class="fas fa-user-circle me-2 text-primary"></i>Profile</a></li>
@@ -171,6 +224,7 @@
                             <div class="nav-link-icon"><i class="fas fa-chart-line me-2"></i></div>
                             <span>Analytics</span>
                         </a>
+                        <!-- Scheduling link intentionally omitted here to avoid duplication; kept under main menu -->
                         
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
                             <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
@@ -198,6 +252,11 @@
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/submissions' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/submissions') ?>">
                             <div class="nav-link-icon"><i class="fas fa-clipboard-check me-2"></i></div>
                             <span>Review Submissions</span>
+                        </a>
+                        
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/guide' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/guide') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-book me-2"></i></div>
+                            <span>DOCX Variables Guide</span>
                         </a>
                         
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
@@ -321,6 +380,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
     <!-- Bootstrap JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <!-- Optional Toastify JS (site-wide) -->
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <!-- Core theme JS-->
     <script src="<?= base_url('assets/js/scripts.js') ?>"></script>
     <?= $this->renderSection('scripts') ?>
@@ -333,8 +394,8 @@
         let sessionTimeoutWarning;
         let sessionTimeoutLogout;
         
-        // Get session timeout from server (in minutes, convert to milliseconds)
-        const sessionTimeout = <?= (function() {
+        // Get session timeout value (in minutes) from server
+        const sessionTimeoutMinutes = <?= (function() {
             $db = \Config\Database::connect();
             try {
                 $builder = $db->table('configurations');
@@ -343,89 +404,96 @@
             } catch (\Exception $e) {
                 return 30;
             }
-        })() ?> * 60 * 1000; // Convert to milliseconds
-        
-        const warningTime = sessionTimeout - (5 * 60 * 1000); // 5 minutes before timeout
-        
-        function showSessionWarning() {
-            if (confirm('Your session will expire in 5 minutes. Do you want to extend it?')) {
-                fetch('<?= base_url('auth/extend-session') ?>', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                }).then(response => {
-                    if (response.ok) {
-                        resetSessionTimer();
-                    }
-                }).catch(error => {
-                    console.error('Error extending session:', error);
-                });
-            }
-        }
-        
-        function resetSessionTimer() {
-            clearTimeout(sessionTimeoutWarning);
-            clearTimeout(sessionTimeoutLogout);
-            
-            // Show warning 5 minutes before timeout
-            sessionTimeoutWarning = setTimeout(showSessionWarning, warningTime);
-            
-            // Auto logout after full timeout — show modal with countdown then redirect
-            sessionTimeoutLogout = setTimeout(function() {
-                const logoutUrl = '<?= base_url('auth/logout') ?>';
-                const modalEl = document.getElementById('sessionExpiredModal');
-                if (modalEl && window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-                    const sessionModal = new bootstrap.Modal(modalEl, {backdrop: 'static', keyboard: false});
-                    const countdownEl = document.getElementById('sessionExpiredRedirectCountdown');
-                    let countdown = 5; // seconds until redirect
-                    if (countdownEl) countdownEl.textContent = countdown;
-                    // Show modal
-                    sessionModal.show();
+        })() ?>;
 
-                    // Attach immediate-login button
-                    const loginBtn = document.getElementById('sessionExpiredLoginBtn');
-                    if (loginBtn) {
-                        loginBtn.addEventListener('click', function() {
-                            window.location.href = logoutUrl;
-                        });
-                    }
+        // If configured as 0, session timeout is disabled; skip timers and warnings
+        if (sessionTimeoutMinutes > 0) {
+            const sessionTimeout = sessionTimeoutMinutes * 60 * 1000; // Convert to milliseconds
+            const warningTime = sessionTimeout - (5 * 60 * 1000); // 5 minutes before timeout
 
-                    const interval = setInterval(() => {
-                        countdown -= 1;
-                        if (countdownEl) countdownEl.textContent = countdown;
-                        if (countdown <= 0) {
-                            clearInterval(interval);
-                            window.location.href = logoutUrl;
+            function showSessionWarning() {
+                if (confirm('Your session will expire in 5 minutes. Do you want to extend it?')) {
+                    fetch('<?= base_url('auth/extend-session') ?>', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
                         }
-                    }, 1000);
-                } else {
-                    // Fallback: plain redirect if modal or bootstrap isn't available
-                    alert('Your session has expired. You will be redirected to the login page.');
-                    window.location.href = logoutUrl;
+                    }).then(response => {
+                        if (response.ok) {
+                            resetSessionTimer();
+                        }
+                    }).catch(error => {
+                        console.error('Error extending session:', error);
+                    });
                 }
-            }, sessionTimeout);
-        }
-        
-        // Start session timer
-        resetSessionTimer();
-        
-        // Reset timer on any user activity (throttled)
-        let activityThrottle = false;
-        function handleActivity() {
-            if (!activityThrottle) {
-                activityThrottle = true;
-                setTimeout(() => {
-                    activityThrottle = false;
-                    resetSessionTimer();
-                }, 1000); // Throttle to once per second
             }
+
+            function resetSessionTimer() {
+                clearTimeout(sessionTimeoutWarning);
+                clearTimeout(sessionTimeoutLogout);
+
+                // Show warning 5 minutes before timeout
+                sessionTimeoutWarning = setTimeout(showSessionWarning, warningTime);
+
+                // Auto logout after full timeout — show modal with countdown then redirect
+                sessionTimeoutLogout = setTimeout(function() {
+                    const logoutUrl = '<?= base_url('auth/logout') ?>';
+                    const modalEl = document.getElementById('sessionExpiredModal');
+                    if (modalEl && window.bootstrap && typeof window.bootstrap.Modal === 'function') {
+                        const sessionModal = new bootstrap.Modal(modalEl, {backdrop: 'static', keyboard: false});
+                        const countdownEl = document.getElementById('sessionExpiredRedirectCountdown');
+                        let countdown = 5; // seconds until redirect
+                        if (countdownEl) countdownEl.textContent = countdown;
+                        // Show modal
+                        sessionModal.show();
+
+                        // Attach immediate-login button
+                        const loginBtn = document.getElementById('sessionExpiredLoginBtn');
+                        if (loginBtn) {
+                            loginBtn.addEventListener('click', function() {
+                                window.location.href = logoutUrl;
+                            });
+                        }
+
+                        const interval = setInterval(() => {
+                            countdown -= 1;
+                            if (countdownEl) countdownEl.textContent = countdown;
+                            if (countdown <= 0) {
+                                clearInterval(interval);
+                                window.location.href = logoutUrl;
+                            }
+                        }, 1000);
+                    } else {
+                        // Fallback: plain redirect if modal or bootstrap isn't available
+                        alert('Your session has expired. You will be redirected to the login page.');
+                        window.location.href = logoutUrl;
+                    }
+                }, sessionTimeout);
+            }
+
+            // Start session timer
+            resetSessionTimer();
+
+            // Reset timer on any user activity (throttled)
+            let activityThrottle = false;
+            function handleActivity() {
+                if (!activityThrottle) {
+                    activityThrottle = true;
+                    setTimeout(() => {
+                        activityThrottle = false;
+                        resetSessionTimer();
+                    }, 1000); // Throttle to once per second
+                }
+            }
+
+            document.addEventListener('click', handleActivity);
+            document.addEventListener('keypress', handleActivity);
+            document.addEventListener('scroll', handleActivity);
+        } else {
+            // Session timeout disabled
+            console.debug('Session timeout disabled (session_timeout = 0)');
         }
-        
-        document.addEventListener('click', handleActivity);
-        document.addEventListener('keypress', handleActivity);
-        document.addEventListener('scroll', handleActivity);
         <?php endif; ?>
         
         // Add loading states to forms
@@ -480,6 +548,214 @@
         setInterval(updateCurrentTime, 60000);
         });
         </script>
+
+    <script>
+    // Provide a global helper to update CSRF meta tags from JSON responses
+    window.updateCsrfFromResponse = function(json){
+        try {
+            if (!json || typeof json !== 'object') return;
+            const name = json.csrf_name || json.csrfName || json.csrf_name || json.csrfName;
+            const hash = json.csrf_hash || json.csrfHash || json.csrf_hash || json.csrfHash;
+            if (name && hash) {
+                let nameMeta = document.querySelector('meta[name="csrf-name"]');
+                let hashMeta = document.querySelector('meta[name="csrf-hash"]');
+                if (!nameMeta) { nameMeta = document.createElement('meta'); nameMeta.setAttribute('name','csrf-name'); document.head.appendChild(nameMeta); }
+                if (!hashMeta) { hashMeta = document.createElement('meta'); hashMeta.setAttribute('name','csrf-hash'); document.head.appendChild(hashMeta); }
+                nameMeta.setAttribute('content', name);
+                hashMeta.setAttribute('content', hash);
+            }
+        } catch (e) {
+            console.warn('updateCsrfFromResponse failed', e);
+        }
+    };
+
+    // Monkey-patch fetch to automatically parse JSON responses and run CSRF updater when server includes tokens.
+    (function(){
+        if (!window.fetch) return; // old browsers
+        const _fetch = window.fetch;
+        window.fetch = function(resource, init) {
+            return _fetch(resource, init).then(async (response) => {
+                // Clone response so we don't consume original stream
+                let cloned = response.clone();
+                const contentType = cloned.headers.get('content-type') || '';
+                if (contentType.includes('application/json')) {
+                    try {
+                        const json = await cloned.json();
+                        if (json) {
+                            try { window.updateCsrfFromResponse(json); } catch(e){ console.warn('updateCsrfFromResponse error', e); }
+                        }
+                    } catch (e) {
+                        // ignore JSON parse errors
+                    }
+                }
+                return response;
+            });
+        };
+    })();
+    </script>
+
+        <?php if(session()->get('isLoggedIn')): ?>
+        <script>
+        (function(){
+            const notifCountEl = document.getElementById('notifBadge');
+            const notificationsList = document.getElementById('notificationsList');
+            const markAllReadBtn = document.getElementById('markAllReadBtn');
+
+            // Polling interval (seconds). Adjust as needed or replace with SSE/WebSocket hooks.
+            const POLL_INTERVAL_SECONDS = 15;
+
+            function escapeHtml(text){ if(!text) return ''; return text.replace(/[&<>'"`]/g, function(s){return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;","`":"&#96;"})[s]; }); }
+
+            // Read CSRF tokens from meta tags inserted in the head
+            // Global helper: update CSRF meta tags if server returned fresh tokens in a JSON response
+            function updateCsrfFromResponse(json){
+                try {
+                    if (!json || typeof json !== 'object') return;
+                    const name = json.csrf_name || json.csrfName || json.csrf_name || json.csrfName;
+                    const hash = json.csrf_hash || json.csrfHash || json.csrf_hash || json.csrfHash;
+                    if (name && hash) {
+                        let nameMeta = document.querySelector('meta[name="csrf-name"]');
+                        let hashMeta = document.querySelector('meta[name="csrf-hash"]');
+                        if (!nameMeta) { nameMeta = document.createElement('meta'); nameMeta.setAttribute('name','csrf-name'); document.head.appendChild(nameMeta); }
+                        if (!hashMeta) { hashMeta = document.createElement('meta'); hashMeta.setAttribute('name','csrf-hash'); document.head.appendChild(hashMeta); }
+                        nameMeta.setAttribute('content', name);
+                        hashMeta.setAttribute('content', hash);
+                    }
+                } catch (e) {
+                    console.warn('updateCsrfFromResponse failed', e);
+                }
+            }
+
+            function showDropdownMessage(msg, isError = true){
+                const holder = document.getElementById('notificationsMessage');
+                const text = document.getElementById('notificationsMessageText');
+                if(!holder || !text) return;
+                text.textContent = msg;
+                holder.style.display = 'block';
+                text.className = isError ? 'small text-center text-danger' : 'small text-center text-success';
+                setTimeout(()=>{ holder.style.display = 'none'; }, 4000);
+            }
+
+            function render(items, count){
+                if(count>0){ notifCountEl.style.display='inline-block'; notifCountEl.textContent = count; } else { notifCountEl.style.display='none'; }
+                if(!items || items.length===0){ notificationsList.innerHTML = '<div class="text-center p-3 text-muted">No new notifications</div>'; return; }
+                const html = items.map(n=>{
+                    const time = n.created_at ? new Date(n.created_at).toLocaleString() : '';
+                    // Prefer redirecting to the related submission page when submission_id is present
+                    const submissionUrl = n.submission_id ? '<?= base_url('forms/submission') ?>/' + n.submission_id : '';
+                    const actionUrl = submissionUrl || (n.action_url ? n.action_url : '#');
+                    const readLabel = n.read==0 ? 'Mark' : 'Read';
+                                        return `<div class="dropdown-item d-flex align-items-start notif-item" data-id="${n.id}" data-action="${escapeHtml(actionUrl)}" data-submission-id="${n.submission_id ? n.submission_id : ''}" role="button">`+
+                                                `<div class="flex-grow-1">`+
+                                                    `<div class="small fw-bold">${escapeHtml(n.title)}</div>`+
+                                                    `<div class="small text-muted">${escapeHtml(n.message)}</div>`+
+                                                    `<div class="small text-muted mt-1">${time}</div>`+
+                                                `</div>`+
+                                                `<div class="ms-2 d-flex flex-column align-items-end">`+
+                                                    `<button class="btn btn-sm btn-link mark-read" data-id="${n.id}">${readLabel}</button>`+
+                                                    `<button class="btn btn-sm btn-link text-danger delete-notif" data-id="${n.id}" title="Delete">&times;</button>`+
+                                                `</div>`+
+                                            `</div><div class="dropdown-divider"></div>`;
+                }).join('');
+                notificationsList.innerHTML = html;
+
+                // Wire up click-to-open (open action_url and mark as read)
+                notificationsList.querySelectorAll('.notif-item').forEach(item => {
+                    const id = item.dataset.id;
+                    item.addEventListener('click', function(e){
+                        // Ignore clicks on buttons inside the item
+                        if(e.target.closest('button')) return;
+                        // Prefer submission if attached, otherwise use action_url, otherwise fallback to notification view
+                        const submissionId = item.dataset.submissionId;
+                        const action = item.dataset.action;
+                        if(submissionId) {
+                            const target = '<?= base_url('forms/submission') ?>/' + submissionId;
+                            markRead(id).then(()=> { window.location.href = target; }).catch(()=> { window.location.href = target; });
+                        } else if(action && action !== '#'){
+                            // mark read via AJAX then go directly to the action
+                            markRead(id).then(()=> { window.location.href = action; }).catch(()=> { window.location.href = action; });
+                        } else {
+                            // Fallback: open notification view page which also marks it read
+                            window.location.href = '<?= base_url('notifications/view') ?>/'+id;
+                        }
+                    });
+                });
+
+                // Wire up mark-read buttons
+                notificationsList.querySelectorAll('.mark-read').forEach(btn=> btn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); markRead(this.dataset.id); }));
+
+                // Wire up delete buttons
+                notificationsList.querySelectorAll('.delete-notif').forEach(btn=> btn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); if(confirm('Delete this notification?')) deleteNotif(this.dataset.id); }));
+            }
+
+            function fetchUnread(){
+                fetch('<?= base_url('notifications/unread') ?>', {headers:{'X-Requested-With':'XMLHttpRequest'}})
+                    .then(r=>r.json())
+                    .then(data=>{ 
+                        console.log('fetchUnread response', data);
+                        if(data && data.success) { render(data.notifications, data.unreadCount); updateCsrfFromResponse(data); } else { notificationsList.innerHTML = '<div class="text-center p-3 text-danger">Failed to load</div>'; showDropdownMessage('Failed to load notifications'); }
+                    })
+                    .catch((err)=>{ console.error('fetchUnread error', err); notificationsList.innerHTML = '<div class="text-center p-3 text-danger">Error</div>'; showDropdownMessage('Error loading notifications'); });
+            }
+
+            function buildCsrfPayload(payload){
+                // Include CSRF meta tokens for POST requests
+                const csrfName = document.querySelector('meta[name="csrf-name"]').getAttribute('content');
+                const csrfHash = document.querySelector('meta[name="csrf-hash"]').getAttribute('content');
+                payload = payload || {};
+                payload[csrfName] = csrfHash;
+                return payload;
+            }
+
+            function markRead(id){
+                // If no id provided, mark all via POST with CSRF
+                if(!id) {
+                    const url = '<?= base_url('notifications/mark-all-read') ?>';
+                    const payload = buildCsrfPayload({});
+                    const params = new URLSearchParams(payload).toString();
+                    return fetch(url,{
+                        method:'POST',
+                        headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'},
+                        body: params
+                    }).then(r=>r.json()).then(json=>{ console.log('markAll response', json); updateCsrfFromResponse(json); fetchUnread(); if(!json.success) showDropdownMessage(json.message || 'Failed to mark notifications'); return json; }).catch(err=>{ console.error('markAll fetch error', err); showDropdownMessage('Network error marking notifications'); throw err; });
+                }
+
+                // For individual notifications: POST to mark-read/{id} then resolve so caller can navigate to submission
+                const url = '<?= base_url('notifications/mark-read') ?>/' + id;
+                const payload = buildCsrfPayload({});
+                const params = new URLSearchParams(payload).toString();
+                return fetch(url,{
+                    method:'POST',
+                    headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'},
+                    body: params
+                }).then(r=>r.json()).then(json=>{ console.log('markRead response', json); updateCsrfFromResponse(json); fetchUnread(); if(!json.success) showDropdownMessage(json.message || 'Failed to mark notification'); return json; }).catch(err=>{ console.error('markRead fetch error', err); showDropdownMessage('Network error marking notification'); throw err; });
+            }
+
+            function deleteNotif(id){
+                if(!id) return;
+                const url = '<?= base_url('notifications/delete') ?>/'+id;
+                const payload = buildCsrfPayload({});
+                const params = new URLSearchParams(payload).toString();
+                console.debug('deleteNotif send', url, params);
+                return fetch(url,{
+                    method:'POST',
+                    headers:{'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'},
+                    body: params
+                }).then(r=>r.json()).then(json=>{ console.log('deleteNotif response', json); updateCsrfFromResponse(json); fetchUnread(); if(!json.success) showDropdownMessage(json.message || 'Failed to delete notification'); return json; }).catch(err=>{ console.error('deleteNotif fetch error', err); showDropdownMessage('Network error deleting notification'); });
+            }
+
+            if(markAllReadBtn) markAllReadBtn.addEventListener('click', function(e){ e.preventDefault(); markRead(); });
+
+            // Initial fetch and bind
+            fetchUnread();
+            const notifToggle = document.getElementById('notifIconText');
+            if(notifToggle) notifToggle.addEventListener('click', function(){ setTimeout(fetchUnread, 200); });
+
+            // Polling for live updates. If you have SSE/WebSocket, replace this with that hook.
+            setInterval(fetchUnread, POLL_INTERVAL_SECONDS * 1000);
+        })();
+        </script>
+        <?php endif; ?>
 
         <!-- Session expired modal -->
         <div class="modal fade" id="sessionExpiredModal" tabindex="-1" aria-labelledby="sessionExpiredModalLabel" aria-hidden="true">

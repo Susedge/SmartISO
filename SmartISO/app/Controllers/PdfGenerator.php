@@ -223,11 +223,102 @@ class PdfGenerator extends BaseController
             $placeholders['{{SERVICE_NOTES}}'] = '';
         }
         
+        // Helper: convert 0-based index to letters (A, B, ... Z, AA, AB ...)
+        $indexToLetters = function($n) {
+            $s = '';
+            $n = (int)$n;
+            while ($n >= 0) {
+                $s = chr(65 + ($n % 26)) . $s;
+                $n = intval($n / 26) - 1;
+            }
+            return $s;
+        };
+
         // Add form fields to placeholders
+        $checkboxFieldCounter = 0; // used to assign A_, B_, C_ prefixes
         foreach ($panelFields as $field) {
             $fieldName = $field['field_name'];
             $fieldValue = isset($submissionData[$fieldName]) ? $submissionData[$fieldName] : '';
             $placeholders['{{' . strtoupper($fieldName) . '}}'] = $fieldValue;
+        }
+
+        // Also provide short placeholders for DOCX templates using ${F_fieldname} and ${B_fieldname}
+        // ${F_fieldname} -> single selected value
+        // ${B_fieldname} -> compact radio block: selected marked with '◉', unselected left blank
+    foreach ($panelFields as $field) {
+            $fieldName = $field['field_name'];
+            $fieldKeyF = '{{F_' . $fieldName . '}}';
+            $fieldKeyB = '{{B_' . $fieldName . '}}';
+
+            $rawValue = isset($submissionData[$fieldName]) ? $submissionData[$fieldName] : '';
+
+            // Normalize stored values: may be JSON array (checkboxes) or scalar
+            $selectedValues = [];
+            if (is_string($rawValue)) {
+                $decoded = json_decode($rawValue, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $selectedValues = $decoded;
+                } else {
+                    $selectedValues = [$rawValue];
+                }
+            } elseif (is_array($rawValue)) {
+                $selectedValues = $rawValue;
+            } else {
+                $selectedValues = [$rawValue];
+            }
+
+            // Prepare a lower-cased version for case-insensitive comparisons
+            $selectedValuesLower = array_map(function($v) {
+                return mb_strtolower((string)$v);
+            }, $selectedValues);
+
+            // Resolve options (prefer explicit options array, else try JSON in default_value, else newline-split)
+            $opts = [];
+            if (!empty($field['options']) && is_array($field['options'])) {
+                $opts = $field['options'];
+            } elseif (!empty($field['default_value'])) {
+                $decoded = json_decode($field['default_value'], true);
+                if (is_array($decoded) && !empty($decoded)) {
+                    $opts = $decoded;
+                } else {
+                    $opts = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+                }
+            }
+
+            // F placeholder: first selected value or empty
+            $placeholders[$fieldKeyF] = !empty($selectedValues) ? (string)$selectedValues[0] : '';
+
+            // B placeholder: compact block of options; selected marked with '◉', others blank marker
+            if (empty($opts)) {
+                // If no options known, join selected values by comma
+                $placeholders[$fieldKeyB] = !empty($selectedValues) ? implode(', ', $selectedValues) : '';
+            } else {
+                $lines = [];
+                foreach ($opts as $opt) {
+                        // Marker present if option is in selected values (case-insensitive)
+                        $marker = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? '◉ ' : '';
+                    $lines[] = $marker . $opt;
+                }
+                $placeholders[$fieldKeyB] = implode("\n", $lines);
+            }
+
+            // Also expose each option as its own placeholder: {{A_fieldname_1}}, {{A_fieldname_2}}, ...
+            // Value is option text when selected, otherwise empty string.
+            foreach ($opts as $idx => $opt) {
+                $optKey = '{{A_' . $fieldName . '_' . ($idx + 1) . '}}';
+                $placeholders[$optKey] = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? $opt : '';
+            }
+
+            // If this is a checkbox-like field with options, also add short lettered aliases
+            if (!empty($opts)) {
+                $prefix = $indexToLetters($checkboxFieldCounter); // 0 -> A, 1 -> B, etc.
+                foreach ($opts as $idx => $opt) {
+                    $shortKey = '{{' . $prefix . '_' . ($idx + 1) . '}}';
+                    // Short alias should contain the selection marker only when selected
+                    $placeholders[$shortKey] = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? '◉ ' : '';
+                }
+                $checkboxFieldCounter++;
+            }
         }
         
         // Add completion date

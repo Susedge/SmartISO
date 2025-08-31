@@ -72,7 +72,8 @@ class Filters extends BaseFilters
     public array $globals = [
         'before' => [
             // 'honeypot',
-            // 'csrf',
+            // Apply CSRF globally (notifications endpoints will now require CSRF tokens)
+            'csrf',
             // 'invalidchars',
         ],
         'after' => [

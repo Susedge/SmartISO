@@ -10,3 +10,9 @@ composer.phar
 # /SmartISO/public
 SmartISO/public/null/ci_session6957fdfc3a732d0abf0a3cef058bbcaf
 SmartISO/public/templates/docx/~$RM1_template.docx
+
+# Allow committed local copies of frontend vendor assets used by the app
+# (do not ignore FullCalendar files placed in public/assets/vendor/fullcalendar)
+!public/assets/vendor/fullcalendar/
+!public/assets/vendor/fullcalendar/*.js
+!public/assets/vendor/fullcalendar/*.css

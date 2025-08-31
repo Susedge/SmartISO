@@ -2,6 +2,20 @@
 
 <?= $this->section('styles') ?>
 <link rel="stylesheet" href="<?= base_url('assets/css/drag-drop-form-builder.css') ?>">
+<style>
+/* Compact edit modal styles */
+#fieldEditModal .modal-dialog { max-width: 680px; }
+#fieldEditModal .modal-content { font-size: 0.9rem; }
+#fieldEditModal .form-control, #fieldEditModal .form-select { font-size: 0.9rem; padding: .35rem .5rem; }
+#fieldEditModal .form-label { font-size: 0.85rem; margin-bottom: .25rem; }
+#fieldEditModal .modal-footer { padding: .5rem .75rem; }
+#fieldEditModal .modal-header { padding: .5rem .75rem; }
+#fieldEditModal .btn { font-size: 0.85rem; }
+
+/* Compact options manager */
+#optionsManagerModal .modal-dialog { max-width: 520px; }
+#optionsManagerModal .form-control { font-size: .9rem; padding: .35rem .5rem; }
+</style>
 <?= $this->endSection() ?>
 
 <?= $this->section('content') ?>
@@ -36,27 +50,11 @@
         <div class="form-builder-sidebar">
             <!-- Field Palette -->
             <div class="field-palette">
-                <h6 class="palette-title">Field Types</h6>
                 <div class="field-types">
-                    <div class="field-type-item" data-field-type="input">
-                        <i class="fas fa-edit"></i>
-                        <span>Input</span>
-                    </div>
-                    <div class="field-type-item" data-field-type="textarea">
-                        <i class="fas fa-align-left"></i>
-                        <span>Textarea</span>
-                    </div>
-                    <div class="field-type-item" data-field-type="dropdown">
-                        <i class="fas fa-list"></i>
-                        <span>Dropdown</span>
-                    </div>
-                    <div class="field-type-item" data-field-type="datepicker">
-                        <i class="fas fa-calendar"></i>
-                        <span>Date Picker</span>
-                    </div>
-                    <div class="field-type-item" data-field-type="yesno">
-                        <i class="fas fa-check-circle"></i>
-                        <span>Yes/No</span>
+                    <!-- Single draggable starter item -->
+                    <div class="field-type-item" data-field-type="input" draggable="true">
+                        <i class="fas fa-grip-vertical"></i>
+                        <span>Drag me</span>
                     </div>
                 </div>
             </div>
@@ -70,6 +68,8 @@
                             <option value="input">Input</option>
                             <option value="textarea">Textarea</option>
                             <option value="dropdown">Dropdown</option>
+                            <option value="radio">Radio</option>
+                            <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
                             <option value="yesno">Yes/No</option>
                         </select>
@@ -93,6 +93,27 @@
                             <option value="9">9 - Three Quarters</option>
                             <option value="12" selected>12 - Full Width</option>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fieldRole" class="form-label">Field Role</label>
+                        <select id="fieldRole" class="form-select">
+                            <option value="requestor">Requestor Only</option>
+                            <option value="service_staff">Service Staff Only</option>
+                            <option value="both">Both (Requestor & Service Staff)</option>
+                            <option value="readonly">Read-only After Submission</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 d-flex align-items-start">
+                        <div style="flex:1">
+                            <label for="fieldDefaultValue" class="form-label">Default Value</label>
+                            <input type="text" id="fieldDefaultValue" class="form-control" placeholder="Optional default value (e.g. CURRENTDATE for date fields)">
+                        </div>
+                        <div class="ms-2 mt-4">
+                            <button type="button" class="btn btn-link p-0" data-bs-toggle="tooltip" data-bs-placement="right" title="Use CURRENTDATE (case-insensitive) for date fields to populate today's date.">
+                                <i class="fas fa-info-circle text-muted"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="form-check mb-3">
@@ -144,6 +165,8 @@
                             <option value="input">Input</option>
                             <option value="textarea">Textarea</option>
                             <option value="dropdown">Dropdown</option>
+                            <option value="radio">Radio</option>
+                            <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
                             <option value="yesno">Yes/No</option>
                         </select>
@@ -170,6 +193,26 @@
                             <option value="12">12 - Full Width</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label for="editFieldRole" class="form-label">Field Role</label>
+                        <select id="editFieldRole" class="form-select">
+                            <option value="requestor">Requestor Only</option>
+                            <option value="service_staff">Service Staff Only</option>
+                            <option value="both">Both (Requestor & Service Staff)</option>
+                            <option value="readonly">Read-only After Submission</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 d-flex align-items-start">
+                        <div style="flex:1">
+                            <label for="editFieldDefault" class="form-label">Default Value</label>
+                            <input type="text" id="editFieldDefault" class="form-control" placeholder="Optional default value (e.g. CURRENTDATE for date fields)">
+                        </div>
+                        <div class="ms-2 mt-4">
+                            <button type="button" class="btn btn-link p-0" data-bs-toggle="tooltip" data-bs-placement="right" title="Use CURRENTDATE (case-insensitive) for date fields to populate today's date.">
+                                <i class="fas fa-info-circle text-muted"></i>
+                            </button>
+                        </div>
+                    </div>
                     
                     <div class="form-check mb-3">
                         <input type="checkbox" id="editFieldRequired" class="form-check-input">
@@ -181,15 +224,42 @@
                         <label for="editFieldBumpNext" class="form-check-label">Bump Next Field</label>
                     </div>
                     
-                    <div id="editOptionsContainer" class="mb-3" style="display: none;">
-                        <label for="editFieldOptions" class="form-label">Options (one per line)</label>
-                        <textarea id="editFieldOptions" class="form-control" rows="3" placeholder="Option 1&#10;Option 2&#10;Option 3"></textarea>
+                    <div id="editOptionsButtonContainer" class="mb-3" style="display: none;">
+                        <label class="form-label">Options</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <small id="editOptionsCount" class="text-muted">0 options</small>
+                        </div>
+                        <small class="text-muted d-block mt-2">Open the options manager to add, edit, or remove options (button on the right).</small>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" id="saveEditedField" class="btn btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Options Manager Modal -->
+<div class="modal fade" id="optionsManagerModal" tabindex="-1">
+    <div class="modal-dialog modal-md">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Field Options</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="optionsManagerList" class="mb-3"></div>
+                <div class="d-flex gap-2">
+                    <input type="text" id="optionsManagerNewInput" class="form-control" placeholder="New option">
+                    <button type="button" id="optionsManagerAddBtn" class="btn btn-outline-primary">Add</button>
+                </div>
+                <small class="text-muted d-block mt-2">Use the buttons to add, edit (focus), or remove options. Click Save to persist options to the field.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="saveOptionsManagerBtn" class="btn btn-primary">Save Options</button>
             </div>
         </div>
     </div>
@@ -208,5 +278,16 @@
 <?= $this->section('scripts') ?>
 <!-- SortableJS for drag and drop functionality -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<!-- Initialize Bootstrap tooltips for info icons -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el); });
+        } catch (e) {
+            console.warn('Bootstrap tooltips initialization failed', e);
+        }
+    });
+</script>
 <script src="<?= base_url('assets/js/drag-drop-form-builder.js') ?>"></script>
 <?= $this->endSection() ?>

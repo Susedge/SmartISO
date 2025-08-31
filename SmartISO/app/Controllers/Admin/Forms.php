@@ -4,14 +4,17 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\FormModel;
+use App\Models\OfficeModel;
 
 class Forms extends BaseController
 {
     protected $formModel;
+    protected $officeModel;
     
     public function __construct()
     {
         $this->formModel = new FormModel();
+    $this->officeModel = new OfficeModel();
     }
     
     public function index()
@@ -29,7 +32,9 @@ class Forms extends BaseController
         $data = [
             'title' => 'Add New Form'
         ];
-        
+        // Get active offices for selection
+        $data['offices'] = $this->officeModel->getActiveOffices();
+
         return view('admin/forms/create', $data);
     }
     
@@ -39,13 +44,16 @@ class Forms extends BaseController
             'code' => 'required|alpha_numeric|min_length[2]|max_length[20]|is_unique[forms.code]',
             'description' => 'required|min_length[3]|max_length[255]'
         ];
-        
+        // Require office selection and ensure it exists
+        $rules['office_id'] = 'required|numeric|is_not_unique[offices.id]';
+
         if ($this->validate($rules)) {
             $this->formModel->save([
                 'code' => $this->request->getPost('code'),
-                'description' => $this->request->getPost('description')
+                'description' => $this->request->getPost('description'),
+                'office_id' => $this->request->getPost('office_id')
             ]);
-            
+
             return redirect()->to('/admin/forms')->with('message', 'Form added successfully');
         } else {
             return redirect()->back()
@@ -64,7 +72,9 @@ class Forms extends BaseController
                 'title' => 'Edit Form',
                 'form' => $form
             ];
-            
+            // Provide active offices for selection
+            $data['offices'] = $this->officeModel->getActiveOffices();
+
             return view('admin/forms/edit', $data);
         } else {
             return redirect()->to('/admin/forms')->with('error', 'Form not found');
@@ -77,13 +87,16 @@ class Forms extends BaseController
             'code' => "required|alpha_numeric|min_length[2]|max_length[20]|is_unique[forms.code,id,$id]",
             'description' => 'required|min_length[3]|max_length[255]'
         ];
-        
+        // Require office selection on update as well
+        $rules['office_id'] = 'required|numeric|is_not_unique[offices.id]';
+
         if ($this->validate($rules)) {
             $this->formModel->update($id, [
                 'code' => $this->request->getPost('code'),
-                'description' => $this->request->getPost('description')
+                'description' => $this->request->getPost('description'),
+                'office_id' => $this->request->getPost('office_id')
             ]);
-            
+
             return redirect()->to('/admin/forms')->with('message', 'Form updated successfully');
         } else {
             return redirect()->back()

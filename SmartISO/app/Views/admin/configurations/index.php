@@ -50,7 +50,7 @@
                                     </form>
                                 <?php elseif ($config['config_type'] == 'integer'): ?>
                                     <div class="input-group">
-                                        <input type="number" class="form-control" name="config_value" value="<?= esc($config['config_value']) ?>" min="1" required>
+                                        <input type="number" class="form-control" name="config_value" value="<?= esc($config['config_value']) ?>" min="<?= $config['config_key'] == 'session_timeout' ? '0' : '1' ?>" required>
                                         <?php if ($config['config_key'] == 'session_timeout'): ?>
                                             <span class="input-group-text">minutes</span>
                                         <?php endif; ?>

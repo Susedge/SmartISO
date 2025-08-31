@@ -116,6 +116,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('schedule/store', 'Schedule::store');
     $routes->get('schedule/edit/(:num)', 'Schedule::edit/$1');
     $routes->post('schedule/update/(:num)', 'Schedule::update/$1');
+    $routes->post('schedule/update-priority/(:num)', 'Schedule::updatePriority/$1');
     $routes->get('schedule/delete/(:num)', 'Schedule::delete/$1');
     $routes->get('schedule/calendar', 'Schedule::calendar');
     $routes->post('schedule/mark-complete/(:num)', 'Schedule::markComplete/$1');
@@ -136,6 +137,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     // Notification routes
     $routes->get('notifications', 'Notifications::index');
     $routes->get('notifications/unread', 'Notifications::getUnread');
+    $routes->get('notifications/view/(:num)', 'Notifications::view/$1');
     $routes->post('notifications/mark-read/(:num)', 'Notifications::markAsRead/$1');
     $routes->post('notifications/mark-all-read', 'Notifications::markAsRead');
     $routes->post('notifications/delete/(:num)', 'Notifications::delete/$1');
@@ -159,6 +161,7 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
 
     // Dynamic Forms routes
     $routes->get('dynamicforms', 'Admin\DynamicForms::index');
+    $routes->get('dynamicforms/guide', 'Admin\DynamicForms::guide');
     $routes->get('dynamicforms/panel', 'Admin\DynamicForms::panel');
     $routes->get('dynamicforms/panel-config', 'Admin\DynamicForms::panelConfig');
     $routes->get('dynamicforms/edit-panel/(:segment)', 'Admin\DynamicForms::editPanel/$1');

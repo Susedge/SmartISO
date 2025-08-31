@@ -6,6 +6,7 @@ use CodeIgniter\Model;
 use App\Controllers\BaseController;
 use App\Models\DbpanelModel;
 use App\Models\FormModel;
+use App\Models\OfficeModel;
 use App\Models\DepartmentModel;
 use App\Models\FormSubmissionModel;
 use App\Models\FormSubmissionDataModel;
@@ -51,6 +52,7 @@ class DynamicForms extends BaseController
     protected $dbpanelModel;
     protected $formModel;
     protected $departmentModel;
+    protected $officeModel;
     
     public function __construct()
     {
@@ -58,6 +60,7 @@ class DynamicForms extends BaseController
         $this->dbpanelModel = new DbpanelModel();
         $this->formModel = new FormModel();
         $this->departmentModel = new DepartmentModel();
+    $this->officeModel = new OfficeModel();
         $this->formSubmissionModel = new FormSubmissionModel();
         $this->formSubmissionDataModel = new FormSubmissionDataModel();
     }
@@ -67,7 +70,8 @@ class DynamicForms extends BaseController
         $data = [
             'title' => 'Forms',
             'forms' => $this->formModel->findAll(),
-            'panels' => $this->dbpanelModel->getPanels() // Get unique panel names
+            'panels' => $this->dbpanelModel->getPanels(), // Get unique panel names
+            'offices' => $this->officeModel->getActiveOffices()
         ];
         
         return view('admin/dynamicforms/index', $data);
@@ -109,6 +113,18 @@ class DynamicForms extends BaseController
         
         return view('admin/dynamicforms/panel_config', $data);
     }
+
+    /**
+     * Show placeholders & DOCX variable guide for admins
+     */
+    public function guide()
+    {
+        $data = [
+            'title' => 'DOCX Variables Guide'
+        ];
+
+        return view('admin/dynamicforms/guide', $data);
+    }
     
     public function createPanel()
     {
@@ -126,7 +142,7 @@ class DynamicForms extends BaseController
                 'field_name' => '_placeholder',
                 'field_label' => 'Placeholder Field',
                 'field_type' => 'input',
-                'field_role' => 'both',
+                'field_role' => 'requestor',
                 'field_order' => 0,
                 'width' => 6,
                 'required' => 0,
@@ -170,7 +186,8 @@ class DynamicForms extends BaseController
                     'field_name' => $field['field_name'],
                     'field_label' => $field['field_label'],
                     'field_type' => $field['field_type'],
-                    'field_role' => $field['field_role'] ?? 'both',
+                    'field_role' => $field['field_role'] ?? 'requestor',
+                    'default_value' => $field['default_value'] ?? '',
                     'field_order' => $field['field_order'],
                     'width' => $field['width'] ?? 6,
                     'required' => $field['required'] ?? 0,
@@ -248,7 +265,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]',
+            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,yesno,radio,checkbox]',
             'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         
@@ -264,10 +281,11 @@ class DynamicForms extends BaseController
                 'bump_next_field' => (int)$this->request->getPost('bump_next_field'),
                 'code_table' => $this->request->getPost('code_table'),
                 'length' => $this->request->getPost('length'),
+                'default_value' => $this->request->getPost('default_value') ?? '',
                 'field_order' => $this->request->getPost('field_order') ?? 0,
                 'required' => (int)$this->request->getPost('required'),
                 'width' => $this->request->getPost('width') ?? 6,
-                'field_role' => $this->request->getPost('field_role') ?? 'both'
+                    'field_role' => $this->request->getPost('field_role') ?? 'requestor'
             ]);
             
             return redirect()->to('/admin/dynamicforms/edit-panel/' . $this->request->getPost('panel_name'))
@@ -282,7 +300,6 @@ class DynamicForms extends BaseController
     
     public function deleteField($id = null)
     {
-        $field = $this->dbpanelModel->find($id);
         
         if (!$field) {
             return redirect()->back()->with('error', 'Field not found');
@@ -302,7 +319,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,datepicker,yesno]',
+            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,yesno,radio,checkbox]',
             'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         
@@ -319,6 +336,7 @@ class DynamicForms extends BaseController
                 'bump_next_field' => (int)$this->request->getPost('bump_next_field'),
                 'code_table' => $this->request->getPost('code_table'),
                 'length' => $this->request->getPost('length'),
+                'default_value' => $this->request->getPost('default_value') ?? '',
                 'field_order' => $this->request->getPost('field_order'),
                 'required' => (int)$this->request->getPost('required'),
                 'width' => $this->request->getPost('width') ?? 6,
@@ -340,19 +358,19 @@ class DynamicForms extends BaseController
         $formId = $this->request->getPost('form_id');
         $panelName = $this->request->getPost('panel_name');
 
-        log_message('debug', 'POST data: ' . json_encode($this->request->getPost()));
-        
+        log_message('debug', 'Admin DynamicForms::submit POST data: ' . json_encode($this->request->getPost()));
+
         if (!$formId || !$panelName) {
             return redirect()->back()->with('error', 'Form ID and Panel Name are required');
         }
-        
+
         // Get all panel fields to validate
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
-        
+
         if (empty($panelFields)) {
             return redirect()->back()->with('error', 'No fields configured for this panel');
         }
-        
+
         // Create a new submission record
         $submissionId = $this->formSubmissionModel->insert([
             'form_id' => $formId,
@@ -360,22 +378,43 @@ class DynamicForms extends BaseController
             'submitted_by' => session()->get('user_id'),
             'status' => 'submitted'
         ]);
-        
+
         // Save each field value
         foreach ($panelFields as $field) {
             $fieldName = $field['field_name'];
-            $fieldValue = $this->request->getPost($fieldName) ?? '';
-            
-            // Debug each field
-            log_message('debug', "Field {$fieldName}: " . ($this->request->getPost($fieldName) ? 'Has value' : 'No value'));
-            
+
+            // Admin can edit all fields in this flow
+            $raw = $this->request->getPost($fieldName);
+            $otherText = $this->request->getPost($fieldName . '_other');
+
+            // If it's an array (checkboxes), replace any 'Other' token with the provided other text
+            if (is_array($raw)) {
+                $normalized = [];
+                foreach ($raw as $v) {
+                    if (preg_match('/^others?$/i', (string)$v) && !empty($otherText)) {
+                        $normalized[] = $otherText;
+                    } else {
+                        $normalized[] = $v;
+                    }
+                }
+                // Persist as JSON so we can decode later when rendering/exporting
+                $fieldValue = json_encode($normalized);
+            } else {
+                // Single value (input, radio, dropdown)
+                $val = $raw ?? '';
+                if (is_string($val) && preg_match('/^others?$/i', $val) && !empty($otherText)) {
+                    $val = $otherText;
+                }
+                $fieldValue = $val;
+            }
+
             $this->formSubmissionDataModel->insert([
                 'submission_id' => $submissionId,
                 'field_name' => $fieldName,
                 'field_value' => $fieldValue
             ]);
         }
-        
+
         return redirect()->to('/admin/dynamicforms/submissions')
                         ->with('message', 'Form submitted successfully');
     }
@@ -657,6 +696,12 @@ class DynamicForms extends BaseController
             return redirect()->to('/admin/dynamicforms/submissions')
                             ->with('error', 'You do not have permission to export this submission');
         }
+
+        // Only allow export for completed submissions
+        if (($submission['status'] ?? '') !== 'completed') {
+            return redirect()->to('/admin/dynamicforms/submissions')
+                            ->with('error', 'Export is only available for completed submissions');
+        }
         
         if ($format == 'pdf') {
             // Redirect to the PDF generator controller
@@ -758,20 +803,62 @@ class DynamicForms extends BaseController
     {
         // Check if request is AJAX
         if (!$this->request->isAJAX()) {
+            log_message('warning', 'saveFormBuilder called without AJAX - isAJAX=' . ($this->request->isAJAX() ? 'true' : 'false'));
             return $this->response->setJSON(['success' => false, 'message' => 'Invalid request']);
         }
 
+        // Debug: log incoming header and raw body to help diagnose CSRF 403 issues
         try {
-            $input = $this->request->getJSON(true);
+            $incomingCsrfHeader = $this->request->getHeaderLine('X-CSRF-TOKEN');
+            log_message('debug', 'saveFormBuilder incoming X-CSRF-TOKEN header: ' . $incomingCsrfHeader);
+            $rawInput = $this->request->getBody();
+            // Truncate raw input to avoid huge logs
+            log_message('debug', 'saveFormBuilder raw body (truncated 2000 chars): ' . substr($rawInput, 0, 2000));
+        } catch (\Exception $e) {
+            log_message('error', 'saveFormBuilder debug log error: ' . $e->getMessage());
+        }
+
+        try {
+            // Accept either JSON body or form-encoded fallback with 'payload' param
+            $input = [];
+            try {
+                $raw = $this->request->getBody();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $input = $decoded;
+                    }
+                }
+            } catch (\Exception $e) {
+                log_message('debug', 'saveFormBuilder safe JSON parse failed: ' . $e->getMessage());
+            }
+
+            if (empty($input)) {
+                $payload = $this->request->getPost('payload');
+                if ($payload) {
+                    $decoded = json_decode($payload, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) $input = $decoded;
+                }
+            }
             $panelName = $input['panel_name'] ?? '';
             $fields = $input['fields'] ?? [];
 
             if (empty($panelName)) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Panel name is required']);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Panel name is required',
+                    'csrf_name' => csrf_token(),
+                    'csrf_hash' => csrf_hash()
+                ]);
             }
 
             if (empty($fields)) {
-                return $this->response->setJSON(['success' => false, 'message' => 'At least one field is required']);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'At least one field is required',
+                    'csrf_name' => csrf_token(),
+                    'csrf_hash' => csrf_hash()
+                ]);
             }
 
             // Start transaction
@@ -781,13 +868,16 @@ class DynamicForms extends BaseController
             $this->dbpanelModel->where('panel_name', $panelName)->delete();
 
             // Insert new fields
+            // Get allowed fields from model to avoid inserting unexpected columns
+            $allowed = $this->dbpanelModel->allowedFields ?? [];
+
             foreach ($fields as $index => $field) {
                 $fieldData = [
                     'panel_name' => $panelName,
                     'field_name' => $field['field_name'] ?? '',
                     'field_label' => $field['field_label'] ?? '',
                     'field_type' => $field['field_type'] ?? 'input',
-                    'field_role' => $field['field_role'] ?? 'both',
+                    'field_role' => $field['field_role'] ?? 'requestor',
                     'required' => isset($field['required']) ? (int)$field['required'] : 0,
                     'width' => isset($field['width']) ? (int)$field['width'] : 6,
                     'field_order' => isset($field['field_order']) ? (int)$field['field_order'] : ($index + 1),
@@ -796,34 +886,87 @@ class DynamicForms extends BaseController
                     'length' => $field['length'] ?? ''
                 ];
 
+                // Add default_value only if the column is allowed in the model
+                if (in_array('default_value', $allowed)) {
+                    // If this field has options (dropdown or radio), persist them as JSON
+                    if (!empty($field['options']) && is_array($field['options']) && in_array($field['field_type'] ?? '', ['dropdown', 'radio'])) {
+                        $fieldData['default_value'] = json_encode(array_values($field['options']));
+                    } else {
+                        $fieldData['default_value'] = $field['default_value'] ?? '';
+                    }
+                }
+
                 // Validate required fields
                 if (empty($fieldData['field_name']) || empty($fieldData['field_label'])) {
                     $this->db->transRollback();
                     return $this->response->setJSON([
-                        'success' => false, 
-                        'message' => 'Field name and label are required for all fields'
+                        'success' => false,
+                        'message' => 'Field name and label are required for all fields',
+                        'csrf_name' => csrf_token(),
+                        'csrf_hash' => csrf_hash()
                     ]);
                 }
 
-                $this->dbpanelModel->insert($fieldData);
+                // Debug: log the exact data being inserted to help diagnose type/option issues
+                try {
+                    log_message('debug', 'saveFormBuilder inserting field: ' . json_encode($fieldData));
+                } catch (\Exception $e) {
+                    // ignore logging failures
+                }
+
+                try {
+                    $this->dbpanelModel->insert($fieldData);
+                } catch (\Exception $ex) {
+                    // Capture DB exception details and rollback transaction for clearer diagnostics
+                    log_message('error', 'saveFormBuilder insert exception: ' . $ex->getMessage() . ' data: ' . json_encode($fieldData));
+                    $this->db->transRollback();
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'message' => 'Database insert error',
+                        'csrf_name' => csrf_token(),
+                        'csrf_hash' => csrf_hash()
+                    ]);
+                }
             }
 
             // Complete transaction
             $this->db->transComplete();
 
             if ($this->db->transStatus() === false) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Database error occurred']);
+                // Log DB error details for debugging
+                $error = $this->db->error();
+                $lastQuery = '';
+                try {
+                    $lastQuery = $this->db->getLastQuery();
+                } catch (\Exception $e) {
+                    // ignore
+                }
+
+                log_message('error', 'saveFormBuilder DB transaction failed: ' . json_encode($error) . ' last_query: ' . $lastQuery);
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Database error occurred',
+                    'csrf_name' => csrf_token(),
+                    'csrf_hash' => csrf_hash()
+                ]);
             }
 
             return $this->response->setJSON([
-                'success' => true, 
+                'success' => true,
                 'message' => 'Form saved successfully',
-                'redirect' => base_url('admin/dynamicforms/panel-config')
+                'redirect' => base_url('admin/dynamicforms/panel-config'),
+                'csrf_name' => csrf_token(),
+                'csrf_hash' => csrf_hash()
             ]);
 
         } catch (\Exception $e) {
             log_message('error', 'Form builder save error: ' . $e->getMessage());
-            return $this->response->setJSON(['success' => false, 'message' => 'An error occurred while saving']);
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'An error occurred while saving',
+                'csrf_name' => csrf_token(),
+                'csrf_hash' => csrf_hash()
+            ]);
         }
     }
 
@@ -834,7 +977,19 @@ class DynamicForms extends BaseController
         }
 
         try {
-            $input = $this->request->getJSON(true);
+            $input = [];
+            try {
+                $raw = $this->request->getBody();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $input = $decoded;
+                    }
+                }
+            } catch (\Exception $e) {
+                log_message('debug', 'reorderFields safe JSON parse failed: ' . $e->getMessage());
+            }
+
             $fieldIds = $input['field_ids'] ?? [];
 
             if (empty($fieldIds)) {
@@ -874,7 +1029,8 @@ class DynamicForms extends BaseController
         $validation->setRules([
             'code' => 'required|max_length[50]|is_unique[forms.code]',
             'description' => 'required|max_length[255]',
-            'panel_name' => 'permit_empty|max_length[255]'
+            'panel_name' => 'permit_empty|max_length[255]',
+            'office_id' => 'required|numeric|is_not_unique[offices.id]'
         ]);
         
         if (!$validation->withRequest($this->request)->run()) {
@@ -886,7 +1042,8 @@ class DynamicForms extends BaseController
         $data = [
             'code' => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
-            'panel_name' => $this->request->getPost('panel_name') ?: null
+            'panel_name' => $this->request->getPost('panel_name') ?: null,
+            'office_id' => $this->request->getPost('office_id')
         ];
         
         if ($this->formModel->insert($data)) {
@@ -911,7 +1068,8 @@ class DynamicForms extends BaseController
         $validation->setRules([
             'code' => "required|max_length[50]|is_unique[forms.code,id,{$formId}]",
             'description' => 'required|max_length[255]',
-            'panel_name' => 'permit_empty|max_length[255]'
+            'panel_name' => 'permit_empty|max_length[255]',
+            'office_id' => 'required|numeric|is_not_unique[offices.id]'
         ]);
         
         if (!$validation->withRequest($this->request)->run()) {
@@ -923,7 +1081,8 @@ class DynamicForms extends BaseController
         $data = [
             'code' => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
-            'panel_name' => $this->request->getPost('panel_name') ?: null
+            'panel_name' => $this->request->getPost('panel_name') ?: null,
+            'office_id' => $this->request->getPost('office_id')
         ];
         
         if ($this->formModel->update($formId, $data)) {

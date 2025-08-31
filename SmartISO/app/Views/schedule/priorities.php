@@ -29,7 +29,10 @@
                         <td><?= esc($s['form_code']) ?></td>
                         <td><?= esc($s['requestor_name']) ?></td>
                         <td><?= esc($s['scheduled_date']) ?> <?= esc($s['scheduled_time']) ?></td>
-                        <td><?= $s['priority'] ? 'Yes' : 'No' ?></td>
+                        <td>
+                            <div><small><?= $s['priority'] ? 'Marked' : '—' ?></small></div>
+                            <div><small><?= esc($s['priority_level'] ?? '-') ?> <?= isset($s['eta_days']) && $s['eta_days'] ? '(' . $s['eta_days'] . 'd)' : '' ?></small></div>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

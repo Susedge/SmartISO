@@ -15,7 +15,8 @@ class ScheduleModel extends Model
     
     protected $allowedFields = [
         'submission_id', 'scheduled_date', 'scheduled_time', 'duration_minutes',
-    'location', 'notes', 'status', 'assigned_staff_id', 'completion_notes', 'priority'
+    'location', 'notes', 'status', 'assigned_staff_id', 'completion_notes', 'priority',
+    'eta_days', 'estimated_date', 'priority_level'
     ];
     
     // Dates

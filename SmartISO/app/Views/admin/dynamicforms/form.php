@@ -35,16 +35,20 @@
                 
                 <div class="row">
                     <?php 
-                    $isRowOpen = false;
+                    $curWidth = 0;
+                    $totalFields = count($panel_fields);
                     foreach ($panel_fields as $index => $field): 
                         $fieldWidth = isset($field['width']) ? (int)$field['width'] : 6;
                         $isRequired = isset($field['required']) && $field['required'] == 1;
                         $bumpNext = isset($field['bump_next_field']) && $field['bump_next_field'] == 1;
-                        
-                        // Close the row if the previous field didn't have bump_next_field set
-                        if (!$isRowOpen) {
+
+                        // Start a new row if needed (either at beginning or overflow)
+                        if ($curWidth === 0) {
                             echo '<div class="row">';
-                            $isRowOpen = true;
+                        } elseif ($curWidth + $fieldWidth > 12) {
+                            // overflow -> close previous and start new row
+                            echo '</div><div class="row">';
+                            $curWidth = 0;
                         }
                     ?>
                         <div class="col-md-<?= $fieldWidth ?> mb-3">
@@ -59,38 +63,96 @@
                                     name="<?= $field['field_name'] ?>" 
                                     <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>
                                     <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
-                                    <?= $isRequired ? 'required' : '' ?>>
-                                    
+                                    <?= $isRequired ? 'required' : '' ?> />
+
                             <?php elseif ($field['field_type'] === 'dropdown'): ?>
                                 <select class="form-select" 
-                                        id="<?= $field['field_name'] ?>" 
-                                        name="<?= $field['field_name'] ?>"
-                                        <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
-                                        <?= $isRequired ? 'required' : '' ?>>
+                                    id="<?= $field['field_name'] ?>" 
+                                    name="<?= $field['field_name'] ?>"
+                                    <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
+                                    <?= $isRequired ? 'required' : '' ?> >
                                     <option value="">Select...</option>
                                     <?php if ($field['code_table'] === 'departments'): ?>
                                         <?php foreach ($departments as $dept): ?>
                                             <option value="<?= $dept['id'] ?>"><?= esc($dept['code'] . ' - ' . $dept['description']) ?></option>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
-                                    <!-- Add other code_table options as needed -->
                                 </select>
-                                
+
                             <?php elseif ($field['field_type'] === 'textarea'): ?>
                                 <textarea class="form-control" 
-                                        id="<?= $field['field_name'] ?>" 
-                                        name="<?= $field['field_name'] ?>"
-                                        rows="3"
-                                        <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>
-                                        <?= $isRequired ? 'required' : '' ?>></textarea>
-                                        
+                                    id="<?= $field['field_name'] ?>" 
+                                    name="<?= $field['field_name'] ?>"
+                                    rows="3"
+                                    <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>
+                                    <?= $isRequired ? 'required' : '' ?>></textarea>
+
                             <?php elseif ($field['field_type'] === 'datepicker'): ?>
+                                <?php 
+                                    // Support CURRENTDATE keyword for date default values
+                                    $defaultVal = isset($field['default_value']) ? trim($field['default_value']) : '';
+                                    if (preg_match('/^CURRENTDATE$/i', $defaultVal)) {
+                                        $dateDefault = date('Y-m-d');
+                                    } else {
+                                        $dateDefault = $defaultVal;
+                                    }
+                                ?>
                                 <input type="date" 
                                     class="form-control datepicker" 
                                     id="<?= $field['field_name'] ?>" 
                                     name="<?= $field['field_name'] ?>"
+                                    value="<?= esc($dateDefault) ?>"
                                     <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
-                                    <?= $isRequired ? 'required' : '' ?>>
+                                    <?= $isRequired ? 'required' : '' ?> />
+
+                            <?php elseif ($field['field_type'] === 'radio'): ?>
+                                <?php
+                                    $opts = [];
+                                    if (!empty($field['options']) && is_array($field['options'])) {
+                                        $opts = $field['options'];
+                                    } elseif (!empty($field['default_value'])) {
+                                        // Try to decode JSON stored in default_value (builder saves option arrays as JSON)
+                                        $decoded = json_decode($field['default_value'], true);
+                                        if (is_array($decoded) && !empty($decoded)) {
+                                            $opts = $decoded;
+                                        } else {
+                                            // fallback: check newline separated defaults
+                                            $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+                                            if (!empty($lines)) $opts = $lines;
+                                        }
+                                    }
+                                ?>
+                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    <?php if (!empty($opts)): ?>
+                                        <?php foreach ($opts as $oi => $opt): ?>
+                                            <div class="form-check form-check-inline">
+                                                <input class="form-check-input" type="checkbox" 
+                                                    id="<?= $field['field_name'] ?>_<?= $oi ?>" 
+                                                    name="<?= $field['field_name'] ?>[]" 
+                                                    value="<?= esc($opt) ?>" 
+                                                    <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
+                                                    <?= $isRequired ? 'required' : '' ?> >
+                                                <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($opt) ?></label>
+                                            </div>
+                                        <?php endforeach; ?>
+                                        <?php
+                                            // Render an 'Other' input if one of the options is 'other' (case-insensitive)
+                                            $hasOther = false;
+                                            foreach ($opts as $optCheck) { if (preg_match('/^others?$/i', trim($optCheck))) { $hasOther = true; break; } }
+                                        ?>
+                                        <?php if ($hasOther): ?>
+                                            <div class="d-inline-block ms-2">
+                                                <input type="text" class="form-control form-control-sm other-input" name="<?= $field['field_name'] ?>_other" placeholder="Other (please specify)" style="display:none; max-width:220px">
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="checkbox" disabled>
+                                            <label class="form-check-label small">Option 1</label>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
                             <?php elseif ($field['field_type'] === 'yesno'): ?>
                                 <div class="d-flex">
                                     <div class="form-check me-4">
@@ -118,15 +180,16 @@
                             <?php endif; ?>
                         </div>
                     <?php 
-                        // Check if we need to close the row
-                        if (!$bumpNext || $index == count($panel_fields) - 1) {
-                            echo '</div>';  // Close the row
-                            $isRowOpen = false;
+                        // Update current width and decide if we should close the row
+                        $curWidth += $fieldWidth;
+                        $isLast = ($index == $totalFields - 1);
+                        if (!$bumpNext || $isLast) {
+                            echo '</div>'; // close current row
+                            $curWidth = 0;
                         }
                     endforeach; 
-                    
                     // Ensure any open row is closed
-                    if ($isRowOpen) {
+                    if ($curWidth > 0) {
                         echo '</div>';
                     }
                     ?>

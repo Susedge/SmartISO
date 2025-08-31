@@ -24,7 +24,7 @@ class DbpanelModel extends Model
     protected $allowedFields = [
         'panel_name', 'field_name', 'field_label', 'field_type', 
         'bump_next_field', 'code_table', 'length', 'field_order',
-        'required', 'width', 'field_role'
+    'required', 'width', 'field_role', 'default_value'
     ];    
     
     protected $useTimestamps = true;
@@ -60,7 +60,15 @@ class DbpanelModel extends Model
         if (is_array($row) && !isset($row['field_role'])) {
             // Check if field_role column exists in the table
             if ($this->db->fieldExists('field_role', $this->table)) {
-                $row['field_role'] = 'both';
+                // Default to requestor per new requirement
+                $row['field_role'] = 'requestor';
+            }
+        }
+
+        // If default_value key is not present, ensure it exists to avoid DB errors
+        if (is_array($row) && !array_key_exists('default_value', $row)) {
+            if ($this->db->fieldExists('default_value', $this->table)) {
+                $row['default_value'] = '';
             }
         }
         

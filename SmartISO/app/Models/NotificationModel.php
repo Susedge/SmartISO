@@ -14,23 +14,23 @@ class NotificationModel extends Model
     protected $returnType     = 'array';
     
     protected $allowedFields = [
-        'user_id', 'title', 'message', 'type', 'related_id', 'related_type',
-        'is_read', 'action_url', 'priority'
+        // Columns present in the current notifications table migration
+        'user_id', 'submission_id', 'title', 'message', 'read', 'created_at'
     ];
     
     // Dates
-    protected $useTimestamps = true;
-    protected $dateFormat    = 'datetime';
-    protected $createdField  = 'created_at';
-    protected $updatedField  = 'updated_at';
+    // The notifications table in migrations only defines a created_at column
+    // and does not include updated_at or other newer notification columns.
+    // Disable automatic timestamps to avoid inserting an 'updated_at' column
+    // that doesn't exist in the DB schema.
+    protected $useTimestamps = false;
     
     // Validation
+    // Keep minimal validation for the fields we will actually insert.
     protected $validationRules = [
-        'user_id'      => 'required|integer',
-        'title'        => 'required|max_length[255]',
-        'message'      => 'required',
-        'type'         => 'required|in_list[info,success,warning,error,submission,approval,schedule,service]',
-        'priority'     => 'permit_empty|in_list[low,normal,high,urgent]'
+        'user_id' => 'required|integer',
+        'title'   => 'required|max_length[255]',
+        'message' => 'required'
     ];
 
     /**
@@ -41,7 +41,8 @@ class NotificationModel extends Model
         $builder = $this->where('user_id', $userId);
         
         if ($unreadOnly) {
-            $builder->where('is_read', 0);
+            // notifications table uses `read` column per migration
+            $builder->where('read', 0);
         }
         
         return $builder->orderBy('created_at', 'DESC')
@@ -54,9 +55,9 @@ class NotificationModel extends Model
      */
     public function getUnreadCount($userId)
     {
-        return $this->where('user_id', $userId)
-                   ->where('is_read', 0)
-                   ->countAllResults();
+    return $this->where('user_id', $userId)
+           ->where('read', 0)
+           ->countAllResults();
     }
 
     /**
@@ -64,13 +65,44 @@ class NotificationModel extends Model
      */
     public function markAsRead($notificationId, $userId = null)
     {
-        $builder = $this->where('id', $notificationId);
-        
+        // Validate input
+        if (empty($notificationId)) {
+            return false;
+        }
+        // Use the DB table builder directly to avoid Model::update signature ambiguity
+    $db = \Config\Database::connect();
+        $builder = $db->table($this->table)->where('id', $notificationId);
         if ($userId) {
             $builder->where('user_id', $userId);
         }
-        
-        return $builder->update(['is_read' => 1]);
+
+        try {
+            $res = $builder->update(['read' => 1]);
+            // Normalize: only boolean false indicates a DB failure; 0 affected rows means already-read (idempotent)
+            if ($res === false) {
+                // Capture DB driver error and last query for diagnosis
+                try {
+                    $db = \Config\Database::connect();
+                    $dberr = method_exists($db, 'error') ? $db->error() : null;
+                    $lastQuery = method_exists($db, 'getLastQuery') ? $db->getLastQuery() : null;
+                    $log = [
+                        'time' => date('c'),
+                        'notificationId' => $notificationId,
+                        'userId' => $userId,
+                        'dbError' => $dberr,
+                        'lastQuery' => $lastQuery
+                    ];
+                    @file_put_contents(WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . 'notifications_db_errors.log', json_encode($log) . PHP_EOL, FILE_APPEND | LOCK_EX);
+                } catch (\Exception $e) {
+                    log_message('error', 'Failed to write notifications DB debug log: ' . $e->getMessage());
+                }
+            }
+            return ($res === false) ? false : true;
+        } catch (\CodeIgniter\Database\Exceptions\DataException $e) {
+            // Defensive: log and return false rather than throw up to the request
+            log_message('error', 'Failed to mark notification as read: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -78,9 +110,38 @@ class NotificationModel extends Model
      */
     public function markAllAsRead($userId)
     {
-        return $this->where('user_id', $userId)
-                   ->where('is_read', 0)
-                   ->update(['is_read' => 1]);
+        if (empty($userId)) {
+            return false;
+        }
+        try {
+            // Use DB table builder for bulk update
+            $db = \Config\Database::connect();
+            $res = $db->table($this->table)
+                ->where('user_id', $userId)
+                ->where('read', 0)
+                ->update(['read' => 1]);
+         // Normalize: treat only boolean false as failure
+         if ($res === false) {
+                try {
+                    $db = \Config\Database::connect();
+                    $dberr = method_exists($db, 'error') ? $db->error() : null;
+                    $lastQuery = method_exists($db, 'getLastQuery') ? $db->getLastQuery() : null;
+                    $log = [
+                        'time' => date('c'),
+                        'userId' => $userId,
+                        'dbError' => $dberr,
+                        'lastQuery' => $lastQuery
+                    ];
+                    @file_put_contents(WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . 'notifications_db_errors.log', json_encode($log) . PHP_EOL, FILE_APPEND | LOCK_EX);
+                } catch (\Exception $e) {
+                    log_message('error', 'Failed to write notifications DB debug log: ' . $e->getMessage());
+                }
+            }
+            return ($res === false) ? false : true;
+        } catch (\CodeIgniter\Database\Exceptions\DataException $e) {
+            log_message('error', 'Failed to mark all notifications as read: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -106,16 +167,15 @@ class NotificationModel extends Model
         
         foreach ($assignedApprovers as $approver) {
             $userId = isset($approver['user_id']) ? $approver['user_id'] : $approver['id'];
-            
+
+            // Insert only columns that exist in the current notifications table.
             $this->insert([
-                'user_id'      => $userId,
-                'title'        => 'New Service Request Requires Approval',
-                'message'      => "A new {$formCode} request has been submitted by " . ($submission['submitted_by_name'] ?? 'a user') . " and requires your approval.",
-                'type'         => 'submission',
-                'related_id'   => $submissionId,
-                'related_type' => 'form_submission',
-                'action_url'   => '/forms/pending-approval',
-                'priority'     => 'normal'
+                'user_id'       => $userId,
+                'submission_id' => $submissionId,
+                'title'         => 'New Service Request Requires Approval',
+                'message'       => "A new {$formCode} request has been submitted by " . ($submission['submitted_by_name'] ?? 'a user') . " and requires your approval.",
+                'read'          => 0,
+                'created_at'    => date('Y-m-d H:i:s')
             ]);
         }
     }
@@ -131,14 +191,12 @@ class NotificationModel extends Model
             'Your service request has been rejected. Please check the comments for details.';
         
         $this->insert([
-            'user_id'      => $userId,
-            'title'        => 'Request ' . ucfirst($status),
-            'message'      => $message,
-            'type'         => 'approval',
-            'related_id'   => $submissionId,
-            'related_type' => 'form_submission',
-            'action_url'   => '/dashboard/my-requests',
-            'priority'     => $approved ? 'normal' : 'high'
+            'user_id'       => $userId,
+            'submission_id' => $submissionId,
+            'title'         => 'Request ' . ucfirst($status),
+            'message'       => $message,
+            'read'          => 0,
+            'created_at'    => date('Y-m-d H:i:s')
         ]);
     }
 
@@ -148,14 +206,11 @@ class NotificationModel extends Model
     public function createScheduleNotification($scheduleId, $userId, $scheduledDate, $scheduledTime)
     {
         $this->insert([
-            'user_id'      => $userId,
-            'title'        => 'Service Scheduled',
-            'message'      => "Your service has been scheduled for {$scheduledDate} at {$scheduledTime}.",
-            'type'         => 'schedule',
-            'related_id'   => $scheduleId,
-            'related_type' => 'schedule',
-            'action_url'   => '/dashboard/schedules',
-            'priority'     => 'normal'
+            'user_id'    => $userId,
+            'title'      => 'Service Scheduled',
+            'message'    => "Your service has been scheduled for {$scheduledDate} at {$scheduledTime}.",
+            'read'       => 0,
+            'created_at' => date('Y-m-d H:i:s')
         ]);
     }
 
@@ -165,14 +220,12 @@ class NotificationModel extends Model
     public function createServiceStaffAssignmentNotification($submissionId, $serviceStaffId, $formCode)
     {
         $this->insert([
-            'user_id'      => $serviceStaffId,
-            'title'        => 'New Service Assignment',
-            'message'      => "You have been assigned to process a {$formCode} service request. Please review and complete the service.",
-            'type'         => 'service',
-            'related_id'   => $submissionId,
-            'related_type' => 'form_submission',
-            'action_url'   => '/forms/pending-service',
-            'priority'     => 'normal'
+            'user_id'       => $serviceStaffId,
+            'submission_id' => $submissionId,
+            'title'         => 'New Service Assignment',
+            'message'       => "You have been assigned to process a {$formCode} service request. Please review and complete the service.",
+            'read'          => 0,
+            'created_at'    => date('Y-m-d H:i:s')
         ]);
     }
 
@@ -182,14 +235,12 @@ class NotificationModel extends Model
     public function createServiceCompletionNotification($submissionId, $userId)
     {
         $this->insert([
-            'user_id'      => $userId,
-            'title'        => 'Service Completed',
-            'message'      => 'Your service request has been completed successfully. You can now provide feedback about your experience.',
-            'type'         => 'service',
-            'related_id'   => $submissionId,
-            'related_type' => 'form_submission',
-            'action_url'   => '/feedback/create/' . $submissionId,
-            'priority'     => 'normal'
+            'user_id'       => $userId,
+            'submission_id' => $submissionId,
+            'title'         => 'Service Completed',
+            'message'       => 'Your service request has been completed successfully. You can now provide feedback about your experience.',
+            'read'          => 0,
+            'created_at'    => date('Y-m-d H:i:s')
         ]);
     }
 

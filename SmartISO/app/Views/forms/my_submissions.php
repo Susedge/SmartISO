@@ -51,13 +51,16 @@
                                         <i class="fas fa-eye me-1"></i> View
                                     </a>
                                     
-                                    <?php if ($submission['status'] == 'completed' || $submission['status'] == 'approved'): ?>
+                                    <?php if ($submission['status'] == 'completed'): ?>
                                     <div class="btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                                             Export
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
                                             <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/pdf') ?>">
+                                                <i class="fas fa-file-pdf me-2 text-danger"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/word') ?>">
                                                 <i class="fas fa-file-word me-2 text-primary"></i> Word
                                             </a></li>
                                             <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/excel') ?>">
@@ -66,12 +69,7 @@
                                         </ul>
                                     </div>
                                     <?php endif; ?>
-                                    <!-- Template download (PDF primary) -->
-                                    <div class="ms-1 d-inline-block">
-                                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/download/uploaded/' . esc($submission['form_code'])) ?>" title="Download PDF template">
-                                            <i class="fas fa-file-download"></i>
-                                        </a>
-                                    </div>
+                                    <!-- Template download removed per request -->
                                 </td>
                             </tr>
                         <?php endforeach; ?>

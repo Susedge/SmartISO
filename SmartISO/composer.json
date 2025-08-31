@@ -45,6 +45,11 @@
     },
     "scripts": {
     "test": "phpunit",
-    "controllers:test": "php scripts/run_controllers_tests.php"
+    "controllers:test": "php scripts/run_controllers_tests.php",
+    "download:fullcalendar": "php tools/download_fullcalendar.php",
+    "download:fullcalendar:quiet": "php tools/download_fullcalendar_quiet.php",
+    "download:fullcalendar:npm": "node ./tools/downloader_npm.js",
+    "post-install-cmd": ["@download:fullcalendar:quiet"],
+    "post-update-cmd": ["@download:fullcalendar:quiet"]
     }
 }

@@ -24,6 +24,33 @@ class Notifications extends BaseController
         return view('notifications/index', $data);
     }
 
+    public function view($id)
+    {
+        $userId = session()->get('user_id');
+
+        // Ensure notification belongs to user
+        $notification = $this->notificationModel->where('id', $id)->where('user_id', $userId)->first();
+        if (!$notification) {
+            return redirect()->back()->with('error', 'Notification not found');
+        }
+
+        // Mark as read (idempotent)
+        $this->notificationModel->markAsRead($id, $userId);
+
+        // Prefer redirecting to the related submission when available
+        if (!empty($notification['submission_id'])) {
+            return redirect()->to(base_url('forms/submission/' . $notification['submission_id']));
+        }
+
+        // Otherwise, if action_url present, redirect there
+        if (!empty($notification['action_url'])) {
+            return redirect()->to($notification['action_url']);
+        }
+
+        // Fall back to the notifications list — we no longer render a standalone notification page
+        return redirect()->to(base_url('notifications'));
+    }
+
     public function getUnread()
     {
         $userId = session()->get('user_id');
@@ -34,7 +61,9 @@ class Notifications extends BaseController
         return $this->response->setJSON([
             'success' => true,
             'notifications' => $notifications,
-            'unreadCount' => $unreadCount
+            'unreadCount' => $unreadCount,
+            'csrfName' => csrf_token(),
+            'csrfHash' => csrf_hash()
         ]);
     }
 
@@ -42,23 +71,70 @@ class Notifications extends BaseController
     {
         $userId = session()->get('user_id');
         
+        // If route parameter missing, check POST payload for id (robust fallback for AJAX clients)
+        if (!$id && $this->request->getPost('id')) {
+            $id = $this->request->getPost('id');
+        }
+
         if ($id) {
             // Mark specific notification as read
             $result = $this->notificationModel->markAsRead($id, $userId);
+            // Fallback: if model returns false, try direct DB update (helps in environments where Model::update may behave differently)
+            if ($result === false) {
+                try {
+                    $db = \Config\Database::connect();
+                    $builder = $db->table('notifications')->where('id', $id)->where('user_id', $userId)->update(['read' => 1]);
+                    $result = ($builder !== false);
+                } catch (\Exception $e) {
+                    $result = false;
+                    log_message('error', 'Notifications fallback DB update failed: ' . $e->getMessage());
+                }
+            }
         } else {
             // Mark all notifications as read
             $result = $this->notificationModel->markAllAsRead($userId);
         }
-        
+        // Normalize success: builder->update may return number of affected rows or true; treat false as failure
+        $success = ($result !== false);
+
+        // --- Debug logging: capture what the server received for diagnosis ---
+        try {
+            $debug = [
+                'time' => date('c'),
+                'user_id' => $userId,
+                'route_id_param' => $id,
+                'posted' => $this->request->getPost(),
+                'rawInput' => $this->request->getBody(),
+                'headers' => [
+                    'X-CSRF-TOKEN' => $this->request->getHeaderLine('X-CSRF-TOKEN'),
+                    'X-Requested-With' => $this->request->getHeaderLine('X-Requested-With')
+                ],
+                'result' => $result,
+                'success' => $success
+            ];
+            // Append JSON line to writable logs so user can inspect without opening browser devtools
+            $logPath = WRITEPATH . 'logs' . DIRECTORY_SEPARATOR . 'notifications_debug.log';
+            @file_put_contents($logPath, json_encode($debug) . PHP_EOL, FILE_APPEND | LOCK_EX);
+    } catch (\Exception $e) {
+            // Swallow logging errors to avoid interfering with normal flow
+            log_message('error', 'Failed to write notifications debug log: ' . $e->getMessage());
+        }
+
+        $message = $success ? 'Notification(s) marked as read' : 'Failed to update notification';
+
         if ($this->request->isAJAX()) {
             return $this->response->setJSON([
-                'success' => $result,
-                'message' => $result ? 'Notification(s) marked as read' : 'Failed to update notification'
+                'success' => $success,
+                'message' => $message,
+                'result' => $result,
+                'posted' => $this->request->getPost(),
+                'rawInput' => $this->request->getBody(),
+                'csrfName' => csrf_token(),
+                'csrfHash' => csrf_hash()
             ]);
         }
-        
-        $message = $result ? 'Notification(s) marked as read' : 'Failed to update notification';
-        return redirect()->back()->with($result ? 'success' : 'error', $message);
+
+        return redirect()->back()->with($success ? 'success' : 'error', $message);
     }
 
     public function delete($id)
@@ -72,22 +148,28 @@ class Notifications extends BaseController
         
         if (!$notification) {
             if ($this->request->isAJAX()) {
-                return $this->response->setJSON(['success' => false, 'message' => 'Notification not found']);
+                return $this->response->setJSON(['success' => false, 'message' => 'Notification not found', 'csrfName' => csrf_token(), 'csrfHash' => csrf_hash()]);
             }
             return redirect()->back()->with('error', 'Notification not found');
         }
         
         $result = $this->notificationModel->delete($id);
-        
+        $success = ($result !== false);
+
         if ($this->request->isAJAX()) {
             return $this->response->setJSON([
-                'success' => $result,
-                'message' => $result ? 'Notification deleted' : 'Failed to delete notification'
+                'success' => $success,
+                'message' => $success ? 'Notification deleted' : 'Failed to delete notification',
+                'result' => $result,
+                'posted' => $this->request->getPost(),
+                'rawInput' => $this->request->getBody(),
+                'csrfName' => csrf_token(),
+                'csrfHash' => csrf_hash()
             ]);
         }
-        
-        $message = $result ? 'Notification deleted' : 'Failed to delete notification';
-        return redirect()->back()->with($result ? 'success' : 'error', $message);
+
+        $message = $success ? 'Notification deleted' : 'Failed to delete notification';
+        return redirect()->back()->with($success ? 'success' : 'error', $message);
     }
 
     public function cleanup()

@@ -19,7 +19,8 @@ class AuthFilter implements FilterInterface
         $sessionTimeout = $this->getSessionTimeout();
         $lastActivity = session()->get('last_activity');
         
-        if ($lastActivity && (time() - $lastActivity) > $sessionTimeout) {
+    // If sessionTimeout is 0 it means timeout is disabled
+    if ($lastActivity && $sessionTimeout > 0 && (time() - $lastActivity) > $sessionTimeout) {
             // Session has expired
             session()->destroy();
             return redirect()->to('/auth/login')->with('error', 'Your session has expired. Please log in again.');

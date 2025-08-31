@@ -8,6 +8,7 @@ use App\Models\FormSubmissionModel;
 use App\Models\FormSubmissionDataModel;
 use App\Models\DepartmentModel;
 use App\Models\UserModel;
+use App\Models\OfficeModel;
 use App\Models\PriorityConfigurationModel;
 
 class Forms extends BaseController
@@ -18,6 +19,7 @@ class Forms extends BaseController
     protected $formSubmissionDataModel;
     protected $departmentModel;
     protected $userModel;
+    protected $officeModel;
     protected $priorityModel;
     
     public function __construct()
@@ -31,13 +33,29 @@ class Forms extends BaseController
         $this->departmentModel = new DepartmentModel();
         $this->userModel = new UserModel();
         $this->priorityModel = new PriorityConfigurationModel();
+        $this->officeModel = new OfficeModel();
     }
     
     public function index()
     {
+        // Get office filter from request
+        $selectedOffice = $this->request->getGet('office');
+        
+        // Get all active offices for the dropdown
+        $offices = $this->officeModel->getActiveOffices();
+        
+        // Get forms based on office filter
+        if ($selectedOffice) {
+            $forms = $this->formModel->getFormsByOfficeWithOffice($selectedOffice);
+        } else {
+            $forms = $this->formModel->getFormsWithOffice();
+        }
+        
         $data = [
             'title' => 'Available Forms',
-            'forms' => $this->formModel->findAll()
+            'forms' => $forms,
+            'offices' => $offices,
+            'selectedOffice' => $selectedOffice
         ];
         
         return view('forms/index', $data);
@@ -140,6 +158,15 @@ class Forms extends BaseController
             $submissionData['reference_file_original'] = $originalFileName;
         }
         
+        // Debugging: log submission payload and POST data to trace unknown 'type' column errors
+        try {
+            log_message('debug', 'Forms::submit - submissionData: ' . json_encode($submissionData));
+            log_message('debug', 'Forms::submit - POST data: ' . json_encode($this->request->getPost()));
+        } catch (\Exception $e) {
+            // If logging or json encoding fails, don't block submission; still attempt insert
+            log_message('error', 'Forms::submit - debug log failed: ' . $e->getMessage());
+        }
+
         $submissionId = $this->formSubmissionModel->insert($submissionData);
         
         // Save each field value based on user role
@@ -158,8 +185,31 @@ class Forms extends BaseController
             }
             
             if ($canEdit) {
-                $fieldValue = $this->request->getPost($fieldName) ?? '';
-                
+                // Accept single value or array (for checkbox groups)
+                $raw = $this->request->getPost($fieldName);
+                $otherText = $this->request->getPost($fieldName . '_other');
+
+                // If it's an array (checkboxes), replace any 'Other' token with the provided other text
+                if (is_array($raw)) {
+                    $normalized = [];
+                    foreach ($raw as $v) {
+                        if (preg_match('/^others?$/i', (string)$v) && !empty($otherText)) {
+                            $normalized[] = $otherText;
+                        } else {
+                            $normalized[] = $v;
+                        }
+                    }
+                    // Persist as JSON so we can decode later when rendering/exporting
+                    $fieldValue = json_encode($normalized);
+                } else {
+                    // Single value (input, radio, dropdown)
+                    $val = $raw ?? '';
+                    if (is_string($val) && preg_match('/^others?$/i', $val) && !empty($otherText)) {
+                        $val = $otherText;
+                    }
+                    $fieldValue = $val;
+                }
+
                 $this->formSubmissionDataModel->insert([
                     'submission_id' => $submissionId,
                     'field_name' => $fieldName,
@@ -278,9 +328,11 @@ class Forms extends BaseController
         $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
         $builder->join('offices', 'offices.id = requestor.office_id', 'left');
         
-        // Filter for forms assigned to this service staff and with status 'pending_service'
-        $builder->where('form_submissions.service_staff_id', $userId);
-        $builder->where('form_submissions.status', 'pending_service');
+    // Filter for forms assigned to this service staff.
+    // Accept both 'approved' and 'pending_service' statuses for backward compatibility
+    // (some flows set service_staff_id but leave status as 'approved')
+    $builder->where('form_submissions.service_staff_id', $userId);
+    $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
         
         $builder->orderBy('form_submissions.approved_at', 'DESC');
         
@@ -1229,6 +1281,16 @@ class Forms extends BaseController
 
     public function export($id, $format = 'pdf')
     {
+        // Ensure submission exists and is completed before allowing export
+        $submission = $this->formSubmissionModel->find($id);
+        if (!$submission) {
+            return redirect()->to('/forms/my-submissions')->with('error', 'Submission not found');
+        }
+
+        if (($submission['status'] ?? '') !== 'completed') {
+            return redirect()->to('/forms/my-submissions')->with('error', 'Export is only available for completed submissions');
+        }
+
         if ($format == 'pdf') {
             // Redirect to the PDF generator controller
             return redirect()->to('/pdfgenerator/generateFormPdf/' . $id);
@@ -1237,7 +1299,7 @@ class Forms extends BaseController
             // For this example, we'll just return a message
             return redirect()->back()->with('message', 'Excel export functionality would be implemented here');
         }
-        
+
         return redirect()->back()->with('error', 'Invalid export format');
     }
     

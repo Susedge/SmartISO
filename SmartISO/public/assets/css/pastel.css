@@ -212,6 +212,15 @@ a:hover {
     transition: all var(--transition-speed);
 }
 
+/* Align the notification bell vertically with avatar */
+.nav-link .fa-bell {
+    vertical-align: middle;
+}
+
+.nav-item.dropdown.me-3 { /* ensure a little extra gap between bell and avatar */
+    margin-right: .75rem !important;
+}
+
 .avatar-circle:hover {
     transform: scale(1.05);
     border-color: var(--primary-dark);

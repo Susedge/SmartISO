@@ -130,6 +130,11 @@ class Auth extends BaseController
         // Update last activity time
         session()->set('last_activity', time());
         
-        return $this->response->setJSON(['success' => true, 'message' => 'Session extended']);
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Session extended',
+            'csrf_name' => csrf_token(),
+            'csrf_hash' => csrf_hash()
+        ]);
     }
 }

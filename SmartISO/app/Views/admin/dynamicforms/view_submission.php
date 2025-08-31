@@ -4,7 +4,14 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h3><?= $title ?></h3>
-        <a href="<?= base_url('admin/dynamicforms/submissions') ?>" class="btn btn-secondary">Back to Submissions</a>
+        <div>
+            <a href="<?= base_url('admin/dynamicforms/submissions') ?>" class="btn btn-secondary me-2">Back to Submissions</a>
+            <?php if ($submission['status'] === 'approved' && in_array(session()->get('user_type'), ['service_staff','admin','superuser'])): ?>
+                <a href="<?= base_url('schedule/create/' . $submission['id']) ?>" class="btn btn-primary">
+                    <i class="fas fa-calendar-plus me-2"></i>Schedule Service
+                </a>
+            <?php endif; ?>
+        </div>
     </div>
     <div class="card-body">
         <?php if (session('message')): ?>

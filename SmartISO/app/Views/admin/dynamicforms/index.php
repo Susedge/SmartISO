@@ -38,7 +38,14 @@
                 </thead>
                 <tbody>
                     <?php foreach ($forms as $form): ?>
-                    <tr>
+                    <tr
+                        data-form-id="<?= esc($form['id']) ?>"
+                        data-office-id="<?= esc($form['office_id'] ?? '') ?>"
+                        data-form-code="<?= esc($form['code']) ?>"
+                        data-template-exists="<?= file_exists(FCPATH . 'templates/docx/' . $form['code'] . '_template.docx') ? '1' : '0' ?>"
+                        data-template-download-url="<?= base_url('admin/configurations/download-template/' . $form['id']) ?>"
+                        data-template-delete-url="<?= base_url('admin/configurations/delete-template/' . $form['id']) ?>"
+                    >
                         <td>
                             <strong><?= esc($form['code']) ?></strong>
                         </td>
@@ -117,6 +124,16 @@
                         </select>
                         <small class="text-muted">Choose an existing panel or leave empty to assign later</small>
                     </div>
+                            <div class="mb-3">
+                                <label for="office_id" class="form-label">Office</label>
+                                <select class="form-select" id="office_id" name="office_id" required>
+                                    <option value="">-- Select Office --</option>
+                                    <?php foreach (($offices ?? []) as $office): ?>
+                                        <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted">Assign this form to an office</small>
+                            </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -158,6 +175,38 @@
                             <?php endforeach; ?>
                         </select>
                         <small class="text-muted">Change the panel assignment for this form</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_office_id" class="form-label">Office</label>
+                        <select class="form-select" id="edit_office_id" name="office_id" required>
+                            <option value="">-- Select Office --</option>
+                            <?php foreach (($offices ?? []) as $office): ?>
+                                <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted">Change the office assignment for this form</small>
+                    </div>
+
+                    <!-- Form Template Upload -->
+                    <div class="mb-3 border p-3 rounded bg-light">
+                        <h6 class="mb-2">Form Template</h6>
+                        <div id="templateStatus" class="mb-2">
+                            <span class="badge bg-secondary">Checking...</span>
+                        </div>
+
+                        <div id="templateUploadForm" data-action="">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="form_id" id="template_form_id" value="">
+                            <div class="input-group">
+                                <input type="file" name="template" id="templateFileInput" class="form-control" accept=".docx">
+                                <button type="button" id="templateUploadBtn" class="btn btn-outline-primary">Upload</button>
+                            </div>
+                            <div class="mt-2">
+                                <a href="#" id="downloadTemplateLink" class="btn btn-sm btn-success" style="display:none;">Download</a>
+                                <a href="#" id="deleteTemplateLink" class="btn btn-sm btn-danger" style="display:none;">Delete</a>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-2">Accepted: .docx — Max 5MB</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -205,10 +254,140 @@ function editForm(id, code, description, panelName) {
     document.getElementById('edit_form_code').value = code;
     document.getElementById('edit_form_description').value = description;
     document.getElementById('edit_panel_name').value = panelName || '';
-    
+    // Try to set office id if available on the row data attribute
+    const row = document.querySelector(`[data-form-id="${id}"]`);
+    if (row) {
+        const officeId = row.getAttribute('data-office-id');
+        if (officeId) document.getElementById('edit_office_id').value = officeId;
+        // Update template section using row data
+        if (typeof window.updateTemplateSection === 'function') {
+            window.updateTemplateSection(row);
+        }
+    } else {
+        document.getElementById('edit_office_id').value = '';
+    }
+
     const modal = new bootstrap.Modal(document.getElementById('editFormModal'));
     modal.show();
 }
+    
+
+// Populate template upload UI when opening edit modal
+document.addEventListener('DOMContentLoaded', function() {
+    const templateForm = document.getElementById('templateUploadForm');
+    const templateFormId = document.getElementById('template_form_id');
+    const templateStatus = document.getElementById('templateStatus');
+    const downloadLink = document.getElementById('downloadTemplateLink');
+    const deleteLink = document.getElementById('deleteTemplateLink');
+    const fileInput = document.getElementById('templateFileInput');
+
+    // Intercept the template upload form submit to ensure action is set
+    templateForm.addEventListener('submit', function(e) {
+        if (!templateForm.action) {
+            e.preventDefault();
+            alert('Form target not set. Try opening the Edit modal again.');
+        }
+    });
+
+    // Update function called from editForm
+    window.updateTemplateSection = function(row) {
+        const formId = row.getAttribute('data-form-id');
+        const formCode = row.getAttribute('data-form-code');
+        const exists = row.getAttribute('data-template-exists') === '1';
+        const downloadUrl = row.getAttribute('data-template-download-url');
+        const deleteUrl = row.getAttribute('data-template-delete-url');
+
+    templateForm.setAttribute('data-action', '<?= base_url('admin/configurations/upload-template/') ?>' + formId);
+        templateFormId.value = formId;
+        templateStatus.innerHTML = exists ? '<span class="badge bg-success">Template available</span>' : '<span class="badge bg-secondary">No template</span>';
+
+        if (exists) {
+            downloadLink.href = downloadUrl;
+            downloadLink.style.display = 'inline-block';
+            deleteLink.href = deleteUrl;
+            deleteLink.style.display = 'inline-block';
+        } else {
+            downloadLink.href = '#';
+            downloadLink.style.display = 'none';
+            deleteLink.href = '#';
+            deleteLink.style.display = 'none';
+        }
+        // Clear file input
+        fileInput.value = '';
+    };
+});
+
+// Handle upload button click by building and submitting a temporary form
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadBtn = document.getElementById('templateUploadBtn');
+    const fileInput = document.getElementById('templateFileInput');
+    const templateFormContainer = document.getElementById('templateUploadForm');
+
+    uploadBtn.addEventListener('click', function() {
+        const action = templateFormContainer.getAttribute('data-action') || templateFormContainer.dataset.action || templateFormContainer.action || '';
+        const formId = document.getElementById('template_form_id').value;
+
+        if (!action) {
+            alert('Upload target not set. Re-open the edit modal and try again.');
+            return;
+        }
+
+        if (!formId) {
+            alert('Form ID is required');
+            return;
+        }
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please choose a .docx file to upload');
+            return;
+        }
+
+        // Build temporary form
+        const tmpForm = document.createElement('form');
+        tmpForm.method = 'POST';
+        tmpForm.enctype = 'multipart/form-data';
+        tmpForm.action = action;
+
+        // Append CSRF inputs by cloning existing token inputs
+        const csrfInputs = templateFormContainer.querySelectorAll('input[name^="csrf_"], input[name="_token"]');
+        csrfInputs.forEach(ci => tmpForm.appendChild(ci.cloneNode(true)));
+
+        // Hidden form_id
+        const hiddenId = document.createElement('input');
+        hiddenId.type = 'hidden';
+        hiddenId.name = 'form_id';
+        hiddenId.value = formId;
+        tmpForm.appendChild(hiddenId);
+
+        // Move the file input into the temp form (clone original to preserve UI)
+        const fileClone = fileInput.cloneNode();
+        fileClone.name = 'template';
+        // Attach the selected file using DataTransfer if supported
+        // Workaround: append the original input (it will be moved) and re-insert a clone back
+        const originalParent = fileInput.parentNode;
+        const afterNode = fileInput.nextSibling;
+        tmpForm.appendChild(fileInput);
+
+        document.body.appendChild(tmpForm);
+        tmpForm.submit();
+
+        // After submit, re-attach the input back to original container so UI remains
+        setTimeout(function() {
+            if (originalParent) {
+                // If fileInput was removed, try to append clone back
+                if (!originalParent.contains(fileInput)) {
+                    const newClone = fileClone.cloneNode();
+                    newClone.id = 'templateFileInput';
+                    newClone.className = 'form-control';
+                    newClone.name = 'template';
+                    originalParent.insertBefore(newClone, afterNode);
+                }
+            }
+            // Clean up temp form
+            if (tmpForm && tmpForm.parentNode) tmpForm.parentNode.removeChild(tmpForm);
+        }, 500);
+    });
+});
 
 function deleteForm(id, code) {
     document.getElementById('delete_form_id').value = id;

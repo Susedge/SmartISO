@@ -55,7 +55,8 @@
                                         data-field-name="<?= esc($field['field_name']) ?>"
                                         data-field-label="<?= esc($field['field_label']) ?>"
                                         data-field-type="<?= $field['field_type'] ?>"
-                                        data-field-role="<?= $field['field_role'] ?? 'both' ?>"
+                                            data-field-role="<?= $field['field_role'] ?? 'both' ?>"
+                                            data-field-default="<?= esc($field['default_value'] ?? '') ?>"
                                         data-bump-next="<?= $field['bump_next_field'] ?>"
                                         data-required="<?= isset($field['required']) ? $field['required'] : '0' ?>"
                                         data-width="<?= isset($field['width']) ? $field['width'] : '6' ?>"
@@ -131,11 +132,18 @@
                             <option value="input">Text Input</option>
                             <option value="dropdown">Dropdown</option>
                             <option value="textarea">Text Area</option>
+                            <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
                             <option value="yesno">Yes/No</option>
                         </select>
                     </div>
                     
+                    <div class="mb-3">
+                        <label for="default_value" class="form-label">Default Value</label>
+                        <input type="text" class="form-control" id="default_value" name="default_value" placeholder="Optional default value (e.g. CURRENTDATE for date fields)">
+                        <small class="text-muted">Use CURRENTDATE (case-insensitive) for date fields to populate today's date.</small>
+                    </div>
+
                     <!-- New field role dropdown -->
                     <div class="mb-3">
                         <label for="field_role" class="form-label">Field Role</label>
@@ -233,6 +241,7 @@
                             <option value="input">Text Input</option>
                             <option value="dropdown">Dropdown</option>
                             <option value="textarea">Text Area</option>
+                            <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
                             <option value="yesno">Yes/No</option>
                         </select>
@@ -248,6 +257,11 @@
                             <option value="readonly">Read-only After Submission</option>
                         </select>
                         <small class="text-muted">Determines who can view and edit this field</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_default_value" class="form-label">Default Value</label>
+                        <input type="text" class="form-control" id="edit_default_value" name="default_value" placeholder="Optional default value (e.g. CURRENTDATE for date fields)">
+                        <small class="text-muted">Use CURRENTDATE (case-insensitive) for date fields to populate today's date.</small>
                     </div>
                     
                     <div class="mb-3">
@@ -331,6 +345,11 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit_field_label').value = fieldLabel;
             document.getElementById('edit_field_type').value = fieldType;
             document.getElementById('edit_field_role').value = fieldRole; // Set the field role value
+            // Populate default value for edit modal if present
+            const defaultVal = this.getAttribute('data-field-default') || '';
+            if (document.getElementById('edit_default_value')) {
+                document.getElementById('edit_default_value').value = defaultVal;
+            }
             document.getElementById('edit_bump_next_field').value = bumpNext;
             document.getElementById('edit_required').value = required;
             document.getElementById('edit_width').value = width;
@@ -359,6 +378,26 @@ document.addEventListener('DOMContentLoaded', function() {
         // Trigger initial display
         select.dispatchEvent(new Event('change'));
     });
+    // Ensure new field modal default value input is empty when opened
++
+    const newFieldModalEl = document.getElementById('newFieldModal');
++
+    if (newFieldModalEl) {
++
+        newFieldModalEl.addEventListener('show.bs.modal', function () {
++
+            const dv = document.getElementById('default_value');
++
+            if (dv) dv.value = '';
++
+            const role = document.getElementById('field_role');
++
+            if (role) role.value = 'both';
++
+        });
++
+    }
++
 });
 </script>
 <?= $this->endSection() ?>

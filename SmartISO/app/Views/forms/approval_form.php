@@ -47,8 +47,18 @@
                             <td><?= esc($field['field_label']) ?></td>
                             <td>
                                 <?php 
-                                $value = $submission_data[$field['field_name']] ?? '-';
-                                echo esc($value);
+                                // Helper to render arrays or JSON arrays cleanly
+                                $raw = $submission_data[$field['field_name']] ?? null;
+                                if (!function_exists('render_submission_value')) {
+                                    function render_submission_value($raw) {
+                                        if ($raw === null || $raw === '') return '-';
+                                        if (is_array($raw)) return esc(implode(', ', $raw));
+                                        $decoded = json_decode($raw, true);
+                                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) return esc(implode(', ', $decoded));
+                                        return esc($raw);
+                                    }
+                                }
+                                echo render_submission_value($raw);
                                 ?>
                             </td>
                         </tr>

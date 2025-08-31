@@ -1,34 +1,60 @@
 <?= $this->extend('layouts/default') ?>
 
 <?= $this->section('content') ?>
-<div class="container">
+<div class="container-fluid">
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
             <div>
                 <h3><?= $title ?></h3>
                 <p class="text-muted mb-0">Form: <?= esc($form['code']) ?> - <?= esc($form['description']) ?></p>
             </div>
-            <div>
+            <div class="d-flex align-items-center">
                 <?php if (session()->get('user_type') === 'requestor'): ?>
-                    <a href="<?= base_url('forms/my-submissions') ?>" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Back to My Submissions
+                    <a href="<?= base_url('forms/my-submissions') ?>" class="btn btn-sm btn-secondary me-2" title="Back to My Submissions">
+                        <i class="bi bi-arrow-left"></i>
                     </a>
                 <?php elseif (session()->get('user_type') === 'approving_authority'): ?>
-                    <a href="<?= base_url('forms/pending-approval') ?>" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Back to Pending Approvals
+                    <a href="<?= base_url('forms/pending-approval') ?>" class="btn btn-sm btn-secondary me-2" title="Back to Pending Approvals">
+                        <i class="bi bi-arrow-left"></i>
                     </a>
                 <?php elseif (session()->get('user_type') === 'service_staff'): ?>
-                    <a href="<?= base_url('forms/pending-service') ?>" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Back to Pending Service
+                    <a href="<?= base_url('forms/pending-service') ?>" class="btn btn-sm btn-secondary me-2" title="Back to Pending Service">
+                        <i class="bi bi-arrow-left"></i>
                     </a>
                 <?php else: ?>
-                    <a href="<?= base_url('forms') ?>" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Back
+                    <a href="<?= base_url('forms') ?>" class="btn btn-sm btn-secondary me-2" title="Back">
+                        <i class="bi bi-arrow-left"></i>
                     </a>
+                <?php endif; ?>
+
+                <?php if ($submission['status'] === 'completed'): ?>
+                    <div class="btn-group">
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/submission/' . $submission['id'] . '/pdf') ?>" title="Export PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/submission/' . $submission['id'] . '/word') ?>" title="Export Word">
+                            <i class="fas fa-file-word"></i>
+                        </a>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/submission/' . $submission['id'] . '/excel') ?>" title="Export Excel">
+                            <i class="fas fa-file-excel"></i>
+                        </a>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>
         <div class="card-body">
+            <?php
+            if (!function_exists('render_submission_value')) {
+                function render_submission_value($raw) {
+                    if ($raw === null || $raw === '') return '-';
+                    if (is_array($raw)) return esc(implode(', ', $raw));
+                    $decoded = json_decode($raw, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) return esc(implode(', ', $decoded));
+                    return esc($raw);
+                }
+            }
+            ?>
+
             <!-- Status Badge -->
             <div class="mb-4">
                 <span class="badge 
@@ -202,9 +228,9 @@
                                     <div class="mb-3">
                                         <label class="form-label"><?= $field['field_label'] ?></label>
                                         <?php if ($field['field_type'] === 'textarea'): ?>
-                                            <textarea class="form-control" readonly rows="3"><?= esc($submission_data[$field['field_name']] ?? '') ?></textarea>
+                                            <textarea class="form-control" readonly rows="3"><?= render_submission_value($submission_data[$field['field_name']] ?? null) ?></textarea>
                                         <?php else: ?>
-                                            <input type="text" class="form-control" value="<?= esc($submission_data[$field['field_name']] ?? '') ?>" readonly>
+                                            <input type="text" class="form-control" value="<?= render_submission_value($submission_data[$field['field_name']] ?? null) ?>" readonly>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -231,9 +257,9 @@
                                     <div class="mb-3">
                                         <label class="form-label"><?= $field['field_label'] ?></label>
                                         <?php if ($field['field_type'] === 'textarea'): ?>
-                                            <textarea class="form-control" readonly rows="3"><?= esc($submission_data[$field['field_name']] ?? '') ?></textarea>
+                                            <textarea class="form-control" readonly rows="3"><?= render_submission_value($submission_data[$field['field_name']] ?? null) ?></textarea>
                                         <?php else: ?>
-                                            <input type="text" class="form-control" value="<?= esc($submission_data[$field['field_name']] ?? '') ?>" readonly>
+                                            <input type="text" class="form-control" value="<?= render_submission_value($submission_data[$field['field_name']] ?? null) ?>" readonly>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -322,20 +348,7 @@
                 <?php endif; ?>
                 
                 <div>
-                    <!-- Template download for requestors and other users -->
-                    <div class="btn-group">
-                        <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                            Template
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="<?= base_url('forms/download/pdf/' . esc($form['code'])) ?>">
-                                <i class="fas fa-file-pdf me-2 text-danger"></i> PDF Template
-                            </a></li>
-                            <li><a class="dropdown-item" href="<?= base_url('forms/download/word/' . esc($form['code'])) ?>">
-                                <i class="fas fa-file-word me-2 text-primary"></i> Word Template
-                            </a></li>
-                        </ul>
-                    </div>
+                    <!-- Template download removed per request -->
                 </div>
             </div>
             
@@ -346,7 +359,7 @@
             $userId = session()->get('user_id');
 
             // Use model helper to determine completion status to avoid divergent checks
-+            $submissionModel = new \App\Models\FormSubmissionModel();
+            $submissionModel = new \App\Models\FormSubmissionModel();
             $isCompleted = $submissionModel->isCompleted($submission);
 
             if ($userType === 'requestor' && $isCompleted) {
