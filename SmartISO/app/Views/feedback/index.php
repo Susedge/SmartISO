@@ -6,7 +6,7 @@
         <h3><?= esc($title ?? 'Feedback') ?></h3>
     </div>
     <div class="card-body">
-        <?php if (!empty($feedbacks)): ?>
+        <?php if (!empty($feedback) || !empty($feedbacks)): ?>
             <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
@@ -18,11 +18,11 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($feedbacks as $feedback): ?>
+                        <?php foreach (($feedbacks ?? $feedback) as $feedback): ?>
                         <tr>
                             <td><?= esc($feedback['id']) ?></td>
                             <td><?= esc($feedback['user_name'] ?? $feedback['user_id']) ?></td>
-                            <td><?= esc($feedback['message']) ?></td>
+                            <td><?= esc($feedback['comments'] ?? $feedback['message'] ?? '') ?></td>
                             <td><?= esc($feedback['created_at']) ?></td>
                         </tr>
                         <?php endforeach; ?>

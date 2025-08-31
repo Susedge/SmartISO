@@ -544,6 +544,69 @@ public function updateSystemConfig()
     } else {
         return redirect()->back()->with('error', 'Failed to update configuration');
     }
-}
+    }
 
-}
+    /**
+     * Export the entire database as a SQL file and stream for download.
+     * Uses a PHP-based exporter for portability (does not rely on mysqldump).
+     */
+    public function exportDatabase()
+    {
+        // Double-check session user type (route already filters admin/superuser)
+        $userType = session()->get('user_type');
+        if (!in_array($userType, ['admin', 'superuser'])) {
+            return redirect()->to('/admin/configurations?type=system')->with('error', 'Unauthorized');
+        }
+
+        $db = \Config\Database::connect();
+
+        $filename = 'db_backup_' . date('Ymd_His') . '.sql';
+
+        // Stream headers
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/sql');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
+        header('Pragma: no-cache');
+
+        // Output header comment
+        echo "-- Database Backup\n-- Generated: " . date('c') . "\n\n";
+
+        // Get all tables
+        $tables = [];
+        $result = $db->query('SHOW TABLES');
+        foreach ($result->getResultArray() as $row) {
+            $tables[] = array_values($row)[0];
+        }
+
+        foreach ($tables as $table) {
+            echo "--\n-- Structure for table `{$table}`\n--\n\n";
+            echo "DROP TABLE IF EXISTS `{$table}`;\n";
+
+            $createRes = $db->query("SHOW CREATE TABLE `{$table}`");
+            $createRow = $createRes->getRowArray();
+            $createSql = $createRow['Create Table'] ?? array_values($createRow)[1] ?? '';
+            echo $createSql . ";\n\n";
+
+            // Data
+            $rows = $db->query("SELECT * FROM `{$table}`");
+            $rowCount = $rows->getNumRows();
+            if ($rowCount > 0) {
+                echo "--\n-- Dumping data for table `{$table}`\n--\n\n";
+                foreach ($rows->getResultArray() as $r) {
+                    $cols = array_map(function($c){ return "`" . str_replace('`', '``', $c) . "`"; }, array_keys($r));
+                    $vals = array_map(function($v) {
+                        if ($v === null) return 'NULL';
+                        return "'" . addslashes($v) . "'";
+                    }, array_values($r));
+                    echo "INSERT INTO `{$table}` (" . implode(', ', $cols) . ") VALUES (" . implode(', ', $vals) . ");\n";
+                }
+                echo "\n";
+            }
+
+            if (function_exists('ob_flush')) { @ob_flush(); }
+            if (function_exists('flush')) { @flush(); }
+        }
+
+        exit;
+    }

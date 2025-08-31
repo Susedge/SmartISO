@@ -203,6 +203,8 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->get('configurations/delete-template/(:num)', 'Admin\Configurations::deleteTemplate/$1');
     $routes->post('configurations/upload-template/(:num)', 'Admin\Configurations::uploadTemplate/$1');
     $routes->post('configurations/update-system-config', 'Admin\Configurations::updateSystemConfig');
+    // Database backup (download SQL dump)
+    $routes->get('configurations/backup-db', 'Admin\Configurations::exportDatabase');
     
     // Office management routes (replaces departments)
     $routes->get('office', 'Admin\Office::index');

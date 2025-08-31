@@ -283,6 +283,59 @@ class FormSubmissionModel extends Model
     }
 
     /**
+     * Cancel a submission by the requestor.
+     * Ensures submission belongs to user and is not already completed or serviced.
+     */
+    public function cancelSubmission($submissionId, $userId)
+    {
+        $submission = $this->find($submissionId);
+        if (empty($submission)) {
+            return false;
+        }
+
+        // Only requestor can cancel their submission
+        if ($submission['submitted_by'] != $userId) {
+            return false;
+        }
+
+        // Do not allow cancellation if already completed or serviced
+        if (!empty($submission['completed']) && $submission['completed'] == 1) {
+            return false;
+        }
+
+        if (!empty($submission['service_staff_signature_date']) || !empty($submission['requestor_signature_date'])) {
+            return false;
+        }
+
+        $update = ['status' => 'cancelled'];
+
+        if ($this->db->fieldExists('cancelled_at', 'form_submissions')) {
+            $update['cancelled_at'] = date('Y-m-d H:i:s');
+        }
+
+        $result = $this->update($submissionId, $update);
+
+        if ($result) {
+            // Notify approver if present that the request was cancelled
+            try {
+                $notificationModel = new \App\Models\NotificationModel();
+                if (!empty($submission['approver_id'])) {
+                    // Try to get form code for context
+                    $formModel = new \App\Models\FormModel();
+                    $form = $formModel->find($submission['form_id']);
+                    $formCode = $form['code'] ?? '';
+                    $notificationModel->createCancellationNotification($submissionId, $submission['approver_id'], $formCode);
+                }
+            } catch (\Exception $e) {
+                // Swallow notification errors but keep cancellation success
+                log_message('error', 'Failed to create cancellation notification: ' . $e->getMessage());
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * Check if a submission is completed.
      * Accepts either a submission array or an ID.
      * Returns boolean.

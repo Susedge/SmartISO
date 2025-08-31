@@ -348,7 +348,7 @@
                 <?php endif; ?>
                 
                 <div>
-                    <!-- Template download removed per request -->
+                    <!-- Feedback indicator or submit button handled below -->
                 </div>
             </div>
             
@@ -372,7 +372,31 @@
                 </a>
             <?php
                 }
+                else {
+                    // Show a small badge and link to view existing feedback
+                    // Try to fetch the feedback id to link to view
+                    $fb = $feedbackModel->getFeedbackBySubmissionAndUser($submission['id'], $userId) ?? [];
+                    $fbId = $fb['id'] ?? null;
+            ?>
+                <a href="<?= $fbId ? base_url('feedback/view/' . $fbId) : base_url('feedback') ?>" class="btn btn-sm btn-success mt-3">
+                    <i class="fas fa-check-circle me-1"></i> Feedback submitted
+                </a>
+            <?php
+                }
             }
+            
+            // Show cancel button for requestor when submission is cancellable
+            $cancellableStatuses = ['submitted', 'approved', 'pending_service'];
+            if ($userType === 'requestor' && in_array($submission['status'] ?? '', $cancellableStatuses) && empty($submission['service_staff_signature_date']) && empty($submission['requestor_signature_date'])):
+            ?>
+                <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline-block ms-2 mt-3">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
+                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this request?')">
+                        <i class="bi bi-x-circle"></i> Cancel Request
+                    </button>
+                </form>
+            <?php endif; ?>
             ?>
         </div>
     </div>

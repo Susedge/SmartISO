@@ -245,6 +245,22 @@ class NotificationModel extends Model
     }
 
     /**
+     * Create notification for cancellation initiated by requestor
+     */
+    public function createCancellationNotification($submissionId, $userId, $formCode = '')
+    {
+        $message = 'A service request' . (!empty($formCode) ? " ({$formCode})" : '') . ' has been cancelled by the requestor.';
+        $this->insert([
+            'user_id'       => $userId,
+            'submission_id' => $submissionId,
+            'title'         => 'Request Cancelled',
+            'message'       => $message,
+            'read'          => 0,
+            'created_at'    => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    /**
      * Clean up old notifications (older than 30 days)
      */
     public function cleanupOldNotifications()

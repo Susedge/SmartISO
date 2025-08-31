@@ -606,12 +606,15 @@ class Forms extends BaseController
             $this->formSubmissionModel->approveSubmission($id, $userId, $comments);
 
             // If a service staff was selected, persist it and move to pending_service
+            // Use the model helper so the assignment notification is created
             if (!empty($serviceStaffId)) {
                 try {
+                    // If the submission needs a status change, ensure it's applied first
                     $this->formSubmissionModel->update($id, [
-                        'service_staff_id' => $serviceStaffId,
                         'status' => 'pending_service'
                     ]);
+
+                    $this->formSubmissionModel->assignServiceStaff($id, $serviceStaffId);
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to assign service staff during signForm: ' . $e->getMessage());
                 }
@@ -1105,8 +1108,15 @@ class Forms extends BaseController
             ];
             
             $this->formSubmissionModel->update($submissionId, $updateData);
-            
-            // Send notification to service staff - you can implement this
+
+            // Send notification to service staff via model helper so it is recorded
+            if (!empty($serviceStaffId)) {
+                try {
+                    $this->formSubmissionModel->assignServiceStaff($submissionId, $serviceStaffId);
+                } catch (\Exception $e) {
+                    log_message('error', 'Failed to send service assignment notification in submitApproval: ' . $e->getMessage());
+                }
+            }
             
             return redirect()->to('/forms/approved-by-me')
                         ->with('message', 'Form has been approved and assigned to service staff.');
@@ -1389,15 +1399,54 @@ class Forms extends BaseController
             }
             
             $this->formSubmissionModel->update($submissionId, $updateData);
-            
+
+            // Ensure the assignment notification is created by using the model helper
+            try {
+                $this->formSubmissionModel->assignServiceStaff($submissionId, $serviceStaffId);
+            } catch (\Exception $e) {
+                log_message('error', 'Failed to create assignment notification in assignServiceStaff: ' . $e->getMessage());
+            }
+
             log_message('info', "Service staff {$serviceStaff['full_name']} assigned to submission {$submissionId} by user {$userId}");
-            
+
             return redirect()->back()->with('message', 'Service staff assigned successfully');
             
         } catch (\Exception $e) {
             log_message('error', 'Error in assignServiceStaff: ' . $e->getMessage());
             return redirect()->back()->with('error', 'An error occurred while assigning service staff');
         }
+    }
+
+    /**
+     * Requestor cancels their request
+     */
+    public function cancelSubmission()
+    {
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+
+        if ($userType !== 'requestor') {
+            return redirect()->back()->with('error', 'Unauthorized action');
+        }
+
+        $submissionId = $this->request->getPost('submission_id');
+        if (empty($submissionId)) {
+            return redirect()->back()->with('error', 'Missing submission ID');
+        }
+
+        $submission = $this->formSubmissionModel->find($submissionId);
+        if (!$submission) {
+            return redirect()->back()->with('error', 'Submission not found');
+        }
+
+        // Ensure the submission belongs to the user and can be cancelled
+        $result = $this->formSubmissionModel->cancelSubmission($submissionId, $userId);
+
+        if ($result) {
+            return redirect()->to('/forms/my-submissions')->with('message', 'Your request has been cancelled');
+        }
+
+        return redirect()->back()->with('error', 'Unable to cancel the request. It may have already been processed.');
     }
 
 

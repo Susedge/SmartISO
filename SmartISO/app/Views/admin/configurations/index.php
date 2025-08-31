@@ -15,7 +15,12 @@
                     <li><a class="dropdown-item <?= $tableType == 'system' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=system') ?>">System Settings</a></li>
                 </ul>
             </div>
-            <?php if ($tableType != 'system'): ?>
+            <?php if ($tableType == 'system'): ?>
+                <?php $userType = session()->get('user_type'); ?>
+                <?php if (in_array($userType, ['admin', 'superuser'])): ?>
+                    <a href="<?= base_url('admin/configurations/backup-db') ?>" class="btn btn-outline-secondary me-2">Download DB Backup</a>
+                <?php endif; ?>
+            <?php else: ?>
                 <a href="<?= base_url('admin/configurations/new?type=' . $tableType) ?>" class="btn btn-primary">Add <?= ucfirst(rtrim($tableType, 's')) ?></a>
             <?php endif; ?>
         </div>
