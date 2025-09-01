@@ -610,3 +610,4 @@ public function updateSystemConfig()
 
         exit;
     }
+}

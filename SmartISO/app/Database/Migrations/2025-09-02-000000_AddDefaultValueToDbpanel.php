@@ -4,7 +4,7 @@ namespace App\Database\Migrations;
 
 use CodeIgniter\Database\Migration;
 
-class AddDefaultValueToDbpanel extends Migration
+class AddDefaultValueToDbpanel_v2 extends Migration
 {
     public function up()
     {
