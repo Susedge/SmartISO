@@ -774,5 +774,24 @@
             </div>
         </div>
 
+        <!-- DOCX Tags Modal (shared) -->
+        <div class="modal fade" id="docxTagsModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Detected DOCX Tags</h5>
+                        <button type="button" class="btn-close" id="docxTagsClose" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="docxTagsContent" style="max-height:360px;overflow:auto;">
+                        <!-- Populated dynamically by forms view JS -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="docxTagsCancel">Dismiss</button>
+                        <button type="button" class="btn btn-primary" id="docxTagsApply">Apply Values</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
 </body>
 </html>

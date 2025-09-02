@@ -14,17 +14,35 @@
         <a href="<?= base_url('forms') ?>" class="btn btn-secondary">Back to Forms</a>
     </div>
     <div class="card-body">
+    <style>
+    /* Improve dynamic form layout spacing and width */
+    #dynamicForm { max-width: 1100px; margin: 0 auto; }
+    #dynamicForm .row { margin-left: -6px; margin-right: -6px; }
+    #dynamicForm .row > [class*="col-"] { padding-left: 6px; padding-right: 6px; }
+    #dynamicForm .mb-3 { margin-bottom: .9rem; }
+    /* Ensure selects and inputs don't overflow */
+    #dynamicForm .form-control, #dynamicForm .form-select, #dynamicForm textarea { width: 100%; box-sizing: border-box; }
+    </style>
         <?php if (empty($panel_fields)): ?>
             <div class="alert alert-warning">
                 No fields configured for this form.
             </div>
         <?php else: ?>
+            <div class="mb-3 p-3 border rounded bg-light">
+                <label class="form-label fw-bold">Prefill From DOCX Template</label>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <input type="file" id="prefill_docx" accept=".docx" class="form-control" style="max-width:260px;">
+                    <button type="button" id="btnUploadDocx" class="btn btn-outline-primary">Upload & Prefill</button>
+                    <div id="docxStatus" class="small text-muted"></div>
+                </div>
+                <small class="text-muted">Upload a DOCX file that contains Content Controls (Developer > Controls) whose Tag or Alias matches the form field names (field_name). Matching values will be auto-filled.</small>
+            </div>
+
             <form action="<?= base_url('forms/submit') ?>" method="post" id="dynamicForm" enctype="multipart/form-data">
                 <?= csrf_field() ?>
                 <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
                 <input type="hidden" name="panel_name" value="<?= $panel_name ?>">
                 
-                <div class="row">
                     <?php 
                     $curWidth = 0;
                     $totalFields = count($panel_fields);
@@ -51,27 +69,28 @@
                         $isRequired = isset($field['required']) && $field['required'] == 1;
                         $bumpNext = isset($field['bump_next_field']) && $field['bump_next_field'] == 1;
                         // Start new row or handle overflow by summing widths
+                        // Start a new row if needed
                         if ($curWidth === 0) {
                             echo '<div class="row">';
                         } elseif ($curWidth + $fieldWidth > 12) {
+                            // close current row and start a new one when width overflows
                             echo '</div><div class="row">';
                             $curWidth = 0;
                         }
-                    ?>
-                        <div class="col-md-<?= $fieldWidth ?> mb-3">
-                            <label for="<?= $field['field_name'] ?>" class="form-label">
-                                <?= esc($field['field_label']) ?> <?= $isRequired ? '<span class="text-danger">*</span>' : '' ?>
-                            </label>
-                            
-                            <?php if ($field['field_type'] === 'input'): ?>
-                                <input type="text" 
-                                    class="form-control" 
-                                    id="<?= $field['field_name'] ?>" 
-                                    name="<?= $field['field_name'] ?>" 
+
+                        // Column wrapper for this field
+                        echo '<div class="col-md-' . $fieldWidth . ' mb-3">';
+                        ?>
+                            <label for="<?= esc($field['field_name']) ?>" class="form-label"><?= esc($field['field_label']) ?> <?= $isRequired ? '<span class="text-danger">*</span>' : '' ?></label>
+                        <?php if ($field['field_type'] === 'input'): ?>
+                                <input type="text"
+                                    class="form-control"
+                                    id="<?= $field['field_name'] ?>"
+                                    name="<?= $field['field_name'] ?>"
                                     <?= $field['length'] ? 'maxlength="' . $field['length'] . '"' : '' ?>
                                     <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
-                                    <?= $isRequired ? 'required' : '' ?>>
-                                    
+                                    <?= $isRequired ? 'required' : '' ?> >
+
                             <?php elseif ($field['field_type'] === 'dropdown'): ?>
                                 <select class="form-select" 
                                     id="<?= $field['field_name'] ?>" 
@@ -79,11 +98,43 @@
                                     <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
                                     <?= $isRequired ? 'required' : '' ?>>
                                     <option value="">Select...</option>
-                                    <?php if ($field['code_table'] === 'departments'): ?>
-                                        <?php foreach ($departments as $dept): ?>
-                                            <option value="<?= $dept['id'] ?>"><?= esc($dept['code'] . ' - ' . $dept['description']) ?></option>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
+                                    <?php
+                                    // Priority: code_table (DB-driven), then explicit options array or default_value (JSON or newline list)
+                                    if (!empty($field['code_table']) && $field['code_table'] === 'departments'):
+                                        foreach ($departments as $dept):
+                                            $val = $dept['id'];
+                                            $lbl = $dept['code'] . ' - ' . $dept['description'];
+                                    ?>
+                                            <option value="<?= esc($val) ?>"><?= esc($lbl) ?></option>
+                                        <?php endforeach;
+                                    else:
+                                        $opts = [];
+                                        if (!empty($field['options']) && is_array($field['options'])) {
+                                            $opts = $field['options'];
+                                        } elseif (!empty($field['default_value'])) {
+                                            $decoded = json_decode($field['default_value'], true);
+                                            if (is_array($decoded) && !empty($decoded)) {
+                                                $opts = $decoded;
+                                            } else {
+                                                $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+                                                if (!empty($lines)) $opts = $lines;
+                                            }
+                                        }
+
+                                        foreach ($opts as $opt):
+                                            // support new object shape {label, sub_field}
+                                            if (is_array($opt)) {
+                                                $optLabel = $opt['label'] ?? '';
+                                                $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
+                                            } else {
+                                                $optLabel = $opt;
+                                                $optValue = $opt;
+                                            }
+                                    ?>
+                                            <option value="<?= esc($optValue) ?>"><?= esc($optLabel) ?></option>
+                                        <?php endforeach;
+                                    endif;
+                                    ?>
                                 </select>
                                 
                             <?php elseif ($field['field_type'] === 'textarea'): ?>
@@ -128,19 +179,31 @@
                                     }
                                 }
                                 $hasOther = false;
-                                foreach ($opts as $opt) { if (preg_match('/^others?$/i', trim($opt))) { $hasOther = true; break; } }
+                                foreach ($opts as $opt) {
+                                    $test = is_array($opt) ? ($opt['label'] ?? $opt['sub_field'] ?? '') : $opt;
+                                    if (preg_match('/^others?$/i', trim($test))) { $hasOther = true; break; }
+                                }
                                 ?>
-                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <div class="d-flex flex-wrap gap-2 align-items-center w-100">
                                     <?php if (!empty($opts)): ?>
-                                        <?php foreach ($opts as $oi => $opt): ?>
+                                            <?php foreach ($opts as $oi => $opt): ?>
+                                            <?php
+                                                if (is_array($opt)) {
+                                                    $optLabel = $opt['label'] ?? '';
+                                                    $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
+                                                } else {
+                                                    $optLabel = $opt;
+                                                    $optValue = $opt;
+                                                }
+                                            ?>
                                             <div class="form-check form-check-inline">
                                                 <input class="form-check-input" type="checkbox" 
                                                     id="<?= $field['field_name'] ?>_<?= $oi ?>" 
                                                     name="<?= $field['field_name'] ?>[]" 
-                                                    value="<?= esc($opt) ?>"
+                                                    value="<?= esc($optValue) ?>"
                                                     <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
                                                     <?= $isRequired ? 'required' : '' ?> >
-                                                <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($opt) ?></label>
+                                                <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($optLabel) ?></label>
                                             </div>
                                         <?php endforeach; ?>
                                         <?php if ($hasOther): ?>
@@ -215,12 +278,13 @@
                                     </div>
                                 </div>
                             <?php endif; ?>
-                        </div>
+                        </div> <!-- /.col -->
                     <?php 
                         // Update current width and decide if we should close the row
                         $curWidth += $fieldWidth;
                         $isLast = ($index == $totalFields - 1);
-                        if (!$bumpNext || $isLast) {
+                        // Close row when full or when this is the last field
+                        if ($curWidth >= 12 || $isLast) {
                             echo '</div>'; // close current row
                             $curWidth = 0;
                         }
@@ -231,7 +295,7 @@
                         echo '</div>';
                     }
                     ?>
-                </div>
+                
                 
                 <!-- Priority and Reference File Section -->
                 <div class="row mt-4">
@@ -301,6 +365,316 @@
     </div>
 </div>
 
+<script>
+// DOCX Prefill logic
+// Modal helpers: prefer Bootstrap's Modal API, otherwise use a lightweight fallback
+function showDocxModal(){
+    const modalEl = document.getElementById('docxTagsModal');
+    if(!modalEl) return;
+    // Bootstrap 5+ available?
+    try{
+        if(window.bootstrap && typeof window.bootstrap.Modal === 'function'){
+            let inst = window.bootstrap.Modal.getInstance(modalEl) || new window.bootstrap.Modal(modalEl);
+            inst.show();
+            return;
+        }
+    }catch(e){ /* ignore and fallback */ }
+    // Fallback: simple show with backdrop
+    modalEl.classList.add('show');
+    modalEl.style.display = 'block';
+    modalEl.setAttribute('aria-hidden','false');
+    // add backdrop
+    if(!document.querySelector('.modal-backdrop')){
+        const back = document.createElement('div');
+        back.className = 'modal-backdrop fade show';
+        document.body.appendChild(back);
+    }
+}
+
+function hideDocxModal(){
+    const modalEl = document.getElementById('docxTagsModal');
+    if(!modalEl) return;
+    try{
+        if(window.bootstrap && typeof window.bootstrap.Modal === 'function'){
+            let inst = window.bootstrap.Modal.getInstance(modalEl);
+            if(inst) inst.hide(); else {
+                modalEl.classList.remove('show');
+                modalEl.style.display = 'none';
+            }
+            return;
+        }
+    }catch(e){ /* ignore and fallback */ }
+    modalEl.classList.remove('show');
+    modalEl.style.display = 'none';
+    modalEl.setAttribute('aria-hidden','true');
+    const back = document.querySelector('.modal-backdrop');
+    if(back) back.remove();
+}
+
+let DOCX_CSRF_NAME = '<?= csrf_token() ?>';
+let DOCX_CSRF_HASH = '<?= csrf_hash() ?>';
+document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
+    const input = document.getElementById('prefill_docx');
+    const statusEl = document.getElementById('docxStatus');
+    statusEl.className = 'small text-info';
+    if(!input.files || !input.files[0]) {
+        statusEl.textContent = 'Please choose a DOCX file first.';
+        return;
+    }
+    const file = input.files[0];
+    if(!/\.docx$/i.test(file.name)) {
+        statusEl.textContent = 'Only .docx files supported.';
+        return;
+    }
+    const formData = new FormData();
+    formData.append('docx', file);
+    // Append CSRF token
+    formData.append(DOCX_CSRF_NAME, DOCX_CSRF_HASH);
+    statusEl.textContent = 'Uploading and parsing...';
+    fetch('<?= base_url('forms/upload-docx/' . esc($form['code'])) ?>', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    }).then(r => r.json())
+      .then(data => {
+        // Rotate CSRF if provided
+        if(data.csrf_name && data.csrf_hash){
+            DOCX_CSRF_NAME = data.csrf_name;
+            DOCX_CSRF_HASH = data.csrf_hash;
+        }
+        if(!data.success){
+            statusEl.className = 'small text-danger';
+            statusEl.textContent = data.error || 'Failed to parse file';
+            return;
+        }
+        let mapped = data.mapped || {};
+        // Populate the tags modal for user confirmation
+        const modalEl = document.getElementById('docxTagsModal');
+        const content = document.getElementById('docxTagsContent');
+        content.innerHTML = '';
+        const keys = Object.keys(mapped || {});
+        if(keys.length === 0){
+            content.innerHTML = '<div class="alert alert-warning">No content-control tags found in the document.</div>';
+            showDocxModal();
+        } else {
+            const table = document.createElement('table');
+            table.className = 'table table-sm table-striped mb-0';
+            const thead = document.createElement('thead');
+            thead.innerHTML = '<tr><th>Tag</th><th>Value</th><th>Apply?</th></tr>';
+            table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            keys.forEach(k => {
+                const tr = document.createElement('tr');
+                const tdTag = document.createElement('td'); tdTag.textContent = k;
+                const tdVal = document.createElement('td'); tdVal.textContent = mapped[k];
+                const tdChk = document.createElement('td');
+                const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = true; chk.dataset.tag = k;
+                tdChk.appendChild(chk);
+                tr.appendChild(tdTag); tr.appendChild(tdVal); tr.appendChild(tdChk);
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            content.appendChild(table);
+            showDocxModal();
+        }
+        // helper: attempt to apply a mapping key/value to a form field
+    function applyDocxMappingKey(key, val) {
+            console.debug('[DOCX_PREFILL] try tag:', key, 'value:', val);
+            // Try direct field match first (inputs/selects/textareas)
+            var direct = (document.getElementsByName(key) || [])[0] || null;
+            if (direct) {
+                var tag = (direct.tagName || '').toUpperCase();
+                if (tag === 'INPUT' || tag === 'TEXTAREA') {
+                    direct.value = val;
+                    console.info('[DOCX_PREFILL] direct match -> set value on', direct, key, val);
+                    return true;
+                } else if (tag === 'SELECT') {
+                    const opt = Array.from(direct.options).find(o => (o.value||'').toLowerCase() === (''+val).toLowerCase());
+                    if (opt) { direct.value = opt.value; console.info('[DOCX_PREFILL] direct select match -> set', key, opt.value); return true; }
+                }
+            }
+
+            // Try group match: name[] (checkbox groups)
+            var group = document.getElementsByName(key + '[]');
+            if (group && group.length) {
+                const parts = (val||'').split(/[,;]\s*/).filter(v=>v);
+                Array.prototype.forEach.call(group, function(chkbox){
+                    chkbox.checked = parts.some(p => p.toLowerCase() === (chkbox.value||'').toLowerCase());
+                });
+                console.info('[DOCX_PREFILL] group match -> name[]', key+'[]', 'values set:', parts);
+                return true;
+            }
+
+            // If key looks like FIELD_OPTION (e.g., SERVICES_LIGHTING), apply to option inside field
+            if (key && key.indexOf('_') !== -1) {
+                const idx = key.indexOf('_');
+                const base = key.substring(0, idx);
+                const optName = key.substring(idx + 1);
+                const tryNames = [base, base.toLowerCase(), base.toUpperCase()];
+                for (const bn of tryNames) {
+                    const grp = document.getElementsByName(bn + '[]');
+                    if (grp && grp.length) {
+                        Array.prototype.forEach.call(grp, function(chk){
+                            if ((chk.value||'').toLowerCase() === (optName||'').toLowerCase()) {
+                                chk.checked = true;
+                                console.info('[DOCX_PREFILL] field_option match -> checked', bn+'[]', chk.value);
+                            }
+                        });
+                        return true;
+                    }
+                    const sel = (document.getElementsByName(bn) || [])[0] || null;
+                    if (sel && sel.tagName && sel.tagName.toUpperCase() === 'SELECT') {
+                        const opt = Array.from(sel.options).find(o => (o.value||'').toLowerCase() === (optName||'').toLowerCase());
+                        if (opt) { sel.value = opt.value; console.info('[DOCX_PREFILL] field_option match -> select', bn, opt.value); return true; }
+                    }
+                    const inputs = document.getElementsByName(bn);
+                    if (inputs && inputs.length) {
+                        Array.prototype.forEach.call(inputs, function(i){
+                            if ((i.value||'').toLowerCase() === (optName||'').toLowerCase()) {
+                                i.checked = true;
+                                console.info('[DOCX_PREFILL] field_option match -> input', bn, i.value);
+                            }
+                        });
+                        return true;
+                    }
+                }
+            }
+            console.info('[DOCX_PREFILL] no match for tag:', key);
+            return false;
+        }
+    // expose globally for other script blocks
+    try { window.applyDocxMappingKey = applyDocxMappingKey; } catch(e) { /* ignore */ }
+
+        // wire apply/cancel
+        document.getElementById('docxTagsClose').onclick = function(){ hideDocxModal(); };
+        document.getElementById('docxTagsCancel').onclick = function(){ hideDocxModal(); };
+        document.getElementById('docxTagsApply').onclick = function(){
+            let applied = 0;
+            const checks = content.querySelectorAll('input[type=checkbox][data-tag]');
+            checks.forEach(chk => {
+                if(!chk.checked) return;
+                const key = chk.dataset.tag;
+                const val = mapped[key];
+                console.debug('[DOCX_PREFILL] applying tag', key, '->', val);
+                // First, attempt combined or direct mapping
+                const ok = applyDocxMappingKey(key, val);
+                if (ok) { applied++; console.debug('[DOCX_PREFILL] tag applied by helper:', key); return; }
+
+                // Fallback: if value seems like list, try matching parts to group with same base name using getElementsByName
+                let group = document.getElementsByName(key+'[]');
+                if (group && group.length) {
+                    const parts = (val||'').split(/[,;]\s*/).filter(v=>v);
+                    Array.prototype.forEach.call(group, function(chkbox){ chkbox.checked = parts.some(p => p.toLowerCase() === (chkbox.value||'').toLowerCase()); });
+                    applied++; console.debug('[DOCX_PREFILL] fallback applied to group', key+'[]', 'values:', parts);
+                    return;
+                }
+                console.debug('[DOCX_PREFILL] no element found for tag (fallback):', key);
+            });
+            hideDocxModal();
+            statusEl.className = 'small text-success';
+            statusEl.textContent = 'Prefill complete. Fields updated: '+applied+' (from '+keys.length+' tags).';
+        };
+    }).catch(err => {
+        statusEl.className = 'small text-danger';
+        statusEl.textContent = 'Error: '+err;
+      });
+});
+</script>
+<script>
+// Move DOCX modal to document.body to avoid layout issues if CSS mismatches cause it to render inline
+document.addEventListener('DOMContentLoaded', function(){
+    try{
+        const modalEl = document.getElementById('docxTagsModal');
+        if(modalEl && modalEl.parentNode !== document.body){
+            document.body.appendChild(modalEl);
+        }
+    }catch(e){ console.warn('Could not relocate docx modal', e); }
+});
+</script>
+<script>
+// Apply localStorage prefill if navigated from index
+document.addEventListener('DOMContentLoaded', function(){
+    try {
+        const key = 'prefill_<?= esc($form['code']) ?>';
+        const raw = localStorage.getItem(key);
+        if(raw){
+            const mapped = JSON.parse(raw);
+            // populate modal for preview
+            const modalEl = document.getElementById('docxTagsModal');
+            const content = document.getElementById('docxTagsContent');
+            content.innerHTML = '';
+            const keys = Object.keys(mapped);
+            if(keys.length === 0){
+                content.innerHTML = '<div class="alert alert-warning">No tags available in saved prefill.</div>';
+            } else {
+                const table = document.createElement('table');
+                table.className = 'table table-sm table-striped mb-0';
+                const thead = document.createElement('thead');
+                thead.innerHTML = '<tr><th>Tag</th><th>Value</th><th>Apply?</th></tr>';
+                table.appendChild(thead);
+                const tbody = document.createElement('tbody');
+                keys.forEach(k => {
+                    const tr = document.createElement('tr');
+                    const tdTag = document.createElement('td'); tdTag.textContent = k;
+                    const tdVal = document.createElement('td'); tdVal.textContent = mapped[k];
+                    const tdChk = document.createElement('td');
+                    const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = true; chk.dataset.tag = k;
+                    tdChk.appendChild(chk);
+                    tr.appendChild(tdTag); tr.appendChild(tdVal); tr.appendChild(tdChk);
+                    tbody.appendChild(tr);
+                });
+                table.appendChild(tbody);
+                content.appendChild(table);
+            }
+            showDocxModal();
+            document.getElementById('docxTagsClose').onclick = function(){ hideDocxModal(); };
+            document.getElementById('docxTagsCancel').onclick = function(){ hideDocxModal(); };
+            document.getElementById('docxTagsApply').onclick = function(){
+                let applied = 0;
+                const checks = content.querySelectorAll('input[type=checkbox][data-tag]');
+                checks.forEach(chk => {
+                    if(!chk.checked) return;
+                    const key = chk.dataset.tag;
+                    const val = mapped[key];
+                    console.debug('[DOCX_PREFILL][localStorage] applying tag', key, '->', val);
+                    // prefer shared helper if available
+                    if (window.applyDocxMappingKey && typeof window.applyDocxMappingKey === 'function'){
+                        if (window.applyDocxMappingKey(key, val)) { applied++; console.debug('[DOCX_PREFILL][localStorage] applied by helper:', key); return; }
+                    }
+                    // fallback: older logic using getElementsByName
+                    let el = (document.getElementsByName(key) || [])[0] || null;
+                    if(!el){
+                        const group = document.getElementsByName(key+'[]');
+                        if(group && group.length){
+                            const parts = (val||'').split(/[,;]\s*/).filter(v=>v);
+                            Array.prototype.forEach.call(group, function(chkbox){ chkbox.checked = parts.some(p => p.toLowerCase() === (chkbox.value||'').toLowerCase()); });
+                            applied++; console.debug('[DOCX_PREFILL][localStorage] fallback applied to group', key+'[]', parts); return;
+                        }
+                    }
+                    if(el){
+                        const tag = (el.tagName||'').toUpperCase();
+                        if(tag==='INPUT' || tag==='TEXTAREA') el.value = val;
+                        if(tag==='SELECT'){
+                            const opt = Array.from(el.options).find(o => (o.value||'').toLowerCase()===(''+val).toLowerCase());
+                            if(opt) el.value = opt.value;
+                        }
+                        applied++; console.debug('[DOCX_PREFILL][localStorage] applied direct to', key);
+                    }
+                });
+                hideDocxModal();
+                if(applied>0){
+                    const statusEl = document.getElementById('docxStatus');
+                    if(statusEl){
+                        statusEl.className = 'small text-success';
+                        statusEl.textContent = 'Prefill applied from previous upload. Fields updated: '+applied+'.';
+                    }
+                }
+                localStorage.removeItem(key);
+            };
+        }
+    } catch(e){ console.warn('Prefill error', e); }
+});
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Handle bump_next_field functionality

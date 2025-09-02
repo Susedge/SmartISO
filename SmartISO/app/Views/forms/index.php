@@ -41,6 +41,10 @@
                             <a href="<?= base_url('forms/download/uploaded/' . esc($form['code'])) ?>" class="btn btn-outline-secondary" title="Download PDF template">
                                 <i class="fas fa-file-download"></i>
                             </a>
+                            <button type="button" class="btn btn-outline-primary ms-1 btn-prefill-docx" data-form-code="<?= esc($form['code']) ?>" title="Upload DOCX to Prefill">
+                                <i class="fas fa-file-upload"></i>
+                            </button>
+                            <input type="file" accept=".docx" class="d-none docx-input" data-form-code="<?= esc($form['code']) ?>">
                         </div>
                         <?php endif; ?>
                     </div>
@@ -56,4 +60,44 @@
         </div>
     </div>
 </div>
+<script>
+// Inline prefill from index: upload docx then redirect to view with localStorage stash
+let PREFILL_CSRF_NAME = '<?= csrf_token() ?>';
+let PREFILL_CSRF_HASH = '<?= csrf_hash() ?>';
+document.addEventListener('click', function(e){
+    if(e.target.closest('.btn-prefill-docx')){
+        const btn = e.target.closest('.btn-prefill-docx');
+        const wrap = btn.parentElement;
+        const input = wrap.querySelector('.docx-input');
+        input.click();
+    }
+});
+document.addEventListener('change', function(e){
+    const input = e.target;
+    if(input.classList.contains('docx-input')){
+        if(!input.files[0]) return;
+        const file = input.files[0];
+        const formCode = input.dataset.formCode;
+    const fd = new FormData();
+    fd.append('docx', file);
+    fd.append(PREFILL_CSRF_NAME, PREFILL_CSRF_HASH);
+    fetch('<?= base_url('forms/upload-docx') ?>/'+formCode, {method:'POST', body: fd, credentials: 'same-origin'})
+          .then(r=>r.json())
+          .then(data=>{
+              if(data.csrf_name && data.csrf_hash){
+                  PREFILL_CSRF_NAME = data.csrf_name;
+                  PREFILL_CSRF_HASH = data.csrf_hash;
+              }
+              if(data.success){
+                  // Store mapping temporarily
+                  localStorage.setItem('prefill_'+formCode, JSON.stringify(data.mapped||{}));
+                  window.location = '<?= base_url('forms/view') ?>/'+formCode+'#prefill';
+              } else {
+                  alert('Prefill failed: '+(data.error||'Unknown error'));
+              }
+          })
+          .catch(err=>alert('Upload error: '+err));
+    }
+});
+</script>
 <?= $this->endSection() ?>

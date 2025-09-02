@@ -68,7 +68,7 @@
                             <option value="input">Input</option>
                             <option value="textarea">Textarea</option>
                             <option value="dropdown">Dropdown</option>
-                            <option value="radio">Radio</option>
+                            <option value="radio">Checkboxes</option>
                             <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
                             <option value="yesno">Yes/No</option>
@@ -165,7 +165,7 @@
                             <option value="input">Input</option>
                             <option value="textarea">Textarea</option>
                             <option value="dropdown">Dropdown</option>
-                            <option value="radio">Radio</option>
+                            <option value="radio">Checkboxes</option>
                             <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
                             <option value="yesno">Yes/No</option>
@@ -251,9 +251,14 @@
             </div>
             <div class="modal-body">
                 <div id="optionsManagerList" class="mb-3"></div>
-                <div class="d-flex gap-2">
-                    <input type="text" id="optionsManagerNewInput" class="form-control" placeholder="New option">
-                    <button type="button" id="optionsManagerAddBtn" class="btn btn-outline-primary">Add</button>
+                <div class="row g-2">
+                    <div class="col-md-7">
+                        <input type="text" id="optionsManagerNewInput" class="form-control" placeholder="Option label">
+                    </div>
+                    <div class="col-md-5 d-flex">
+                        <input type="text" id="optionsManagerNewSubfield" class="form-control me-2" placeholder="Option field name (optional)">
+                        <button type="button" id="optionsManagerAddBtn" class="btn btn-outline-primary">Add</button>
+                    </div>
                 </div>
                 <small class="text-muted d-block mt-2">Use the buttons to add, edit (focus), or remove options. Click Save to persist options to the field.</small>
             </div>

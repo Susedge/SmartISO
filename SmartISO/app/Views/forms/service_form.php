@@ -162,21 +162,43 @@ document.addEventListener('change', function(e) {
                                                     <?= (isset($field['required']) && $field['required']) ? 'required' : '' ?>>
                                                 <option value="">Select...</option>
                                                 <?php 
-                                                // Get options from code table if specified
+                                                // Get options from code table if specified, otherwise support stored option objects or newline lists
                                                 if (!empty($field['code_table'])) {
                                                     $options = [];
                                                     $db = \Config\Database::connect();
                                                     $query = $db->table($field['code_table'])->get();
-                                                     
                                                     if ($query) {
                                                         $options = $query->getResultArray();
                                                     }
-                                                    
                                                     foreach ($options as $option) {
                                                         $valueOpt = $option['code'] ?? $option['id'] ?? '';
                                                         $label = $option['description'] ?? $option['name'] ?? $valueOpt;
                                                         $selected = ($submission_data[$field['field_name']] ?? '') == $valueOpt ? 'selected' : '';
-                                                        echo "<option value=\"{$valueOpt}\" {$selected}>{$label}</option>";
+                                                        echo "<option value=\"" . esc($valueOpt) . "\" {$selected}>" . esc($label) . "</option>";
+                                                    }
+                                                } else {
+                                                    $opts = [];
+                                                    if (!empty($field['options']) && is_array($field['options'])) {
+                                                        $opts = $field['options'];
+                                                    } elseif (!empty($field['default_value'])) {
+                                                        $decoded = json_decode($field['default_value'], true);
+                                                        if (is_array($decoded) && !empty($decoded)) {
+                                                            $opts = $decoded;
+                                                        } else {
+                                                            $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+                                                            if (!empty($lines)) $opts = $lines;
+                                                        }
+                                                    }
+                                                    foreach ($opts as $opt) {
+                                                        if (is_array($opt)) {
+                                                            $optLabel = $opt['label'] ?? '';
+                                                            $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
+                                                        } else {
+                                                            $optLabel = $opt;
+                                                            $optValue = $opt;
+                                                        }
+                                                        $selected = ($submission_data[$field['field_name']] ?? '') == $optValue ? 'selected' : '';
+                                                        echo "<option value=\"" . esc($optValue) . "\" {$selected}>" . esc($optLabel) . "</option>";
                                                     }
                                                 }
                                                 ?>
@@ -203,22 +225,36 @@ document.addEventListener('change', function(e) {
                                                         if (!empty($lines)) $opts = $lines;
                                                     }
                                                 }
+                                                // Support multi-value submission for radio fields now rendered as checkboxes
+                                                $currentVal = is_array($value) ? $value : (strlen($value) ? [$value] : []);
                                             ?>
                                             <div class="d-flex flex-wrap gap-2 align-items-center">
                                                 <?php foreach ($opts as $oi => $opt): ?>
+                                                    <?php
+                                                        if (is_array($opt)) {
+                                                            $optLabel = $opt['label'] ?? '';
+                                                            $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
+                                                        } else {
+                                                            $optLabel = $opt;
+                                                            $optValue = $opt;
+                                                        }
+                                                        $checked = in_array((string)$optValue, array_map('strval', $currentVal)) ? 'checked' : '';
+                                                        $reqAttr = (isset($field['required']) && $field['required']) ? ($oi === 0 ? 'required' : '') : '';
+                                                    ?>
                                                     <div class="form-check form-check-inline">
-                                                        <input class="form-check-input" type="radio" 
+                                                        <input class="form-check-input" type="checkbox" 
                                                             id="<?= $field['field_name'] ?>_<?= $oi ?>" 
-                                                            name="<?= $field['field_name'] ?>" 
-                                                            value="<?= esc($opt) ?>" 
-                                                            <?= ($value == $opt) ? 'checked' : '' ?>
-                                                            <?= (isset($field['required']) && $field['required']) ? 'required' : '' ?> >
-                                                        <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($opt) ?></label>
+                                                            name="<?= $field['field_name'] ?>[]" 
+                                                            value="<?= esc($optValue) ?>" 
+                                                            <?= $checked ?>
+                                                            <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
+                                                            <?= $reqAttr ?> >
+                                                        <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($optLabel) ?></label>
                                                     </div>
                                                 <?php endforeach; ?>
                                                 <?php
                                                     $hasOther = false;
-                                                    foreach ($opts as $optCheck) { if (preg_match('/^others?$/i', trim($optCheck))) { $hasOther = true; break; } }
+                                                    foreach ($opts as $optCheck) { $test = is_array($optCheck) ? ($optCheck['label'] ?? $optCheck['sub_field'] ?? '') : $optCheck; if (preg_match('/^others?$/i', trim($test))) { $hasOther = true; break; } }
                                                 ?>
                                                 <?php if ($hasOther): ?>
                                                     <div class="d-inline-block ms-2">
@@ -250,17 +286,26 @@ document.addEventListener('change', function(e) {
                                                     }
                                                 }
                                                 $hasOther = false;
-                                                foreach ($opts as $opt) { if (preg_match('/^others?$/i', trim($opt))) { $hasOther = true; break; } }
+                                                foreach ($opts as $opt) { $test = is_array($opt) ? ($opt['label'] ?? $opt['sub_field'] ?? '') : $opt; if (preg_match('/^others?$/i', trim($test))) { $hasOther = true; break; } }
                                             ?>
                                             <div class="d-flex flex-wrap gap-2 align-items-center">
                                                 <?php foreach ($opts as $oi => $opt): ?>
+                                                    <?php
+                                                        if (is_array($opt)) {
+                                                            $optLabel = $opt['label'] ?? '';
+                                                            $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
+                                                        } else {
+                                                            $optLabel = $opt;
+                                                            $optValue = $opt;
+                                                        }
+                                                    ?>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox" 
                                                             id="<?= $field['field_name'] ?>_<?= $oi ?>" 
                                                             name="<?= $field['field_name'] ?>[]" 
-                                                            value="<?= esc($opt) ?>" 
+                                                            value="<?= esc($optValue) ?>" 
                                                             <?= (isset($field['required']) && $field['required']) ? 'required' : '' ?> >
-                                                        <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($opt) ?></label>
+                                                        <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($optLabel) ?></label>
                                                     </div>
                                                 <?php endforeach; ?>
                                                 <?php if ($hasOther): ?>

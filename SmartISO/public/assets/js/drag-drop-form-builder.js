@@ -873,8 +873,19 @@ class FormBuilder {
                         <option value="">Select ${label.toLowerCase()}</option>`;
                 if (fieldData.options && Array.isArray(fieldData.options)) {
                     fieldData.options.forEach(option => {
-                        const safe = this.escapeHtml(option);
-                        fieldHTML += `<option value="${safe}">${safe}</option>`;
+                        let optLabel = '';
+                        let optValue = '';
+                        if (typeof option === 'object' && option !== null) {
+                            optLabel = String(option.label || '');
+                            // legacy sub_label ignored; use {label, sub_field}
+                            optValue = String(option.sub_field || option.label || '');
+                        } else {
+                            optLabel = String(option);
+                            optValue = String(option);
+                        }
+                        const safeLabel = this.escapeHtml(optLabel);
+                        const safeVal = this.escapeHtml(optValue);
+                        fieldHTML += `<option value="${safeVal}">${safeLabel}</option>`;
                     });
                 } else {
                     fieldHTML += `
@@ -891,14 +902,27 @@ class FormBuilder {
                 fieldHTML += `<div class="d-flex flex-wrap gap-2 align-items-center">`;
                 if (fieldData.options && Array.isArray(fieldData.options)) {
                     fieldData.options.forEach((option, idx) => {
-                        const safe = this.escapeHtml(option);
+                        let optLabel = '';
+                        let optValue = '';
+                        if (typeof option === 'object' && option !== null) {
+                            optLabel = String(option.label || '');
+                            optValue = String(option.sub_field || option.label || '');
+                        } else {
+                            optLabel = String(option);
+                            optValue = String(option);
+                        }
+                        const safeLabel = this.escapeHtml(optLabel);
+                        const safeVal = this.escapeHtml(optValue);
                         fieldHTML += `<div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" name="${name}[]" id="${name}_${idx}" value="${safe}" disabled>
-                            <label class="form-check-label small" for="${name}_${idx}">${safe}</label>
+                            <input class="form-check-input" type="checkbox" name="${name}[]" id="${name}_${idx}" value="${safeVal}" disabled>
+                            <label class="form-check-label small" for="${name}_${idx}">${safeLabel}</label>
                         </div>`;
                     });
                     // If options include an "Other" entry, render a disabled small text input (hidden by default)
-                    const hasOther = fieldData.options.some(o => /^others?$/i.test(String(o)));
+                    const hasOther = fieldData.options.some(o => {
+                        const testVal = (typeof o === 'object' && o !== null) ? (o.label || o.sub_field || '') : String(o);
+                        return /^others?$/i.test(String(testVal));
+                    });
                     if (hasOther) {
                         fieldHTML += `<input type="text" class="form-control form-control-sm ms-2 other-input-preview" name="${name}_other" placeholder="Other (text)" disabled style="display:none; max-width:200px">`;
                     }
@@ -915,13 +939,26 @@ class FormBuilder {
                 fieldHTML += `<div class="d-flex flex-wrap gap-2 align-items-center">`;
                 if (fieldData.options && Array.isArray(fieldData.options)) {
                     fieldData.options.forEach((option, idx) => {
-                        const safe = this.escapeHtml(option);
+                        let optLabel = '';
+                        let optValue = '';
+                        if (typeof option === 'object' && option !== null) {
+                            optLabel = String(option.label || '');
+                            optValue = String(option.sub_field || option.label || '');
+                        } else {
+                            optLabel = String(option);
+                            optValue = String(option);
+                        }
+                        const safeLabel = this.escapeHtml(optLabel);
+                        const safeVal = this.escapeHtml(optValue);
                         fieldHTML += `<div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" name="${name}[]" id="${name}_${idx}" value="${safe}" disabled>
-                            <label class="form-check-label small" for="${name}_${idx}">${safe}</label>
+                            <input class="form-check-input" type="checkbox" name="${name}[]" id="${name}_${idx}" value="${safeVal}" disabled>
+                            <label class="form-check-label small" for="${name}_${idx}">${safeLabel}</label>
                         </div>`;
                     });
-                    const hasOther = fieldData.options.some(o => /^others?$/i.test(String(o)));
+                    const hasOther = fieldData.options.some(o => {
+                        const testVal = (typeof o === 'object' && o !== null) ? (o.label || o.sub_field || '') : String(o);
+                        return /^others?$/i.test(String(testVal));
+                    });
                     if (hasOther) {
                         fieldHTML += `<input type="text" class="form-control form-control-sm ms-2 other-input-preview" name="${name}_other" placeholder="Other (text)" disabled style="display:none; max-width:200px">`;
                     }
@@ -1587,36 +1624,42 @@ class FormBuilder {
             // Wire add with simple validation (no empty or duplicate options)
         addBtn.onclick = () => {
             const v = newInput.value.trim();
+            const sf = document.getElementById('optionsManagerNewSubfield').value.trim();
             if (!v) {
-                notify('Option cannot be empty', 'warning');
+                notify('Option label cannot be empty', 'warning');
                 newInput.focus();
                 return;
             }
-            // Check duplicates (case-insensitive)
+            // Check duplicates (case-insensitive) on label
             const existing = Array.from(list.querySelectorAll('.option-row input.option-value')).map(i => i.value.trim().toLowerCase());
             if (existing.includes(v.toLowerCase())) {
                 notify('Option already exists', 'warning');
                 newInput.focus();
                 return;
             }
-            this._appendOptionsManagerRow(list, v);
+            this._appendOptionsManagerRow(list, { label: v, sub_field: sf });
             newInput.value = '';
+            document.getElementById('optionsManagerNewSubfield').value = '';
             newInput.focus();
         };
         newInput.onkeypress = (e) => { if (e.key==='Enter') { e.preventDefault(); addBtn.click(); } };
 
         // Save handler with validation (no empty, no duplicates)
         saveBtn.onclick = () => {
-            const rows = Array.from(list.querySelectorAll('.option-row input.option-value'));
-            const values = rows.map(r => r.value.trim());
+            const rows = Array.from(list.querySelectorAll('.option-row'));
+            const values = rows.map(row => {
+                const label = (row.querySelector('input.option-value') || { value: '' }).value.trim();
+                const sub_field = (row.querySelector('input.option-sub-field') || { value: '' }).value.trim();
+                return { label, sub_field };
+            });
             // Validate empties
-            const hasEmpty = values.some(v => v.length === 0);
+            const hasEmpty = values.some(v => v.label.length === 0);
             if (hasEmpty) {
                 notify('Please remove empty options before saving', 'warning');
                 return;
             }
-            // Validate duplicates (case-insensitive)
-            const lower = values.map(v => v.toLowerCase());
+            // Validate duplicates (case-insensitive) on labels
+            const lower = values.map(v => v.label.toLowerCase());
             const dup = lower.find((v, i) => lower.indexOf(v) !== i);
             if (dup) {
                 notify('Duplicate options are not allowed: "' + dup + '"', 'warning');
@@ -1626,6 +1669,7 @@ class FormBuilder {
             // Persist to field
             const fieldObj = this.fields.find(f => f.id === this._optionsManagerFieldId);
             if (fieldObj) {
+                // Persist array of option objects
                 fieldObj.options = values;
                 // Update options count in edit modal if open
                 const countEl = document.getElementById('editOptionsCount');
@@ -1650,18 +1694,28 @@ class FormBuilder {
     }
 
     _appendOptionsManagerRow(container, value) {
-        const row = document.createElement('div');
-        row.className = 'd-flex align-items-center mb-2 option-row';
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'form-control form-control-sm option-value';
-        input.value = value || '';
+    const row = document.createElement('div');
+    row.className = 'd-flex align-items-center mb-2 option-row';
+
+    // value may be a string or object {label, sub_field}
+    const valObj = (typeof value === 'object' && value !== null) ? value : { label: (value || ''), sub_field: '' };
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control form-control-sm option-value';
+    input.value = valObj.label || '';
+
+    const subField = document.createElement('input');
+    subField.type = 'text';
+    subField.className = 'form-control form-control-sm option-sub-field ms-2';
+    subField.placeholder = 'Option field name';
+    subField.value = valObj.sub_field || '';
         const btnGroup = document.createElement('div');
         btnGroup.className = 'ms-2 d-flex gap-1';
-        const editBtn = document.createElement('button'); editBtn.type='button'; editBtn.className='btn btn-outline-secondary btn-sm'; editBtn.innerHTML='<i class="fas fa-pen"></i>'; editBtn.addEventListener('click',()=>input.focus());
+    const editBtn = document.createElement('button'); editBtn.type='button'; editBtn.className='btn btn-outline-secondary btn-sm'; editBtn.innerHTML='<i class="fas fa-pen"></i>'; editBtn.addEventListener('click',()=>input.focus());
         const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='btn btn-outline-danger btn-sm'; delBtn.innerHTML='<i class="fas fa-trash"></i>'; delBtn.addEventListener('click',()=>row.remove());
         btnGroup.appendChild(editBtn); btnGroup.appendChild(delBtn);
-        row.appendChild(input); row.appendChild(btnGroup);
+    row.appendChild(input); row.appendChild(subField); row.appendChild(btnGroup);
         container.appendChild(row);
     }
 

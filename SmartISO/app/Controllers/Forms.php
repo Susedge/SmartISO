@@ -1346,6 +1346,135 @@ class Forms extends BaseController
 
         return redirect()->back()->with('error', 'Invalid export format');
     }
+
+    /**
+     * Handle DOCX template upload from requestor side to prefill form fields.
+     * Accepts a DOCX file that contains Content Controls (Structured Document Tags)
+     * where the TAG (alias or title) matches the dynamic form field_name.
+     * Returns JSON with mapped values for AJAX prefill.
+     */
+    public function uploadDocx($formCode)
+    {
+    // Normalize method casing because some servers/framework layers may provide
+    // the method in uppercase which can cause strict comparisons to fail.
+    $method = strtolower($this->request->getMethod());
+    if ($method === 'options') {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Preflight OK',
+                'csrf_name' => csrf_token(),
+                'csrf_hash' => csrf_hash()
+            ]);
+        }
+    if ($method !== 'post') {
+            // Return detailed debug info so front-end can show what the server sees
+            $serverMethod = $_SERVER['REQUEST_METHOD'] ?? null;
+            $allHeaders = function_exists('getallheaders') ? getallheaders() : [];
+            $debug = [
+                'error' => 'Method not allowed',
+                'method_seen_by_ci' => $method,
+                'server_request_method' => $serverMethod,
+                'headers' => $allHeaders,
+                'csrf_name' => csrf_token(),
+                'csrf_hash' => csrf_hash()
+            ];
+            // Log debug details to application log for server-side inspection
+            try {
+                log_message('debug', 'uploadDocx debug: ' . json_encode($debug));
+            } catch (\Throwable $e) {
+                // ignore logging failures
+            }
+            return $this->response->setStatusCode(405)->setJSON($debug);
+        }
+
+        // Basic permission: only authenticated users (route already behind auth) – ensure form exists
+        $form = $this->formModel->where('code', $formCode)->first();
+        if (!$form) {
+            return $this->response->setStatusCode(404)->setJSON(['error' => 'Form not found']);
+        }
+
+        $file = $this->request->getFile('docx');
+        if (!$file || !$file->isValid()) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Invalid upload']);
+        }
+        if (strtolower($file->getExtension()) !== 'docx') {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Only DOCX files are supported']);
+        }
+
+        // Move to temp path
+        $tempName = $file->getRandomName();
+        $tempPath = WRITEPATH . 'temp';
+        if (!is_dir($tempPath)) {
+            @mkdir($tempPath, 0755, true);
+        }
+        $file->move($tempPath, $tempName);
+        $fullPath = $tempPath . DIRECTORY_SEPARATOR . $tempName;
+
+        $fieldValues = [];
+        try {
+            // Use PhpWord to read DOCX XML directly for content controls
+            // We parse word/document.xml and look for <w:sdt> blocks.
+            $zip = new \ZipArchive();
+            if ($zip->open($fullPath) === true) {
+                $xml = $zip->getFromName('word/document.xml');
+                $zip->close();
+                if ($xml) {
+                    // Suppress namespace issues by registering namespaces
+                    $doc = new \DOMDocument();
+                    $doc->preserveWhiteSpace = false;
+                    $doc->loadXML($xml);
+                    $xpath = new \DOMXPath($doc);
+                    $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+                    // Find all structured document tags
+                    $nodes = $xpath->query('//w:sdt');
+                    foreach ($nodes as $sdt) {
+                        $tagName = null; // alias / tag to match field
+                        // Tag from w:tag @w:val
+                        $tagNode = $xpath->query('.//w:tag', $sdt)->item(0);
+                        if ($tagNode && $tagNode->hasAttribute('w:val')) {
+                            $tagName = trim($tagNode->getAttribute('w:val'));
+                        }
+                        // Fallback to alias/title stored in w:alias@w:val
+                        if (!$tagName) {
+                            $aliasNode = $xpath->query('.//w:alias', $sdt)->item(0);
+                            if ($aliasNode && $aliasNode->hasAttribute('w:val')) {
+                                $tagName = trim($aliasNode->getAttribute('w:val'));
+                            }
+                        }
+                        if (!$tagName) {
+                            continue; // no usable tag
+                        }
+                        // Extract plain text inside w:sdtContent
+                        $contentNode = $xpath->query('.//w:sdtContent', $sdt)->item(0);
+                        if ($contentNode) {
+                            $textParts = [];
+                            $textNodes = $xpath->query('.//w:t', $contentNode);
+                            foreach ($textNodes as $tn) {
+                                $textParts[] = $tn->textContent;
+                            }
+                            $value = trim(implode('', $textParts));
+                            if ($value !== '') {
+                                $fieldValues[$tagName] = $value;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'DOCX parse error: ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Failed to parse DOCX']);
+        } finally {
+            @unlink($fullPath);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'mapped' => $fieldValues,
+            'count' => count($fieldValues),
+            'csrf_name' => csrf_token(),
+            'csrf_hash' => csrf_hash()
+        ]);
+    }
     
     /**
      * Assign service staff to a submission

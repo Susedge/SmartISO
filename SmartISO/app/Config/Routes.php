@@ -30,6 +30,10 @@ $routes->set404Override();
 // route since we don't have to scan directories.
 $routes->get('/', 'Home::index');
 
+// Allow upload-docx endpoint to be reachable for all methods at top-level
+// This ensures method routing won't return 405 when called via fetch multipart POST.
+$routes->match(['GET','POST','OPTIONS'], 'forms/upload-docx/(:segment)', 'Forms::uploadDocx/$1');
+
 // Auth routes
 $routes->group('auth', function ($routes) {
     $routes->get('register', 'Auth::register');
@@ -111,6 +115,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/download/word/(:segment)', 'FormDownload::downloadWord/$1');
     // Download the uploaded raw template (PDF or DOCX)
     $routes->get('forms/download/uploaded/(:segment)', 'FormDownload::downloadUploaded/$1');
+    // Requestor DOCX prefill upload - accept GET/POST/OPTIONS to avoid method issues
+    $routes->match(['GET','POST','OPTIONS'], 'forms/upload-docx/(:segment)', 'Forms::uploadDocx/$1');
     
     // Scheduling routes
     $routes->get('schedule', 'Schedule::index');

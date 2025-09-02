@@ -75,7 +75,10 @@ class Filters extends BaseFilters
         'before' => (ENVIRONMENT !== 'testing') ? [
             // 'honeypot',
             // Apply CSRF globally (notifications endpoints will now require CSRF tokens)
-            'csrf',
+            // Exclude the DOCX upload endpoint which handles its own token logic
+            'csrf' => ['except' => [
+                'forms/upload-docx/*'
+            ]],
             // 'invalidchars',
         ] : [],
         'after' => [
