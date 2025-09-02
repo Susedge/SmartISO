@@ -1,41 +1,42 @@
 <?= $this->extend('layouts/default') ?>
 
 <?= $this->section('content') ?>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
+    <div class="card">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
-            <h3 class="me-3 mb-0"><?= $title ?></h3>
-            <?php if(in_array(session()->get('user_type'), ['admin','superuser'])): ?>
-                <a href="<?= base_url('admin/dynamicforms/guide') ?>" class="btn btn-sm btn-outline-primary">DOCX Variables Guide</a>
-            <?php else: ?>
-                <a href="<?= base_url('admin/dynamicforms/guide') ?>" class="btn btn-sm btn-outline-secondary">Guide</a>
-            <?php endif; ?>
+            <h5 class="me-3 mb-0 small fw-semibold"><?= $title ?></h5>
+            <!-- Guide button removed as requested -->
         </div>
-        <a href="<?= base_url('forms') ?>" class="btn btn-secondary">Back to Forms</a>
+        <a href="<?= base_url('forms') ?>" class="btn btn-sm btn-secondary">Back to Forms</a>
     </div>
     <div class="card-body">
     <style>
-    /* Improve dynamic form layout spacing and width */
-    #dynamicForm { max-width: 1100px; margin: 0 auto; }
+    /* Compact dynamic form styling */
+    #dynamicForm { width: 100%; max-width: none; font-size: .95rem; }
     #dynamicForm .row { margin-left: -6px; margin-right: -6px; }
     #dynamicForm .row > [class*="col-"] { padding-left: 6px; padding-right: 6px; }
-    #dynamicForm .mb-3 { margin-bottom: .9rem; }
-    /* Ensure selects and inputs don't overflow */
-    #dynamicForm .form-control, #dynamicForm .form-select, #dynamicForm textarea { width: 100%; box-sizing: border-box; }
+    #dynamicForm .mb-3 { margin-bottom: .6rem; }
+    #dynamicForm .form-label { font-size: .92rem; margin-bottom: .25rem; }
+    #dynamicForm .form-control, #dynamicForm .form-select, #dynamicForm textarea { width: 100%; box-sizing: border-box; padding: .375rem .5rem; }
+    #dynamicForm .form-control-sm { padding: .25rem .4rem; }
+    #dynamicForm .form-check-label.small { font-size: .85rem; }
+    /* Prefill box accent using pastel theme variables (SCS pastel success) */
+    .prefill-box { background: rgba(6, 214, 160, 0.10); border-left: 5px solid var(--success-color); padding: .55rem .75rem; border-radius: .35rem; }
+    .prefill-box .form-label { color: var(--success-color); font-weight:700; font-size:.95rem }
     </style>
         <?php if (empty($panel_fields)): ?>
             <div class="alert alert-warning">
                 No fields configured for this form.
             </div>
         <?php else: ?>
-            <div class="mb-3 p-3 border rounded bg-light">
-                <label class="form-label fw-bold">Prefill From DOCX Template</label>
+            <div class="mb-3 prefill-box">
+                <label class="form-label">Prefill From DOCX Template</label>
                 <div class="d-flex flex-wrap align-items-center gap-2">
-                    <input type="file" id="prefill_docx" accept=".docx" class="form-control" style="max-width:260px;">
-                    <button type="button" id="btnUploadDocx" class="btn btn-outline-primary">Upload & Prefill</button>
+                    <input type="file" id="prefill_docx" accept=".docx" class="form-control form-control-sm" style="max-width:260px;">
+                    <button type="button" id="btnUploadDocx" class="btn btn-outline-primary btn-sm">Upload & Prefill</button>
                     <div id="docxStatus" class="small text-muted"></div>
                 </div>
-                <small class="text-muted">Upload a DOCX file that contains Content Controls (Developer > Controls) whose Tag or Alias matches the form field names (field_name). Matching values will be auto-filled.</small>
+                <small class="text-muted">Upload a DOCX file that contains Content Controls (Developer &gt; Controls) whose Tag or Alias matches the form field names (field_name). Matching values will be auto-filled.</small>
             </div>
 
             <form action="<?= base_url('forms/submit') ?>" method="post" id="dynamicForm" enctype="multipart/form-data">
@@ -297,7 +298,7 @@
                     ?>
                 
                 
-                <!-- Priority and Reference File Section -->
+                <!-- Priority Section -->
                 <div class="row mt-4">
                     <?php 
                     $userType = session()->get('user_type');
@@ -341,24 +342,12 @@
                         </div>
                     </div>
                     <?php endif; ?>
-                    <div class="col-md-6">
-                        <label for="reference_file" class="form-label">
-                            Reference File <span class="text-muted">(Optional)</span>
-                        </label>
-                        <input type="file" 
-                               class="form-control" 
-                               id="reference_file" 
-                               name="reference_file"
-                               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt">
-                        <small class="form-text text-muted">
-                            Upload a reference file if needed (PDF, Word, Excel, Image, or Text files only).
-                        </small>
-                    </div>
+                    <!-- reference file removed per UI requirement -->
                 </div>
                 
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">Submit</button>
-                    <button type="reset" class="btn btn-secondary">Reset</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Submit</button>
+                    <button type="reset" class="btn btn-secondary btn-sm">Reset</button>
                 </div>
             </form>
         <?php endif; ?>
@@ -480,17 +469,89 @@ document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
         // helper: attempt to apply a mapping key/value to a form field
     function applyDocxMappingKey(key, val) {
             console.debug('[DOCX_PREFILL] try tag:', key, 'value:', val);
+            // helper: parse common date formats to yyyy-mm-dd
+            function parseToISODate(input) {
+                if (!input) return '';
+                input = ('' + input).trim();
+                // Already ISO-like
+                if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return input;
+                // Try Date.parse first (handles some formats)
+                var d = new Date(input);
+                if (!isNaN(d.getTime())) {
+                    var y = d.getFullYear();
+                    var m = ('0' + (d.getMonth() + 1)).slice(-2);
+                    var day = ('0' + d.getDate()).slice(-2);
+                    return y + '-' + m + '-' + day;
+                }
+                // Fallback: split numeric parts (handles 10/2/2025, 02-10-2025, etc.)
+                var parts = input.split(/[^0-9]+/).filter(Boolean);
+                if (parts.length === 3) {
+                    var p1 = parseInt(parts[0], 10), p2 = parseInt(parts[1], 10), p3 = parseInt(parts[2], 10);
+                    // If first part is 4-digit, assume YYYY-MM-DD
+                    if (parts[0].length === 4) {
+                        var yy = parts[0], mm = ('0' + p2).slice(-2), dd = ('0' + p3).slice(-2);
+                        return yy + '-' + mm + '-' + dd;
+                    }
+                    // Try MM/DD/YYYY
+                    if (p1 >= 1 && p1 <= 12 && p2 >= 1 && p2 <= 31 && p3 > 31) {
+                        // unlikely, but handle malformed
+                    }
+                    // Prefer MM/DD/YYYY when valid, otherwise treat as DD/MM/YYYY
+                    if (p1 >= 1 && p1 <= 12) {
+                        var mm2 = ('0' + p1).slice(-2), dd2 = ('0' + p2).slice(-2), yy2 = p3.toString();
+                        return yy2 + '-' + mm2 + '-' + dd2;
+                    } else {
+                        var mm3 = ('0' + p2).slice(-2), dd3 = ('0' + p1).slice(-2), yy3 = p3.toString();
+                        return yy3 + '-' + mm3 + '-' + dd3;
+                    }
+                }
+                return '';
+            }
+
             // Try direct field match first (inputs/selects/textareas)
-            var direct = (document.getElementsByName(key) || [])[0] || null;
+            var direct = null;
+            // build candidate name variants: exact, lower, upper, safe-underscore
+            var cand = [];
+            try { cand.push(key); } catch(e){}
+            try { cand.push((key||'').toLowerCase()); } catch(e){}
+            try { cand.push((key||'').toUpperCase()); } catch(e){}
+            try { cand.push((key||'').replace(/[^A-Za-z0-9_]/g, '_')); } catch(e){}
+            try { cand.push(((key||'').toLowerCase().replace(/[^A-Za-z0-9_]/g, '_'))); } catch(e){}
+            // look for first existing element by name or id
+            for (var ci = 0; ci < cand.length; ci++){
+                var n = cand[ci];
+                if (!n) continue;
+                var el = (document.getElementsByName(n) || [])[0] || document.getElementById(n) || null;
+                if (el) { direct = el; break; }
+            }
             if (direct) {
                 var tag = (direct.tagName || '').toUpperCase();
+                // handle date inputs specially
+                if ((direct.tagName || '').toUpperCase() === 'INPUT' && (direct.type || '').toLowerCase() === 'date') {
+                    var iso = parseToISODate(val);
+                    if (iso) {
+                        direct.value = iso;
+                        console.info('[DOCX_PREFILL] direct date match -> set', key, iso);
+                        return true;
+                    }
+                }
                 if (tag === 'INPUT' || tag === 'TEXTAREA') {
                     direct.value = val;
+                    // dispatch events so other scripts/reactive UI update and default values are overridden
+                    try { direct.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
+                    try { direct.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
                     console.info('[DOCX_PREFILL] direct match -> set value on', direct, key, val);
                     return true;
                 } else if (tag === 'SELECT') {
-                    const opt = Array.from(direct.options).find(o => (o.value||'').toLowerCase() === (''+val).toLowerCase());
-                    if (opt) { direct.value = opt.value; console.info('[DOCX_PREFILL] direct select match -> set', key, opt.value); return true; }
+                    // match by option value or option text
+                    const lowered = (''+val).toLowerCase();
+                    const opt = Array.from(direct.options).find(o => ((o.value||'').toLowerCase() === lowered) || ((o.text||'').toLowerCase() === lowered));
+                    if (opt) {
+                        direct.value = opt.value;
+                        try { direct.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                        console.info('[DOCX_PREFILL] direct select match -> set', key, opt.value);
+                        return true;
+                    }
                 }
             }
 
@@ -499,7 +560,18 @@ document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
             if (group && group.length) {
                 const parts = (val||'').split(/[,;]\s*/).filter(v=>v);
                 Array.prototype.forEach.call(group, function(chkbox){
-                    chkbox.checked = parts.some(p => p.toLowerCase() === (chkbox.value||'').toLowerCase());
+                    var matched = parts.some(function(p){
+                        var lp = (p||'').toLowerCase();
+                        if ((chkbox.value||'').toLowerCase() === lp) return true;
+                        // try matching label text
+                        try {
+                            var lab = (document.querySelector('label[for="' + chkbox.id + '"]') || {}).textContent || '';
+                            if (lab && lab.toLowerCase().trim() === lp) return true;
+                        } catch(e){}
+                        return false;
+                    });
+                    chkbox.checked = matched;
+                    if (matched) try { chkbox.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
                 });
                 console.info('[DOCX_PREFILL] group match -> name[]', key+'[]', 'values set:', parts);
                 return true;
@@ -511,12 +583,19 @@ document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
                 const base = key.substring(0, idx);
                 const optName = key.substring(idx + 1);
                 const tryNames = [base, base.toLowerCase(), base.toUpperCase()];
-                for (const bn of tryNames) {
+                    for (const bn of tryNames) {
                     const grp = document.getElementsByName(bn + '[]');
                     if (grp && grp.length) {
                         Array.prototype.forEach.call(grp, function(chk){
-                            if ((chk.value||'').toLowerCase() === (optName||'').toLowerCase()) {
+                            var match = false;
+                            if ((chk.value||'').toLowerCase() === (optName||'').toLowerCase()) match = true;
+                            try {
+                                var lab = (document.querySelector('label[for="' + chk.id + '"]') || {}).textContent || '';
+                                if (lab && lab.toLowerCase().trim() === (optName||'').toLowerCase()) match = true;
+                            } catch(e){}
+                            if (match) {
                                 chk.checked = true;
+                                try { chk.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
                                 console.info('[DOCX_PREFILL] field_option match -> checked', bn+'[]', chk.value);
                             }
                         });
@@ -524,8 +603,9 @@ document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
                     }
                     const sel = (document.getElementsByName(bn) || [])[0] || null;
                     if (sel && sel.tagName && sel.tagName.toUpperCase() === 'SELECT') {
-                        const opt = Array.from(sel.options).find(o => (o.value||'').toLowerCase() === (optName||'').toLowerCase());
-                        if (opt) { sel.value = opt.value; console.info('[DOCX_PREFILL] field_option match -> select', bn, opt.value); return true; }
+                        const loweredOpt = (optName||'').toLowerCase();
+                        const opt = Array.from(sel.options).find(o => ((o.value||'').toLowerCase() === loweredOpt) || ((o.text||'').toLowerCase() === loweredOpt));
+                        if (opt) { sel.value = opt.value; try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}; console.info('[DOCX_PREFILL] field_option match -> select', bn, opt.value); return true; }
                     }
                     const inputs = document.getElementsByName(bn);
                     if (inputs && inputs.length) {
@@ -539,6 +619,23 @@ document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
                     }
                 }
             }
+            // As a last attempt, try group name variants (name[])
+            try {
+                for (var ci = 0; ci < cand.length; ci++){
+                    var gn = cand[ci] + '[]';
+                    var groupTry = document.getElementsByName(gn);
+                    if (groupTry && groupTry.length) {
+                        const parts = (val||'').split(/[,;]\s*/).filter(v=>v);
+                        Array.prototype.forEach.call(groupTry, function(chkbox){
+                            chkbox.checked = parts.some(p => (p||'').toLowerCase() === (chkbox.value||'').toLowerCase());
+                            if (chkbox.checked) try { chkbox.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                        });
+                        console.info('[DOCX_PREFILL] matched via group name[] fallback ->', gn);
+                        return true;
+                    }
+                }
+            } catch(e) { /* ignore */ }
+
             console.info('[DOCX_PREFILL] no match for tag:', key);
             return false;
         }

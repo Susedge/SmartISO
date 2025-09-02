@@ -713,6 +713,106 @@ class DynamicForms extends BaseController
         
         return redirect()->back()->with('error', 'Invalid export format');
     }
+
+    /**
+     * Admin-side DOCX parsing endpoint for the panel builder.
+     * Accepts a DOCX file and returns mapped content-control tags => values.
+     * This mirrors Forms::uploadDocx but does not require a form code.
+     */
+    public function parseDocx()
+    {
+        $method = strtolower($this->request->getMethod());
+        if ($method === 'options') {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Preflight OK',
+                'csrf_name' => csrf_token(),
+                'csrf_hash' => csrf_hash()
+            ]);
+        }
+        if ($method !== 'post') {
+            return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
+        }
+
+        // Basic permission: only admin or superuser can import into builder
+        $userType = session()->get('user_type');
+        if (!in_array($userType, ['admin', 'superuser'])) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
+        }
+
+        $file = $this->request->getFile('docx');
+        if (!$file || !$file->isValid()) {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Invalid upload']);
+        }
+        if (strtolower($file->getExtension()) !== 'docx') {
+            return $this->response->setStatusCode(400)->setJSON(['error' => 'Only DOCX files are supported']);
+        }
+
+        // Move to temp path
+        $tempName = $file->getRandomName();
+        $tempPath = WRITEPATH . 'temp';
+        if (!is_dir($tempPath)) {
+            @mkdir($tempPath, 0755, true);
+        }
+        $file->move($tempPath, $tempName);
+        $fullPath = $tempPath . DIRECTORY_SEPARATOR . $tempName;
+
+        $fieldValues = [];
+        try {
+            $zip = new \ZipArchive();
+            if ($zip->open($fullPath) === true) {
+                $xml = $zip->getFromName('word/document.xml');
+                $zip->close();
+                if ($xml) {
+                    $doc = new \DOMDocument();
+                    $doc->preserveWhiteSpace = false;
+                    $doc->loadXML($xml);
+                    $xpath = new \DOMXPath($doc);
+                    $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+                    $nodes = $xpath->query('//w:sdt');
+                    foreach ($nodes as $sdt) {
+                        $tagName = null;
+                        $tagNode = $xpath->query('.//w:tag', $sdt)->item(0);
+                        if ($tagNode && $tagNode->hasAttribute('w:val')) {
+                            $tagName = trim($tagNode->getAttribute('w:val'));
+                        }
+                        if (!$tagName) {
+                            $aliasNode = $xpath->query('.//w:alias', $sdt)->item(0);
+                            if ($aliasNode && $aliasNode->hasAttribute('w:val')) {
+                                $tagName = trim($aliasNode->getAttribute('w:val'));
+                            }
+                        }
+                        if (!$tagName) continue;
+                        $contentNode = $xpath->query('.//w:sdtContent', $sdt)->item(0);
+                        if ($contentNode) {
+                            $textParts = [];
+                            $textNodes = $xpath->query('.//w:t', $contentNode);
+                            foreach ($textNodes as $tn) {
+                                $textParts[] = $tn->textContent;
+                            }
+                            $value = trim(implode('', $textParts));
+                            if ($value !== '') {
+                                $fieldValues[$tagName] = $value;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Admin parseDocx error: ' . $e->getMessage());
+            return $this->response->setStatusCode(500)->setJSON(['error' => 'Failed to parse DOCX']);
+        } finally {
+            @unlink($fullPath);
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'mapped' => $fieldValues,
+            'count' => count($fieldValues),
+            'csrf_name' => csrf_token(),
+            'csrf_hash' => csrf_hash()
+        ]);
+    }
     
 
     public function bulkAction()

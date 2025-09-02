@@ -302,11 +302,47 @@ class PdfGenerator extends BaseController
                 $placeholders[$fieldKeyB] = implode("\n", $lines);
             }
 
-            // Also expose each option as its own placeholder: {{A_fieldname_1}}, {{A_fieldname_2}}, ...
-            // Value is option text when selected, otherwise empty string.
+            // Legacy: numeric per-option placeholders: {{A_fieldname_1}}, {{A_fieldname_2}}, ...
             foreach ($opts as $idx => $opt) {
-                $optKey = '{{A_' . $fieldName . '_' . ($idx + 1) . '}}';
-                $placeholders[$optKey] = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? $opt : '';
+                $legacyKey = '{{A_' . $fieldName . '_' . ($idx + 1) . '}}';
+                $placeholders[$legacyKey] = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? $opt : '';
+            }
+
+            // New standard: option tag = FIELDNAME_OPTIONNAME (both uppercased, OPTIONNAME slugged)
+            // Example: field_name = priority_level, option "High Impact" => {{PRIORITY_LEVEL_HIGH_IMPACT}}
+            foreach ($opts as $opt) {
+                $optLabel = '';
+                $optValue = '';
+                $slugSource = '';
+                $candidateValuesLower = [];
+
+                if (is_array($opt)) {
+                    // Support structures like { label: 'Lighting', sub_field: 'LIGHTINGS' }
+                    $optLabel = (string)($opt['label'] ?? $opt['sub_field'] ?? '');
+                    $optValue = (string)($opt['sub_field'] ?? $optLabel);
+                    $slugSource = (string)($opt['sub_field'] ?? $optLabel);
+                    $candidateValuesLower = array_unique(array_filter([
+                        mb_strtolower($optLabel),
+                        mb_strtolower($optValue)
+                    ]));
+                } else {
+                    $optLabel = (string)$opt;
+                    $optValue = $optLabel;
+                    $slugSource = $optLabel;
+                    $candidateValuesLower = [mb_strtolower($optLabel)];
+                }
+
+                $slug = strtoupper($slugSource);
+                $slug = preg_replace('/[^A-Z0-9]+/u', '_', $slug); // non-alnum -> underscore
+                $slug = trim($slug, '_');
+                if ($slug === '') continue; // skip empty
+
+                $optPlaceholder = '{{' . strtoupper($fieldName) . '_' . $slug . '}}';
+                $isSelected = false;
+                foreach ($candidateValuesLower as $cand) {
+                    if (in_array($cand, $selectedValuesLower, true)) { $isSelected = true; break; }
+                }
+                $placeholders[$optPlaceholder] = $isSelected ? $optLabel : '';
             }
 
             // If this is a checkbox-like field with options, also add short lettered aliases
@@ -314,7 +350,6 @@ class PdfGenerator extends BaseController
                 $prefix = $indexToLetters($checkboxFieldCounter); // 0 -> A, 1 -> B, etc.
                 foreach ($opts as $idx => $opt) {
                     $shortKey = '{{' . $prefix . '_' . ($idx + 1) . '}}';
-                    // Short alias should contain the selection marker only when selected
                     $placeholders[$shortKey] = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? '◉ ' : '';
                 }
                 $checkboxFieldCounter++;

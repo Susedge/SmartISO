@@ -35,6 +35,10 @@
         <a href="<?= base_url('admin/dynamicforms/panel-config') ?>" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Back
         </a>
+        <label class="btn btn-outline-primary mb-0 me-2" for="docxImportInput" style="cursor:pointer">
+            <i class="fas fa-file-upload"></i> Import DOCX
+        </label>
+        <input type="file" id="docxImportInput" accept=".docx" style="display:none">
         <button type="button" class="btn btn-success" id="saveFormBuilder">
             <i class="fas fa-save"></i> Save Panel
         </button>
@@ -58,6 +62,26 @@
                     </div>
                 </div>
             </div>
+
+                    <!-- DOCX Import Preview Modal -->
+                    <div class="modal fade" id="docxImportModal" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Import DOCX Tags</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p class="small text-muted">Select tags to add to the panel. You can edit label and name after import.</p>
+                                    <div id="docxImportList" style="max-height:420px; overflow:auto"></div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" id="docxImportAddSelected" class="btn btn-primary">Add Selected Fields</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
             
             <div class="config-panel">
                 <h5 class="panel-title">Field Configuration</h5>

@@ -176,6 +176,7 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->get('dynamicforms/form-builder/(:segment)', 'Admin\DynamicForms::formBuilder/$1');
     $routes->post('dynamicforms/save-form-builder', 'Admin\DynamicForms::saveFormBuilder');
     $routes->post('dynamicforms/reorder-fields', 'Admin\DynamicForms::reorderFields');
+    $routes->match(['GET','POST','OPTIONS'], 'dynamicforms/parse-docx', 'Admin\DynamicForms::parseDocx');
     $routes->post('dynamicforms/add-panel-field', 'Admin\DynamicForms::addPanelField');
     $routes->post('dynamicforms/create-panel', 'Admin\DynamicForms::createPanel');
     $routes->post('dynamicforms/copy-panel', 'Admin\DynamicForms::copyPanel');

@@ -136,6 +136,143 @@ class FormBuilder {
         
         // Save and Preview buttons
         this.setupSavePreviewButtons();
+        // DOCX import input wiring
+        this.setupDocxImport();
+    }
+
+    setupDocxImport() {
+        const input = document.getElementById('docxImportInput');
+        if (!input) return;
+        input.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            // Basic client-side validation
+            if (!/\.docx$/i.test(file.name)) {
+                notify('Please select a DOCX file', 'warning');
+                return;
+            }
+            this.uploadDocxForImport(file);
+            // clear input so same file can be selected again
+            input.value = '';
+        });
+    }
+
+    uploadDocxForImport(file) {
+        const form = new FormData();
+        form.append('docx', file);
+
+        // Include CSRF token if present (CodeIgniter 4 uses csrf-name/csrf-hash meta tags)
+        const _csrfName = (document.querySelector('meta[name="csrf-name"]') && document.querySelector('meta[name="csrf-name"]').getAttribute('content')) || '';
+        const _csrfHash = (document.querySelector('meta[name="csrf-hash"]') && document.querySelector('meta[name="csrf-hash"]').getAttribute('content')) || '';
+        if (_csrfName && _csrfHash) {
+            try { form.append(_csrfName, _csrfHash); } catch(e) { /* ignore append errors */ }
+        }
+
+        // Use admin parse endpoint
+        fetch(window.baseUrl + 'admin/dynamicforms/parse-docx', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                // Attach header as an additional CSRF hint; do not set Content-Type for FormData
+                'X-CSRF-TOKEN': _csrfHash,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: form
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.success) {
+                notify(data && data.error ? data.error : 'Failed to parse DOCX', 'error');
+                return;
+            }
+            const mapped = data.mapped || {};
+            this.renderImportList(mapped);
+            const modal = new bootstrap.Modal(document.getElementById('docxImportModal'));
+            modal.show();
+        })
+        .catch(err => {
+            console.error('DOCX import error', err);
+            notify('Error importing DOCX', 'error');
+        });
+    }
+
+    renderImportList(mapped) {
+        const container = document.getElementById('docxImportList');
+        if (!container) return;
+        container.innerHTML = '';
+        const entries = Object.keys(mapped || {});
+        if (entries.length === 0) {
+            container.innerHTML = '<div class="alert alert-info small">No content controls (tags) were found in the document.</div>';
+            return;
+        }
+        entries.forEach((tag, idx) => {
+            const val = mapped[tag];
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 p-2 border-bottom';
+            row.innerHTML = `
+                <div class="form-check">
+                    <input class="form-check-input import-field-checkbox" type="checkbox" id="import_${idx}" data-tag="${this.escapeHtml(tag)}" checked>
+                </div>
+                <div style="flex:1">
+                    <div class="small text-muted">TAG: <strong>${this.escapeHtml(tag)}</strong></div>
+                    <div><input class="form-control form-control-sm import-field-label" value="${this.humanizeTag(tag)}"></div>
+                </div>
+                <div style="width:220px">
+                    <input class="form-control form-control-sm import-field-name" value="${this.suggestFieldName(tag)}">
+                    <div class="small text-muted">Preview: ${this.escapeHtml(String(val))}</div>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+
+        // Wire add selected button
+        const addBtn = document.getElementById('docxImportAddSelected');
+        addBtn.onclick = () => {
+            const rows = Array.from(container.querySelectorAll('div.d-flex'));
+            rows.forEach(r => {
+                const chk = r.querySelector('.import-field-checkbox');
+                if (!chk || !chk.checked) return;
+                const tag = chk.dataset.tag || '';
+                const label = r.querySelector('.import-field-label').value || this.humanizeTag(tag);
+                const name = r.querySelector('.import-field-name').value || this.suggestFieldName(tag);
+                // Determine field type heuristic: if tag contains DATE or looks like a date, use datepicker
+                let type = 'input';
+                if (/DATE|_DATE|DATE_OF/i.test(tag)) type = 'datepicker';
+                // If value contains commas, suggest checkboxes
+                const preview = (r.querySelector('.small') || {}).textContent || '';
+                if (preview && preview.split(',').length > 1) type = 'checkboxes';
+
+                const fieldData = {
+                    id: this.generateFieldId(),
+                    type: type,
+                    label: label,
+                    name: name,
+                    width: 12,
+                    required: false,
+                    bump_next_field: false
+                };
+                // For checkboxes, create options from comma-separated preview
+                if (type === 'checkboxes') {
+                    const val = mapped[tag] || '';
+                    fieldData.options = String(val).split(',').map(s => s.trim()).filter(Boolean);
+                }
+                this.addFieldWithData(fieldData);
+            });
+            // Hide modal after import
+            const modalEl = document.getElementById('docxImportModal');
+            const bs = bootstrap.Modal.getInstance(modalEl);
+            if (bs) bs.hide();
+        };
+    }
+
+    humanizeTag(tag) {
+        // Convert UPPER_UNDERSCORE to Title Case
+        const s = String(tag).replace(/[^a-zA-Z0-9_]/g, ' ').replace(/_/g, ' ');
+        return s.split(' ').map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(' ');
+    }
+
+    suggestFieldName(tag) {
+        return String(tag).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     }
 
     setupFieldPalette() {
