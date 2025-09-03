@@ -7,7 +7,7 @@ SmartISO is a comprehensive service request management and approval workflow sys
 ### Key Features
 
 #### 🔄 **Complete Workflow Management**
-- **Dynamic Form Builder** with drag-and-drop interface
+- **Panels** with drag-and-drop interface
 - **Role-based Workflow Process** (Admin → Requestor → Approver → Service Staff)
 - **Automated Service Scheduling** with conflict detection
 - **Real-time Notifications** for all workflow stages
@@ -34,7 +34,7 @@ SmartISO is a comprehensive service request management and approval workflow sys
 ### Complete Workflow Process
 
 #### 1. **Admin Setup Phase**
-- ✅ Admin creates forms with templates using the dynamic form builder
+- ✅ Admin creates panels with templates using the dynamic panels interface
 - ✅ Admin sets approver staff for each form type
 - ✅ Admin configures offices and assigns users
 - ✅ System automatically tracks all changes with timestamps
@@ -120,7 +120,7 @@ PHP version 8.1 or higher is required, with the following extensions installed:
 
 1. **Login** with your credentials
 2. **Configure departments** and users (Admin/Superuser)
-3. **Create forms** using the drag-and-drop form builder
+3. **Create panels** using the drag-and-drop panels interface
 4. **Set up approval workflows** and assign signatories
 5. **Start processing** forms through the workflow
 

@@ -9,7 +9,7 @@
             </div>
             <div>
                 <a href="<?= base_url('admin/dynamicforms/panel-config') ?>" class="btn btn-primary me-2">
-                    <i class="fas fa-tools"></i> Form Builder
+                    <i class="fas fa-tools"></i> Panels
                 </a>
                 <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createFormModal">
                     <i class="fas fa-plus"></i> Create New Form
@@ -267,8 +267,13 @@ function editForm(id, code, description, panelName) {
         document.getElementById('edit_office_id').value = '';
     }
 
-    const modal = new bootstrap.Modal(document.getElementById('editFormModal'));
-    modal.show();
+    const modalEl = document.getElementById('editFormModal');
+        if (window.safeModal && typeof window.safeModal.show === 'function') {
+            window.safeModal.show(modalEl);
+        } else {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            try { modal.show(); } catch(e){}
+        }
 }
     
 
@@ -393,8 +398,13 @@ function deleteForm(id, code) {
     document.getElementById('delete_form_id').value = id;
     document.getElementById('deleteFormCode').textContent = code;
     
-    const modal = new bootstrap.Modal(document.getElementById('deleteFormModal'));
-    modal.show();
+    const modalEl = document.getElementById('deleteFormModal');
+        if (window.safeModal && typeof window.safeModal.show === 'function') {
+            window.safeModal.show(modalEl);
+        } else {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            try { modal.show(); } catch(e){}
+        }
 }
 </script>
 <?= $this->endSection() ?>

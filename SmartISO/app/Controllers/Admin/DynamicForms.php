@@ -107,7 +107,7 @@ class DynamicForms extends BaseController
     public function panelConfig()
     {
         $data = [
-            'title' => 'Form Builder',
+            'title' => 'Panels',
             'panels' => $this->dbpanelModel->getPanels()
         ];
         
@@ -152,7 +152,7 @@ class DynamicForms extends BaseController
             ]);
             
             return redirect()->to('/admin/dynamicforms/form-builder/' . $panelName)
-                            ->with('message', 'Panel created successfully. Start building your form!');
+                            ->with('message', 'Panel created successfully. Start building your panel!');
         } else {
             $errors = $this->validator->getErrors();
             return redirect()->to('/admin/dynamicforms/panel-config')

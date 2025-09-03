@@ -65,7 +65,7 @@
 
                     <!-- DOCX Import Preview Modal -->
                     <div class="modal fade" id="docxImportModal" tabindex="-1">
-                        <div class="modal-dialog modal-lg">
+                        <div class="modal-dialog modal-lg modal-dialog-centered">
                             <div class="modal-content">
                                 <div class="modal-header">
                                     <h5 class="modal-title">Import DOCX Tags</h5>
@@ -158,14 +158,14 @@
             </div>
         </div>
         
-        <!-- Form Builder Area -->
+    <!-- Panel Builder Area -->
         <div class="form-builder-main">
             <div class="form-builder-area" id="formBuilderArea">
                 <div id="formBuilderDropZone" class="form-builder-drop-zone">
                     <div class="empty-state">
                         <i class="fas fa-plus-circle"></i>
-                        <h5>Start Building Your Form</h5>
-                        <p>Drag field types from the left panel to add them to your form</p>
+                        <h5>Start Building Your Panel</h5>
+                        <p>Drag field types from the left panel to add them to your panel</p>
                     </div>
                 </div>
             </div>
@@ -175,7 +175,7 @@
 
 <!-- Field Edit Modal -->
 <div class="modal fade" id="fieldEditModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Edit Field</h5>
@@ -267,7 +267,7 @@
 
 <!-- Options Manager Modal -->
 <div class="modal fade" id="optionsManagerModal" tabindex="-1">
-    <div class="modal-dialog modal-md">
+    <div class="modal-dialog modal-md modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Manage Field Options</h5>
@@ -298,6 +298,15 @@
 <!-- Pass panel data to JavaScript -->
 <script>
     window.panelName = '<?= $panel_name ?>';
+    // Ensure modal elements are children of body to avoid stacking context issues
+    document.addEventListener('DOMContentLoaded', function(){
+        ['docxImportModal','fieldEditModal','optionsManagerModal'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el && el.parentNode !== document.body) {
+                document.body.appendChild(el);
+            }
+        });
+    });
     window.panelFields = <?= json_encode($panel_fields) ?>;
     window.baseUrl = '<?= base_url() ?>';
 </script>

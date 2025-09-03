@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form Builder Debug Test</title>
+    <title>Panels Debug Test</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .error { color: red; background: #ffe6e6; padding: 10px; border: 1px solid red; margin: 10px 0; }
@@ -12,7 +12,7 @@
     </style>
 </head>
 <body>
-    <h1>Form Builder Debug Test</h1>
+    <h1>Panels Debug Test</h1>
     
     <div id="status"></div>
     
@@ -44,9 +44,9 @@
         // Test if form builder area exists
         const formBuilder = document.querySelector('.form-builder-area');
         if (formBuilder) {
-            addStatus('Form builder area found', 'success');
+            addStatus('Panels area found', 'success');
         } else {
-            addStatus('Form builder area NOT found', 'error');
+            addStatus('Panels area NOT found', 'error');
         }
         
         // Test drag and drop setup
@@ -103,7 +103,7 @@
             addStatus('No field types found', 'error');
         }
         
-        addStatus('Debug test completed - try dragging the Text Input to the form builder area', 'debug');
+    addStatus('Debug test completed - try dragging the Text Input to the Panels area', 'debug');
     </script>
 </body>
 </html>

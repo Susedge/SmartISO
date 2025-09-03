@@ -362,22 +362,39 @@ function showDocxModal(){
     if(!modalEl) return;
     // Bootstrap 5+ available?
     try{
+        // remove any stray backdrops first
+        document.querySelectorAll('.modal-backdrop').forEach(function(b){ b.remove(); });
         if(window.bootstrap && typeof window.bootstrap.Modal === 'function'){
-            let inst = window.bootstrap.Modal.getInstance(modalEl) || new window.bootstrap.Modal(modalEl);
-            inst.show();
+            // Prefer safeModal wrapper if available
+            if (window.safeModal && typeof window.safeModal.show === 'function') {
+                window.safeModal.show(modalEl);
+            } else {
+                let inst = window.bootstrap.Modal.getInstance(modalEl) || window.bootstrap.Modal.getOrCreateInstance(modalEl);
+                try { inst.show(); } catch(e){}
+            }
+            // ensure modal and backdrop z-index are high so it sits above other layers
+            setTimeout(function(){
+                try{
+                    modalEl.style.zIndex = 20000;
+                    document.querySelectorAll('.modal-backdrop').forEach(function(b){ b.style.zIndex = 19999; });
+                }catch(e){}
+            }, 10);
             return;
         }
     }catch(e){ /* ignore and fallback */ }
     // Fallback: simple show with backdrop
+    // remove any stray backdrops first
+    document.querySelectorAll('.modal-backdrop').forEach(function(b){ b.remove(); });
     modalEl.classList.add('show');
     modalEl.style.display = 'block';
     modalEl.setAttribute('aria-hidden','false');
     // add backdrop
-    if(!document.querySelector('.modal-backdrop')){
-        const back = document.createElement('div');
-        back.className = 'modal-backdrop fade show';
-        document.body.appendChild(back);
-    }
+    const back = document.createElement('div');
+    back.className = 'modal-backdrop fade show';
+    back.style.zIndex = '19999';
+    document.body.appendChild(back);
+    // ensure modal sits above backdrop
+    modalEl.style.zIndex = '20000';
 }
 
 function hideDocxModal(){
@@ -396,8 +413,8 @@ function hideDocxModal(){
     modalEl.classList.remove('show');
     modalEl.style.display = 'none';
     modalEl.setAttribute('aria-hidden','true');
-    const back = document.querySelector('.modal-backdrop');
-    if(back) back.remove();
+    // remove any backdrops (bootstrap or manual)
+    document.querySelectorAll('.modal-backdrop').forEach(function(b){ b.remove(); });
 }
 
 let DOCX_CSRF_NAME = '<?= csrf_token() ?>';

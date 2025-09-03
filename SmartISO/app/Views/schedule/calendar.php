@@ -166,8 +166,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
             }
 
-            var bsModal = new bootstrap.Modal(modalEl);
-            bsModal.show();
+            if (window.safeModal && typeof window.safeModal.show === 'function') {
+                window.safeModal.show(modalEl);
+            } else {
+                var bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                try { bsModal.show(); } catch(e){}
+            }
         }
         });
 

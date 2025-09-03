@@ -1,5 +1,5 @@
 /**
- * Drag and Drop Form Builder JavaScript
+ * Drag and Drop Panels JavaScript
  * For SmartISO Dynamic Forms
  */
 // Global notification helper (uses Toastify if available, falls back to alert)
@@ -102,7 +102,7 @@ class FormBuilder {
         const dropZone = document.getElementById('formBuilderDropZone');
         
         if (!formBuilderContainer || !dropZone) {
-            console.error('Required form builder elements not found');
+            console.error('Required panels elements not found');
             return;
         }
         
@@ -128,7 +128,7 @@ class FormBuilder {
         // Field palette draggable setup
         this.setupFieldPalette();
         
-        // Form builder area setup
+    // Panels area setup
         this.setupFormBuilder();
         
         // Field actions
@@ -168,8 +168,11 @@ class FormBuilder {
             try { form.append(_csrfName, _csrfHash); } catch(e) { /* ignore append errors */ }
         }
 
-        // Use admin parse endpoint
-        fetch(window.baseUrl + 'admin/dynamicforms/parse-docx', {
+    // Use admin parse endpoint (use a local fallback if window.baseUrl is undefined)
+    const _baseUrl = (typeof window.baseUrl !== 'undefined' && window.baseUrl) ? window.baseUrl : ('/' );
+    // Ensure trailing slash
+    const _base = _baseUrl.endsWith('/') ? _baseUrl : _baseUrl + '/';
+    fetch(_base + 'admin/dynamicforms/parse-docx', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -187,8 +190,18 @@ class FormBuilder {
             }
             const mapped = data.mapped || {};
             this.renderImportList(mapped);
-            const modal = new bootstrap.Modal(document.getElementById('docxImportModal'));
-            modal.show();
+            // Show modal using safeModal helper for consistent cleanup
+            const modalEl = document.getElementById('docxImportModal');
+            if (modalEl) {
+                // Promote modal to body to avoid ancestor stacking contexts interfering
+                if (modalEl.parentNode !== document.body) {
+                    document.body.appendChild(modalEl);
+                }
+                try {
+                    const inst = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true });
+                    inst.show();
+                } catch(e) { console.warn('DOCX modal show failed', e); }
+            }
         })
         .catch(err => {
             console.error('DOCX import error', err);
@@ -227,7 +240,7 @@ class FormBuilder {
 
         // Wire add selected button
         const addBtn = document.getElementById('docxImportAddSelected');
-        addBtn.onclick = () => {
+            addBtn.onclick = () => {
             const rows = Array.from(container.querySelectorAll('div.d-flex'));
             rows.forEach(r => {
                 const chk = r.querySelector('.import-field-checkbox');
@@ -241,6 +254,17 @@ class FormBuilder {
                 // If value contains commas, suggest checkboxes
                 const preview = (r.querySelector('.small') || {}).textContent || '';
                 if (preview && preview.split(',').length > 1) type = 'checkboxes';
+
+                // Skip if a field with same name OR label (case-insensitive) already exists
+                const exists = this.fields.some(f => {
+                    const fname = (f.name || f.field_name || '').toLowerCase();
+                    const flabel = (f.label || f.field_label || '').toLowerCase();
+                    return fname === name.toLowerCase() || flabel === label.toLowerCase();
+                });
+                if (exists) {
+                    console.log('Skipping duplicate imported field', name, label);
+                    return;
+                }
 
                 const fieldData = {
                     id: this.generateFieldId(),
@@ -258,10 +282,54 @@ class FormBuilder {
                 }
                 this.addFieldWithData(fieldData);
             });
-            // Hide modal after import
+            // Hide modal after import using safeModal helper for consistent cleanup
             const modalEl = document.getElementById('docxImportModal');
-            const bs = bootstrap.Modal.getInstance(modalEl);
-            if (bs) bs.hide();
+            console.log('Hiding DOCX modal after import');
+            
+            // First try safeModal
+            if (window.safeModal && typeof window.safeModal.hide === 'function') {
+                window.safeModal.hide(modalEl);
+            } else {
+                // Fallback: manual cleanup
+                const bs = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                try {
+                    if (bs && typeof bs.hide === 'function') bs.hide();
+                } catch (e) { console.warn('Modal hide failed', e); }
+            }
+
+            // Force additional cleanup after a delay
+            setTimeout(() => {
+                console.log('Running additional DOCX modal cleanup');
+                try {
+                    // Remove all modal backdrops
+                    document.querySelectorAll('.modal-backdrop').forEach((b, index) => {
+                        console.log('Removing backdrop', index, b);
+                        b.remove();
+                    });
+                    
+                    // Remove modal-open class from body
+                    document.body.classList.remove('modal-open');
+                    
+                    // Reset body styles
+                    document.body.style.paddingRight = '';
+                    document.body.style.overflow = '';
+                    
+                    // Ensure modal is properly hidden
+                    if (modalEl) {
+                        modalEl.classList.remove('show');
+                        modalEl.style.display = 'none';
+                        modalEl.setAttribute('aria-hidden', 'true');
+                        modalEl.removeAttribute('aria-modal');
+                    }
+                    
+                    // Force cleanup using global helper if available
+                    if (window.cleanupModalBackdrops) {
+                        window.cleanupModalBackdrops();
+                    }
+                } catch (e) {
+                    console.warn('Additional cleanup failed', e);
+                }
+            }, 200);
         };
     }
 
@@ -505,7 +573,7 @@ class FormBuilder {
                     onStart: (evt) => {
                         console.log('SORTABLE START: Field', evt.item.dataset.fieldId);
                         evt.item.classList.add('dragging');
-                        // Only highlight rows, not the whole form builder
+                        // Only highlight rows, not the whole panels area
                         dropZone.querySelectorAll('.row').forEach(r => r.classList.add('drop-zone-active'));
                         // Show placeholder initially at dragged item's position
                         const y = (evt.originalEvent && evt.originalEvent.clientY) || null;
@@ -1341,13 +1409,16 @@ class FormBuilder {
         `;
         
         document.body.appendChild(modal);
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
-        
-        // Clean up modal when hidden
-        modal.addEventListener('hidden.bs.modal', () => {
-            modal.remove();
-        });
+        // Use global safeModal helper if available
+        try {
+            const inst = (window.safeModal && typeof window.safeModal.show === 'function') ? window.safeModal.show(modal) : bootstrap.Modal.getOrCreateInstance(modal);
+            modal.addEventListener('hidden.bs.modal', () => { modal.remove(); });
+        } catch (e) {
+            // Fallback
+            const bsModal = bootstrap.Modal.getOrCreateInstance(modal);
+            bsModal.show();
+            modal.addEventListener('hidden.bs.modal', () => { modal.remove(); });
+        }
     }
 
     generateFormPreview() {
@@ -1453,9 +1524,18 @@ class FormBuilder {
             optionsBtnContainer.style.display = 'none';
         }
         
-        // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('fieldEditModal'));
+    // Pre-show cleanup
+    try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){}
+    // Show the modal using safeModal helper
+    const modalEl = document.getElementById('fieldEditModal');
+    if (window.safeModal && typeof window.safeModal.show === 'function') {
+        window.safeModal.show(modalEl, { backdrop: true });
+    } else {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true });
         modal.show();
+        // Cleanup any leftover backdrops when modal is hidden
+        modalEl.addEventListener('hidden.bs.modal', () => { try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){} });
+    }
     }
 
     saveEditedField() {
@@ -1488,9 +1568,14 @@ class FormBuilder {
         // Update the field in the DOM
         this.updateFieldInDOM(field);
         
-        // Hide the modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('fieldEditModal'));
-        modal.hide();
+        // Hide the modal using safeModal helper
+        const modalEl = document.getElementById('fieldEditModal');
+        if (window.safeModal && typeof window.safeModal.hide === 'function') {
+            window.safeModal.hide(modalEl);
+        } else {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
         
         // Clear the current editing field ID
         window.currentEditingFieldId = null;
@@ -1540,9 +1625,17 @@ class FormBuilder {
         // Populate modal with field data
         this.populateFieldConfigModal(modal, fieldData);
         
-        // Show modal
-        const bsModal = new bootstrap.Modal(modal);
+    // Pre-show cleanup
+    try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){}
+    // Show modal using safeModal helper
+    if (window.safeModal && typeof window.safeModal.show === 'function') {
+        window.safeModal.show(modal, { backdrop: true });
+    } else {
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modal, { backdrop: true });
         bsModal.show();
+        // Cleanup on hide
+        modal.addEventListener('hidden.bs.modal', () => { try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){} });
+    }
     }
 
     createFieldConfigModal() {
@@ -1814,10 +1907,16 @@ class FormBuilder {
                 // Update preview in DOM
                 this.updateFieldInDOM(fieldObj);
             }
-            // Hide modal
-            const modalEl = document.getElementById('optionsManagerModal');
-            const bs = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-            bs.hide();
+            // Hide modal (use global helper if available)
+            try {
+                const modalEl = document.getElementById('optionsManagerModal');
+                if (window.safeModal && typeof window.safeModal.hide === 'function') {
+                    window.safeModal.hide(modalEl);
+                } else {
+                    const bs = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
+                    bs.hide();
+                }
+            } catch (e) { console.warn('Failed to hide options manager modal', e); }
         };
 
         // Open modal
@@ -1826,8 +1925,7 @@ class FormBuilder {
             console.error('Options manager modal not found');
             return;
         }
-        const bsModal = new bootstrap.Modal(modalEl);
-        bsModal.show();
+    if (window.safeModal && typeof window.safeModal.show === 'function') window.safeModal.show(modalEl); else bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
 
     _appendOptionsManagerRow(container, value) {
@@ -1921,8 +2019,9 @@ class FormBuilder {
         this.updateLiveFormPreview();
         
         // Hide modal
-        const bsModal = bootstrap.Modal.getInstance(modal);
-        bsModal.hide();
+        try {
+            if (window.safeModal && typeof window.safeModal.hide === 'function') window.safeModal.hide(modal); else bootstrap.Modal.getOrCreateInstance(modal).hide();
+        } catch(e) { console.warn('Failed to hide fieldConfig modal', e); }
     }
 
     updateFieldElement(fieldId, fieldData) {
@@ -1973,15 +2072,43 @@ class FormBuilder {
     }
 
     loadExistingFields() {
-        const existingFields = window.panelFields || [];
-        this.fields = existingFields.map(field => ({
+        // Start with raw fields from server
+        let existingFields = window.panelFields || [];
+        // Filter out any falsy or placeholder objects without a type
+        existingFields = existingFields.filter(f => f && (f.field_type || f.type));
+        // Map & normalize
+        let normalized = existingFields.map(field => ({
             ...field,
             id: field.id || 'field_' + Date.now() + '_' + Math.random(),
-            width: field.width || 12, // Ensure width is set
-            type: field.type || field.field_type, // Normalize field type
-            label: field.label || field.field_label, // Normalize field label
-            name: field.name || field.field_name // Normalize field name
+            width: field.width || 12,
+            type: field.type || field.field_type,
+            label: field.label || field.field_label || 'Field',
+            name: field.name || field.field_name || (field.label ? field.label.toLowerCase().replace(/[^a-z0-9]+/g,'_') : '')
         }));
+        // De-duplicate by id then by name (keep first occurrence)
+        const seenIds = new Set();
+        const seenNames = new Set();
+        normalized = normalized.filter(f => {
+            if (seenIds.has(f.id)) return false;
+            if (f.name && seenNames.has(f.name)) return false;
+            seenIds.add(f.id);
+            if (f.name) seenNames.add(f.name);
+            return true;
+        });
+        // Final defensive dedupe (name+type OR label+type) to catch server duplicates with different ids
+        const comboSeen = new Set();
+        normalized = normalized.filter(f => {
+            const type = f.type || f.field_type || '';
+            const nameKey = (f.name || '') + '::' + type;
+            const labelKey = (f.label || '') + '::' + type;
+            if (comboSeen.has(nameKey) || comboSeen.has(labelKey)) return false;
+            comboSeen.add(nameKey);
+            comboSeen.add(labelKey);
+            return true;
+        });
+        // Reassign sequential field_order
+        normalized.forEach((f,i)=>{ f.field_order = i+1; });
+        this.fields = normalized;
         // Normalize options stored in default_value (if used) or options property
         this.fields = this.fields.map(f => {
             if ((!f.options || !Array.isArray(f.options) || f.options.length===0) && f.default_value) {
@@ -2007,10 +2134,37 @@ class FormBuilder {
     }
 
     deleteField(fieldId) {
-        // Remove from fields array
-        this.fields = this.fields.filter(f => f.id !== fieldId);
-        // Reorganize layout
-        this.reorganizeFormLayout();
+        // Custom removal without immediate full rebuild to avoid accidental cloning
+        const idx = this.fields.findIndex(f => f.id === fieldId);
+        if (idx === -1) return;
+        this.fields.splice(idx,1);
+        // Remove DOM element if present
+        const el = document.querySelector(`[data-field-id="${fieldId}"]`);
+        if (el) {
+            try { el.classList.add('field-removing'); } catch(e){}
+            setTimeout(()=>{ if (el.parentNode) el.parentNode.removeChild(el); this.afterFieldRemoval(); }, 60);
+        } else {
+            this.afterFieldRemoval();
+        }
+    }
+
+    afterFieldRemoval(){
+        // Dedupe remaining (safety)
+        const dedup = []; const seen = new Set();
+        for (const f of this.fields){
+            const type = (f.type||f.field_type||'').toLowerCase();
+            const key = ( (f.name||f.field_name||'').toLowerCase() + '::' + type );
+            if (seen.has(key)) continue; seen.add(key); dedup.push(f);
+        }
+        this.fields = dedup;
+        // Reassign order sequential
+        this.fields.forEach((f,i)=> f.field_order = i+1);
+        // Rebuild only if DOM order and array length mismatch
+        const domCount = document.querySelectorAll('.form-builder-area .field-item-container').length;
+        if (domCount !== this.fields.length) {
+            this.reorganizeFormLayout();
+        }
+        this.updateEmptyState();
     }
 
     updateFieldElement(fieldId, fieldData) {
@@ -2083,8 +2237,10 @@ class FormBuilder {
         const csrfName = (document.querySelector('meta[name="csrf-name"]') && document.querySelector('meta[name="csrf-name"]').getAttribute('content')) || '';
         const csrfHash = (document.querySelector('meta[name="csrf-hash"]') && document.querySelector('meta[name="csrf-hash"]').getAttribute('content')) || '';
         try { formData[csrfName] = csrfHash; } catch(e) { /* ignore */ }
-        // Try JSON POST first; fallback to form-encoded payload if 403 returned
-        fetch(window.baseUrl + 'admin/dynamicforms/save-form-builder', {
+    // Try JSON POST first; fallback to form-encoded payload if 403 returned
+    const __baseUrl = (typeof window.baseUrl !== 'undefined' && window.baseUrl) ? window.baseUrl : ('/');
+    const __base = __baseUrl.endsWith('/') ? __baseUrl : __baseUrl + '/';
+    fetch(__base + 'admin/dynamicforms/save-form-builder', {
             method: 'POST',
             credentials: 'same-origin',
             headers: {
@@ -2099,7 +2255,7 @@ class FormBuilder {
                 const params = new URLSearchParams();
                 params.append('payload', JSON.stringify(formData));
                 if (csrfName && csrfHash) params.append(csrfName, csrfHash);
-                return fetch(window.baseUrl + 'admin/dynamicforms/save-form-builder', {
+                return fetch(__base + 'admin/dynamicforms/save-form-builder', {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -2164,8 +2320,26 @@ class FormBuilder {
         const fieldElement = this.createFieldElement(fieldData);
         this.insertFieldAtPosition(fieldElement, dropY, fieldData);
 
-        // Update the form layout
-        this.reorganizeFormLayout();
+        // Defensive dedupe after insertion (same name+type or label+type) to stop accidental duplicate creation
+        this.fields = (function(fields){
+            const seen = new Set();
+            const out = [];
+            for (const f of fields) {
+                const type = f.type || f.field_type || '';
+                const key1 = (f.name || f.field_name || '').toLowerCase() + '::' + type.toLowerCase();
+                const key2 = (f.label || f.field_label || '').toLowerCase() + '::' + type.toLowerCase();
+                if (seen.has(key1) || seen.has(key2)) continue;
+                seen.add(key1); seen.add(key2);
+                out.push(f);
+            }
+            // Reassign field_order sequential
+            out.forEach((f,i)=> f.field_order = i+1);
+            return out;
+        })(this.fields);
+
+    // Sanitize + update layout
+    if (typeof this.sanitizeFields === 'function') this.sanitizeFields();
+    this.reorganizeFormLayout();
 
         // Hide empty state if this is the first field
         this.updateEmptyState();
@@ -2174,7 +2348,7 @@ class FormBuilder {
     insertFieldAtPosition(fieldElement, dropY = null, fieldData = null) {
         const formBuilder = document.querySelector('.form-builder-area');
         if (!formBuilder) {
-            console.error('Form builder area not found');
+            console.error('Panels area not found');
             return;
         }
         // If no drop position provided or there are no existing fields, append to the last row (or create first)
@@ -2215,7 +2389,7 @@ class FormBuilder {
             if (referenceRow && referenceRow.parentNode) {
                 referenceRow.parentNode.insertBefore(newRow, referenceRow);
             } else {
-                // Fallback: append to form builder
+                // Fallback: append to panels area
                 formBuilder.appendChild(newRow);
             }
 
@@ -2270,7 +2444,7 @@ class FormBuilder {
         const dropZone = document.getElementById('formBuilderDropZone');
         
         if (!formBuilderArea || !dropZone) {
-            console.error('Form builder area or drop zone not found in updateEmptyState');
+            console.error('Panels area or drop zone not found in updateEmptyState');
             return;
         }
 
@@ -2281,8 +2455,8 @@ class FormBuilder {
                 dropZone.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-plus-circle"></i>
-                        <h5>Start Building Your Form</h5>
-                        <p>Drag field types from the left panel to add them to your form</p>
+                        <h5>Start Building Your Panel</h5>
+                        <p>Drag field types from the left panel to add them to your panel</p>
                     </div>
                 `;
             }
@@ -2486,6 +2660,76 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add a small delay to ensure all elements are rendered
         setTimeout(() => {
             window.formBuilder = new FormBuilder();
+            // Check for pending DOCX imports from panel creation flow
+            try {
+                const key = 'pending_docx_import_' + (window.panelName || 'new');
+                const raw = localStorage.getItem(key);
+                if (raw) {
+                    const pending = JSON.parse(raw);
+                    if (Array.isArray(pending) && pending.length > 0) {
+                        // Render into existing import modal list and show modal
+                        const container = document.getElementById('docxImportList');
+                        if (container) {
+                            container.innerHTML = '';
+                            pending.forEach((item, idx) => {
+                                const tag = item.tag || '';
+                                const val = item.preview || '';
+                                const row = document.createElement('div');
+                                row.className = 'd-flex align-items-center gap-2 p-2 border-bottom';
+                                row.innerHTML = `
+                                    <div class="form-check">
+                                        <input class="form-check-input import-field-checkbox" type="checkbox" id="import_pending_${idx}" data-tag="${window.formBuilder ? window.formBuilder.escapeHtml(tag) : tag}" checked>
+                                    </div>
+                                    <div style="flex:1">
+                                        <div class="small text-muted">TAG: <strong>${window.formBuilder ? window.formBuilder.escapeHtml(tag) : tag}</strong></div>
+                                        <div><input class="form-control form-control-sm import-field-label" value="${window.formBuilder ? window.formBuilder.humanizeTag(tag) : (item.label||'')}"></div>
+                                    </div>
+                                    <div style="width:220px">
+                                        <input class="form-control form-control-sm import-field-name" value="${window.formBuilder ? window.formBuilder.suggestFieldName(tag) : (item.name||'')}">
+                                        <div class="small text-muted">Preview: ${window.formBuilder ? window.formBuilder.escapeHtml(String(val)) : ''}</div>
+                                    </div>
+                                `;
+                                container.appendChild(row);
+                            });
+                            // Remove the pending key so it's not re-used
+                            try { localStorage.removeItem(key); } catch(e){}
+                            // Show modal via safeModal helper when available
+                            const modalEl = document.getElementById('docxImportModal');
+                            if (modalEl) {
+                                if (window.safeModal && typeof window.safeModal.show === 'function') {
+                                    window.safeModal.show(modalEl);
+                                } else {
+                                    try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); } catch(e){}
+                                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                                    try { modal.show(); } catch(e){}
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch(e) { console.warn('Pending DOCX import check failed', e); }
         }, 100);
     }
 });
+
+// Global sanitizer helper added after class definition
+FormBuilder.prototype.sanitizeFields = function(){
+    try {
+        const unique = []; const idSet = new Set(); const comboSet = new Set();
+        for (let f of this.fields){
+            if (!f) continue;
+            f.type = f.type || f.field_type || 'input';
+            f.field_type = f.field_type || f.type;
+            f.label = f.label || f.field_label || 'Field';
+            f.field_label = f.field_label || f.label;
+            f.name = (f.name || f.field_name || f.label).toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+            f.field_name = f.field_name || f.name;
+            if (!f.id) f.id = this.generateFieldId();
+            const combo = (f.name||'') + '::' + f.type.toLowerCase();
+            if (idSet.has(f.id) || comboSet.has(combo)) continue;
+            idSet.add(f.id); comboSet.add(combo); unique.push(f);
+        }
+        unique.forEach((f,i)=> f.field_order = i+1);
+        this.fields = unique;
+    } catch(e){ console.warn('sanitizeFields failed', e); }
+};

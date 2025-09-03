@@ -16,7 +16,7 @@
 **SmartISO** is a comprehensive document management and approval workflow system built with CodeIgniter 4. It facilitates the creation, submission, approval, and processing of various organizational forms with role-based access control and digital signature capabilities.
 
 ### Key Features
-- Dynamic form builder with drag-and-drop interface
+- Dynamic panels interface with drag-and-drop
 - Role-based workflow management
 - Digital signature integration
 - PDF/Word document generation
@@ -73,11 +73,11 @@
 
 ### Phase 1: Form Creation & Configuration
 ```
-Admin/Superuser → Form Builder → Dynamic Panel Creation → Field Configuration
+Admin/Superuser → Panels → Dynamic Panel Creation → Field Configuration
 ```
 
 1. **Form Setup**
-   - Admin creates new form using form builder
+   - Admin creates new panel using the panels interface
    - Configures form metadata (name, description, panel associations)
    - Sets up approval workflow requirements
 
@@ -194,7 +194,7 @@ Requestor → Review Completed Service → Final Signature → Completed
    - Signature collection process
 
 4. **Admin Controllers**
-   - **DynamicForms**: Form builder and panel management
+   - **DynamicForms**: Panels and panel management
    - **Users**: User account management
    - **Departments**: Organizational structure
    - **Configurations**: System settings
@@ -314,7 +314,7 @@ submitted → approved → pending_service → pending_requestor_signature → c
 
 ### Administration
 - `GET /admin/users` - User management
-- `GET /admin/dynamicforms` - Form builder
+- `GET /admin/dynamicforms` - Panels
 - `GET /admin/departments` - Department management
 - `GET /admin/configurations` - System configurations
 

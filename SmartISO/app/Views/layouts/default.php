@@ -37,6 +37,12 @@
     #notifCount { transform: translate(40%, -40%); top: 6px; right: 6px; }
     /* small top offset so bell aligns better with avatar */
     #notifIconText { margin-top: 4px; }
+    
+    /* Modal centering and backdrop management */
+    /* Modal stacking minimal settings */
+    .modal-backdrop { z-index: 1040; }
+    .modal { z-index: 1050; }
+    .modal-dialog-centered { display:flex; align-items:center; min-height:calc(100vh - 2rem); }
     </style>
 </head>
 <body class="<?= session()->get('isLoggedIn') ? 'sb-nav-fixed' : '' ?>">
@@ -246,7 +252,7 @@
 
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/panel-config' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/panel-config') ?>">
                             <div class="nav-link-icon"><i class="fas fa-cog me-2"></i></div>
-                            <span>Form Builder</span>
+                            <span>Panels</span>
                         </a>
 
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/submissions' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/submissions') ?>">
@@ -441,12 +447,17 @@
                     const logoutUrl = '<?= base_url('auth/logout') ?>';
                     const modalEl = document.getElementById('sessionExpiredModal');
                     if (modalEl && window.bootstrap && typeof window.bootstrap.Modal === 'function') {
-                        const sessionModal = new bootstrap.Modal(modalEl, {backdrop: 'static', keyboard: false});
                         const countdownEl = document.getElementById('sessionExpiredRedirectCountdown');
+                        // Use safeModal if available to avoid stray backdrops
+                        var sessionModal;
+                        if (window.safeModal && typeof window.safeModal.show === 'function') {
+                            sessionModal = window.safeModal.show(modalEl, {backdrop: 'static', keyboard: false});
+                        } else {
+                            sessionModal = bootstrap.Modal.getOrCreateInstance(modalEl, {backdrop: 'static', keyboard: false});
+                            try { sessionModal.show(); } catch(e){}
+                        }
                         let countdown = 5; // seconds until redirect
                         if (countdownEl) countdownEl.textContent = countdown;
-                        // Show modal
-                        sessionModal.show();
 
                         // Attach immediate-login button
                         const loginBtn = document.getElementById('sessionExpiredLoginBtn');
@@ -500,6 +511,27 @@
         const forms = document.querySelectorAll('form');
         forms.forEach(form => {
             form.addEventListener('submit', function() {
+                // Ensure the form has the latest CSRF token in the POST body.
+                // Some flows rely on meta tags and JS; to avoid stale-token 403s we inject a managed hidden input
+                try {
+                    const csrfNameMeta = document.querySelector('meta[name="csrf-name"]');
+                    const csrfHashMeta = document.querySelector('meta[name="csrf-hash"]');
+                    const csrfName = (csrfNameMeta && csrfNameMeta.getAttribute('content')) || '';
+                    const csrfHash = (csrfHashMeta && csrfHashMeta.getAttribute('content')) || '';
+                    if (csrfName && csrfHash) {
+                        // Remove any previous managed inputs we created earlier
+                        Array.from(form.querySelectorAll('input[data-csrf-managed]')).forEach(i => i.remove());
+                        // Append current token as a hidden input so the server receives it in POST body
+                        const hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = csrfName;
+                        hidden.value = csrfHash;
+                        hidden.setAttribute('data-csrf-managed', '1');
+                        form.appendChild(hidden);
+                    }
+                } catch (e) {
+                    console.warn('CSRF injection failed', e);
+                }
                 const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
                 if (submitBtn && !submitBtn.disabled) {
                     submitBtn.disabled = true;
@@ -592,6 +624,152 @@
             });
         };
     })();
+    </script>
+
+    <script>
+    // Global modal helper: ensures a single correct backdrop and sane cleanup
+    window.safeModal = (function(){
+        function tagLatestBackdrop(modalEl){
+            try {
+                const backs = document.querySelectorAll('.modal-backdrop');
+                if (backs.length) {
+                    const last = backs[backs.length-1];
+                    last.dataset.ownerModal = modalEl.id || 'unknown';
+                    last.style.zIndex = '1040';
+                }
+                // Ensure modals are above
+                document.querySelectorAll('.modal.show').forEach(m=> m.style.zIndex='1050');
+            } catch(e){ /* ignore */ }
+        }
+        function forceCleanup(){
+            try {
+                const visible = document.querySelectorAll('.modal.show');
+                const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
+                if (!visible.length){
+                    // No visible modals: remove all backdrops & body state
+                    backdrops.forEach(b=> b.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.removeProperty('padding-right');
+                } else {
+                    // Visible modals: keep only the most recent backdrop
+                    if (backdrops.length > 1){
+                        backdrops.slice(0,-1).forEach(b=> b.remove());
+                    }
+                    tagLatestBackdrop(visible[visible.length-1]);
+                }
+            } catch(e){ /* silent */ }
+        }
+        function show(modalEl, options = {}){
+            try { forceCleanup(); } catch(e){}
+            let instance = null;
+            try {
+                instance = bootstrap.Modal.getOrCreateInstance(modalEl, Object.assign({backdrop: true}, options));
+                instance.show();
+                setTimeout(()=>{ tagLatestBackdrop(modalEl); forceCleanup(); }, 50);
+                const onHidden = () => { setTimeout(forceCleanup, 50); modalEl.removeEventListener('hidden.bs.modal', onHidden); };
+                modalEl.addEventListener('hidden.bs.modal', onHidden);
+            } catch(e){ console.warn('safeModal.show error', e); forceCleanup(); }
+            return instance;
+        }
+        function hide(modalEl){
+            try {
+                const instance = bootstrap.Modal.getInstance(modalEl);
+                if (instance) instance.hide();
+            } catch(e){ /* ignore */ }
+            setTimeout(forceCleanup, 80);
+        }
+        return { show, hide, forceCleanup };
+    })();
+    
+    // Global cleanup function that can be called manually
+    window.cleanupModalBackdrops = function() {
+        if (window.safeModal && typeof window.safeModal.forceCleanup === 'function') {
+            window.safeModal.forceCleanup();
+        }
+    };
+    
+    // Automatic cleanup on page visibility change (when user switches tabs/windows)
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+            // Page became visible again, cleanup any stray backdrops
+            setTimeout(window.cleanupModalBackdrops, 100);
+        }
+    });
+    
+    // Global event listener for modal dismiss buttons to ensure cleanup
+    document.addEventListener('click', function(e) {
+        if (e.target.matches('[data-bs-dismiss="modal"]') || e.target.closest('[data-bs-dismiss="modal"]')) {
+            console.log('Modal dismiss button clicked, scheduling cleanup');
+            setTimeout(window.cleanupModalBackdrops, 150);
+        }
+    });
+    
+    // Global event listener for when modals are hidden via Bootstrap events
+    document.addEventListener('hidden.bs.modal', function(e) {
+        setTimeout(window.cleanupModalBackdrops, 60);
+    });
+    
+    // Periodic orphan backdrop cleanup (gentle)
+    setInterval(function() {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        const visibleModals = document.querySelectorAll('.modal.show');
+        if (backdrops.length && visibleModals.length === 0) {
+            window.cleanupModalBackdrops();
+        }
+    }, 5000);
+
+    // Basic ensure correct stacking on show
+    document.addEventListener('show.bs.modal', function(){
+        setTimeout(()=>{
+            const bd = document.querySelector('.modal-backdrop:last-of-type');
+            if (bd) bd.style.zIndex = '1040';
+            document.querySelectorAll('.modal.show').forEach(m=> m.style.zIndex = '1050');
+        }, 25);
+    });
+
+    // Mutation observer refined: only run cleanup if no modal is visible shortly after insertion
+    try {
+        const observer = new MutationObserver(muts => {
+            let inserted = false;
+            muts.forEach(m => m.addedNodes && m.addedNodes.forEach(n => { if (n.nodeType===1 && n.classList && n.classList.contains('modal-backdrop')) inserted = true; }));
+            if (inserted) {
+                setTimeout(() => {
+                    const visible = document.querySelectorAll('.modal.show');
+                    if (!visible.length) window.cleanupModalBackdrops();
+                }, 250);
+            }
+        });
+        observer.observe(document.body, {childList:true});
+    } catch(e){ console.warn('Observer setup failed', e); }
+
+    // Mutation observer to detect backdrop insertions and auto-clean if orphaned
+    try {
+        const observer = new MutationObserver(muts => {
+            let addedBackdrop = false;
+            muts.forEach(m=> m.addedNodes && m.addedNodes.forEach(n=>{
+                if (n.nodeType===1 && n.classList && n.classList.contains('modal-backdrop')) addedBackdrop = true;
+            }));
+            if (addedBackdrop) {
+                setTimeout(()=>{ window.cleanupModalBackdrops(); }, 150);
+            }
+        });
+        observer.observe(document.body, {childList:true});
+    } catch(e){ console.warn('Backdrop observer failed', e); }
+
+    // Expose hard nuke helper
+    window.nukeBackdrops = function(){
+        document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow='';
+        console.log('Backdrops nuked');
+    };
+    </script>
+
+    <script>
+    // Ensure a safe global baseUrl is available for scripts that rely on it
+    if (typeof window.baseUrl === 'undefined' || !window.baseUrl) {
+        window.baseUrl = '<?= base_url() ?>';
+    }
     </script>
 
         <?php if(session()->get('isLoggedIn')): ?>
