@@ -92,31 +92,36 @@
                                     <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
                                     <?= $isRequired ? 'required' : '' ?> >
 
-            
-                                            if (is_array($decoded) && !empty($decoded)) {
-                                                $opts = $decoded;
-                                            } else {
-                                                $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
-                                                if (!empty($lines)) $opts = $lines;
-                                            }
-                                        }
-
-                                        foreach ($opts as $opt):
-                                            // support new object shape {label, sub_field}
-                                            if (is_array($opt)) {
-                                                $optLabel = $opt['label'] ?? '';
-                                                $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
-                                            } else {
-                                                $optLabel = $opt;
-                                                $optValue = $opt;
-                                            }
-                                    ?>
-                                            <option value="<?= esc($optValue) ?>"><?= esc($optLabel) ?></option>
-                                        <?php endforeach;
-                                    endif;
-                                    ?>
-                                </select>
                                 
+                            <?php elseif ($field['field_type'] === 'select'): ?>
+                                <select class="form-select" id="<?= $field['field_name'] ?>" name="<?= $field['field_name'] ?>" <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?> <?= $isRequired ? 'required' : '' ?>>
+                                <?php
+                                    $opts = [];
+                                    if (!empty($field['options']) && is_array($field['options'])) {
+                                        $opts = $field['options'];
+                                    } elseif (!empty($field['default_value'])) {
+                                        $decoded = json_decode($field['default_value'], true);
+                                        if (is_array($decoded) && !empty($decoded)) {
+                                            $opts = $decoded;
+                                        } else {
+                                            $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+                                            if (!empty($lines)) $opts = $lines;
+                                        }
+                                    }
+
+                                    foreach ($opts as $opt):
+                                        if (is_array($opt)) {
+                                            $optLabel = $opt['label'] ?? '';
+                                            $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
+                                        } else {
+                                            $optLabel = $opt;
+                                            $optValue = $opt;
+                                        }
+                                ?>
+                                    <option value="<?= esc($optValue) ?>"><?= esc($optLabel) ?></option>
+                                <?php endforeach; ?>
+                                </select>
+
                             <?php elseif ($field['field_type'] === 'textarea'): ?>
                                 <textarea class="form-control" 
                                     id="<?= $field['field_name'] ?>" 
