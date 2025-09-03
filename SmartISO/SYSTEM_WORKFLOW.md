@@ -83,7 +83,7 @@ Admin/Superuser → Panels → Dynamic Panel Creation → Field Configuration
 
 2. **Panel Configuration**
    - Create dynamic panels with drag-and-drop interface
-   - Define field types (input, dropdown, textarea, datepicker, yes/no)
+   - Define field types (input, dropdown, textarea, datepicker)
    - Set field roles (requestor-only, service-staff-only, both, readonly)
    - Configure field validation and requirements
 

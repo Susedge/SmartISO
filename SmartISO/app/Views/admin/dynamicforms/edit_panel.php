@@ -134,7 +134,6 @@
                             <option value="textarea">Text Area</option>
                             <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
-                            <option value="yesno">Yes/No</option>
                         </select>
                     </div>
                     
@@ -243,7 +242,6 @@
                             <option value="textarea">Text Area</option>
                             <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
-                            <option value="yesno">Yes/No</option>
                         </select>
                     </div>
                     

@@ -213,74 +213,179 @@ class FormBuilder {
         const container = document.getElementById('docxImportList');
         if (!container) return;
         container.innerHTML = '';
-        const entries = Object.keys(mapped || {});
-        if (entries.length === 0) {
-            container.innerHTML = '<div class="alert alert-info small">No content controls (tags) were found in the document.</div>';
-            return;
+        const selectAllEl = document.getElementById('docxSelectAll');
+        const filterInput = document.getElementById('docxFilterInput');
+        const countEl = document.getElementById('docxSelectedCount');
+        const map = mapped || {}; // maintain previous variable name usage
+
+        // New spec (chronological rendering):
+        //  - Maintain the order (top-to-bottom) that tags appeared in the DOCX.
+        //  - Checkbox groups (C_BASE_OPTION) appear at the first occurrence of any of their options.
+        //  - Single value fields are plain TAG or F_TAG (F_ optional and ignored).
+        //  - When both TAG and F_TAG exist, prefer plain label but keep earliest position.
+        const checkboxGroups = {}; // base -> { options:Set, firstIndex:number }
+        const singleFieldsMeta = {}; // normName -> { plain:string, firstIndex:number }
+        const orderedItems = []; // [{kind:'checkboxGroup', base}, {kind:'single', name:plain}]
+
+        const rawTags = Object.keys(map);
+        rawTags.forEach((tag, idx) => {
+            if (/^C_/i.test(tag)) {
+                const core = tag.replace(/^C_/i, '');
+                const parts = core.split('_');
+                if (parts.length < 2) return; // need base + option
+                const option = parts.pop();
+                const base = parts.join('_');
+                if (!checkboxGroups[base]) {
+                    checkboxGroups[base] = { options: new Set(), firstIndex: idx };
+                    // Record first appearance ordering
+                    orderedItems.push({ kind: 'checkboxGroup', base });
+                }
+                checkboxGroups[base].options.add(option);
+            } else {
+                const plain = tag.replace(/^F_/i, '');
+                const norm = plain.toLowerCase();
+                if (!singleFieldsMeta[norm]) {
+                    singleFieldsMeta[norm] = { plain, firstIndex: idx, sawPlain: !/^F_/i.test(tag) };
+                    orderedItems.push({ kind: 'single', name: plain, norm });
+                } else {
+                    // Update earliest index
+                    singleFieldsMeta[norm].firstIndex = Math.min(singleFieldsMeta[norm].firstIndex, idx);
+                    // If we now see a plain variant, prefer that canonical plain value
+                    if (!/^F_/i.test(tag) && !singleFieldsMeta[norm].sawPlain) {
+                        singleFieldsMeta[norm].plain = plain;
+                        singleFieldsMeta[norm].sawPlain = true;
+                    }
+                }
+            }
+        });
+
+        // Render in chronological order (orderedItems already captures first-appearance order)
+        let rowIndex = 0;
+        orderedItems.forEach(item => {
+            if (item.kind === 'checkboxGroup') {
+                const meta = checkboxGroups[item.base];
+                if (!meta) return;
+                const opts = Array.from(meta.options); // insertion order preserved
+                const label = this.humanizeTag(item.base);
+                const row = document.createElement('div');
+                row.className = 'docx-import-row d-flex align-items-start gap-2 p-2';
+                row.dataset.kind = 'checkboxGroup';
+                row.dataset.base = item.base;
+                row.dataset.options = JSON.stringify(opts.map(o => ({ label: this.humanizeTag(o), sub_field: o })));
+                row.innerHTML = `
+                    <div class="form-check pt-1">
+                        <input class="form-check-input import-field-checkbox" type="checkbox" id="docx_group_${rowIndex}" data-kind="checkboxGroup" data-base="${this.escapeHtml(item.base)}" checked>
+                    </div>
+                    <div class="flex-grow-1 small">
+                        <div class="fw-semibold">${this.escapeHtml(label)}</div>
+                        <div class="text-muted">Options: ${opts.map(o=>this.escapeHtml(this.humanizeTag(o))).join(', ')}</div>
+                        <div class="text-muted fst-italic">Checkbox Group (C_)</div>
+                    </div>`;
+                container.appendChild(row);
+                rowIndex++;
+            } else if (item.kind === 'single') {
+                const meta = singleFieldsMeta[item.norm];
+                if (!meta) return;
+                const plain = meta.plain;
+                const label = this.humanizeTag(plain);
+                const row = document.createElement('div');
+                row.className = 'docx-import-row d-flex align-items-start gap-2 p-2';
+                row.dataset.kind = 'single';
+                row.dataset.name = plain;
+                row.innerHTML = `
+                    <div class="form-check pt-1">
+                        <input class="form-check-input import-field-checkbox" type="checkbox" id="docx_single_${rowIndex}" data-kind="single" data-name="${this.escapeHtml(plain)}" checked>
+                    </div>
+                    <div class="flex-grow-1 small">
+                        <div class="fw-semibold">${this.escapeHtml(label)}</div>
+                        <div class="text-muted fst-italic">Field (plain/F_)</div>
+                    </div>`;
+                container.appendChild(row);
+                rowIndex++;
+            }
+        });
+
+        if (countEl) {
+            const checked = container.querySelectorAll('.import-field-checkbox:checked').length;
+            countEl.textContent = `${checked} selected`;
         }
-        entries.forEach((tag, idx) => {
-            const val = mapped[tag];
-            const row = document.createElement('div');
-            row.className = 'd-flex align-items-center gap-2 p-2 border-bottom';
-            row.innerHTML = `
-                <div class="form-check">
-                    <input class="form-check-input import-field-checkbox" type="checkbox" id="import_${idx}" data-tag="${this.escapeHtml(tag)}" checked>
-                </div>
-                <div style="flex:1">
-                    <div class="small text-muted">TAG: <strong>${this.escapeHtml(tag)}</strong></div>
-                    <div><input class="form-control form-control-sm import-field-label" value="${this.humanizeTag(tag)}"></div>
-                </div>
-                <div style="width:220px">
-                    <input class="form-control form-control-sm import-field-name" value="${this.suggestFieldName(tag)}">
-                    <div class="small text-muted">Preview: ${this.escapeHtml(String(val))}</div>
-                </div>
-            `;
-            container.appendChild(row);
+        // Handlers for select-all & filtering
+        const refreshCount = () => {
+            if (!countEl) return;
+            const checks = container.querySelectorAll('.import-field-checkbox');
+            let selected = 0; checks.forEach(c=>{ if(c.checked) selected++; });
+            countEl.textContent = `${selected} selected`;
+        };
+        if (selectAllEl) {
+            selectAllEl.onchange = () => {
+                const checks = container.querySelectorAll('.import-field-checkbox');
+                checks.forEach(c=> c.checked = selectAllEl.checked);
+                refreshCount();
+            };
+        }
+        if (filterInput) {
+            filterInput.oninput = () => {
+                const term = filterInput.value.trim().toLowerCase();
+                const rows = Array.from(container.querySelectorAll('.docx-import-row'));
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = term && !text.includes(term) ? 'none' : '';
+                });
+            };
+        }
+        if (filterInput) {
+            filterInput.oninput = () => {
+                const term = filterInput.value.trim().toLowerCase();
+                const rows = Array.from(container.querySelectorAll('.docx-import-row'));
+                rows.forEach(r => {
+                    const txt = r.textContent.toLowerCase();
+                    r.style.display = term && !txt.includes(term) ? 'none' : '';
+                });
+            };
+        }
+
+        // Update count when individual checkboxes change
+        container.addEventListener('change', (e) => {
+            if (e.target.classList && e.target.classList.contains('import-field-checkbox')) refreshCount();
         });
 
         // Wire add selected button
         const addBtn = document.getElementById('docxImportAddSelected');
-            addBtn.onclick = () => {
-            const rows = Array.from(container.querySelectorAll('div.d-flex'));
-            rows.forEach(r => {
-                const chk = r.querySelector('.import-field-checkbox');
-                if (!chk || !chk.checked) return;
-                const tag = chk.dataset.tag || '';
-                const label = r.querySelector('.import-field-label').value || this.humanizeTag(tag);
-                const name = r.querySelector('.import-field-name').value || this.suggestFieldName(tag);
-                // Determine field type heuristic: if tag contains DATE or looks like a date, use datepicker
-                let type = 'input';
-                if (/DATE|_DATE|DATE_OF/i.test(tag)) type = 'datepicker';
-                // If value contains commas, suggest checkboxes
-                const preview = (r.querySelector('.small') || {}).textContent || '';
-                if (preview && preview.split(',').length > 1) type = 'checkboxes';
-
-                // Skip if a field with same name OR label (case-insensitive) already exists
-                const exists = this.fields.some(f => {
-                    const fname = (f.name || f.field_name || '').toLowerCase();
-                    const flabel = (f.label || f.field_label || '').toLowerCase();
-                    return fname === name.toLowerCase() || flabel === label.toLowerCase();
-                });
-                if (exists) {
-                    console.log('Skipping duplicate imported field', name, label);
-                    return;
+        if (addBtn) addBtn.onclick = () => {
+            const checks = Array.from(container.querySelectorAll('.import-field-checkbox'));
+            checks.forEach(chk => {
+                if (!chk.checked) return;
+                const kind = chk.dataset.kind;
+                if (kind === 'checkboxGroup') {
+                    const base = chk.dataset.base;
+                    const row = chk.closest('.docx-import-row');
+                    if (!row) return;
+                    let options = [];
+                    try { options = JSON.parse(row.dataset.options || '[]'); } catch(e) {}
+                    const exists = this.fields.some(f => (f.name||'').toLowerCase() === base.toLowerCase());
+                    if (exists) return;
+                    const fieldData = {
+                        id: this.generateFieldId(),
+                        // Use 'checkboxes' type so the builder renders a checkbox group (C_ prefix semantics)
+                        type: 'checkboxes',
+                        label: this.humanizeTag(base),
+                        name: base.toLowerCase(),
+                        width: 12,
+                        required: false,
+                        bump_next_field: false,
+                        options: options.map(o => ({ label: o.label, sub_field: o.sub_field || o.label }))
+                    };
+                    this.addFieldWithData(fieldData);
+                } else if (kind === 'single') {
+                    const rawName = chk.dataset.name || 'field';
+                    const name = this.suggestFieldName(rawName);
+                    const label = this.humanizeTag(rawName);
+                    const exists = this.fields.some(f => (f.name||'').toLowerCase() === name.toLowerCase());
+                    if (exists) return;
+                    const type = /DATE|_DATE|DATE_OF/i.test(rawName) ? 'datepicker' : 'input';
+                    const fieldData = { id: this.generateFieldId(), type, label, name, width: 12, required: false, bump_next_field: false };
+                    this.addFieldWithData(fieldData);
                 }
-
-                const fieldData = {
-                    id: this.generateFieldId(),
-                    type: type,
-                    label: label,
-                    name: name,
-                    width: 12,
-                    required: false,
-                    bump_next_field: false
-                };
-                // For checkboxes, create options from comma-separated preview
-                if (type === 'checkboxes') {
-                    const val = mapped[tag] || '';
-                    fieldData.options = String(val).split(',').map(s => s.trim()).filter(Boolean);
-                }
-                this.addFieldWithData(fieldData);
             });
             // Hide modal after import using safeModal helper for consistent cleanup
             const modalEl = document.getElementById('docxImportModal');
@@ -330,7 +435,7 @@ class FormBuilder {
                     console.warn('Additional cleanup failed', e);
                 }
             }, 200);
-        };
+    };
     }
 
     humanizeTag(tag) {
@@ -354,13 +459,27 @@ class FormBuilder {
             item.setAttribute('draggable', 'true');
             
             item.addEventListener('dragstart', (e) => {
-                const fieldType = e.target.getAttribute('data-field-type') || 
-                                e.target.closest('.field-type-item').getAttribute('data-field-type');
-                console.log('Dragging field type:', fieldType);
+                const el = e.currentTarget;
+                const fieldType = el.getAttribute('data-field-type');
                 e.dataTransfer.setData('text/plain', fieldType);
-                e.dataTransfer.setData('application/x-palette-item', 'true'); // Mark as palette drag
+                e.dataTransfer.setData('application/x-palette-item', 'true');
                 e.dataTransfer.effectAllowed = 'copy';
-                e.target.classList.add('dragging');
+                el.classList.add('dragging');
+                // Custom drag image (clone) so entire pill shows while dragging
+                try {
+                    const clone = el.cloneNode(true);
+                    clone.style.position = 'absolute';
+                    clone.style.top = '-9999px';
+                    clone.style.left = '-9999px';
+                    clone.style.boxShadow = '0 6px 16px rgba(0,0,0,0.25)';
+                    clone.style.pointerEvents = 'none';
+                    document.body.appendChild(clone);
+                    const rect = el.getBoundingClientRect();
+                    const offsetX = rect.width / 2;
+                    const offsetY = rect.height / 2;
+                    e.dataTransfer.setDragImage(clone, offsetX, offsetY);
+                    setTimeout(()=> clone.remove(), 600); // cleanup after drag starts
+                } catch(err) { /* ignore if drag image fails */ }
             });
 
             item.addEventListener('dragend', (e) => {
@@ -865,6 +984,17 @@ class FormBuilder {
     reorganizeFormLayout() {
         const dropZone = document.getElementById('formBuilderDropZone');
         if (!dropZone) return;
+        // CLEANUP: remove any accidental rows appended directly to .form-builder-area (outside dropZone)
+        try {
+            const area = document.querySelector('.form-builder-area');
+            if (area) {
+                area.querySelectorAll(':scope > .row').forEach(r => {
+                    if (!dropZone.contains(r)) {
+                        r.remove();
+                    }
+                });
+            }
+        } catch (e) { console.warn('Row cleanup failed', e); }
         
         // Clear existing layout
         dropZone.innerHTML = '';
@@ -901,8 +1031,10 @@ class FormBuilder {
             currentRow.appendChild(fieldElement);
             currentRowWidth += fieldWidth;
 
-            // If bump_next_field is false and not the last field, force new row
-            if (field.bump_next_field === false && index < sortedFields.length - 1) {
+            // UPDATED LOGIC: bump_next_field now means *create a new row after this field* when true.
+            // Previously this condition was inverted (false forced break) which caused confusing alignment.
+            // NOTE: Existing stored data created under old logic may appear different; consider migrating DB values if needed.
+            if (field.bump_next_field === true && index < sortedFields.length - 1) {
                 currentRow = document.createElement('div');
                 currentRow.className = 'row';
                 dropZone.appendChild(currentRow);
@@ -963,9 +1095,7 @@ class FormBuilder {
             case 'datepicker':
                 baseData.field_label = 'Date';
                 break;
-            case 'yesno':
-                baseData.field_label = 'Yes/No';
-                break;
+            // 'yesno' removed (use checkboxes instead)
         }
 
         return baseData;
@@ -1059,6 +1189,32 @@ class FormBuilder {
             case 'input':
                 fieldHTML += `<input type="text" class="form-control" name="${name}" placeholder="${placeholder}" ${fieldData.required ? 'required' : ''} disabled>`;
                 break;
+            case 'radio':
+                // Render a vertical radio group preview (exclusive selection)
+                fieldHTML += `<div class="d-flex flex-column gap-1">`;
+                const radioOptions = (fieldData.options && Array.isArray(fieldData.options) && fieldData.options.length)
+                    ? fieldData.options
+                    : ['Option 1','Option 2'];
+                radioOptions.forEach((option, idx) => {
+                    let optLabel = '';
+                    let optValue = '';
+                    if (typeof option === 'object' && option !== null) {
+                        optLabel = String(option.label || '');
+                        optValue = String(option.sub_field || option.label || '');
+                    } else {
+                        optLabel = String(option);
+                        optValue = String(option);
+                    }
+                    const safeLabel = this.escapeHtml(optLabel);
+                    const safeVal = this.escapeHtml(optValue);
+                    fieldHTML += `<div class="form-check">
+                        <input class="form-check-input" type="radio" name="${name}" id="${name}_${idx}" value="${safeVal}" disabled>
+                        <label class="form-check-label small" for="${name}_${idx}">${safeLabel}</label>
+                    </div>`;
+                });
+                fieldHTML += `<span class="ms-1"><i class="fas fa-pen small text-muted" title="Manage options" style="cursor:pointer" onclick="formBuilder.openOptionsManagerById('${fieldData.id}')"></i></span>`;
+                fieldHTML += `</div>`;
+                break;
             case 'email':
                 fieldHTML += `<input type="email" class="form-control" name="${name}" placeholder="${placeholder}" ${fieldData.required ? 'required' : ''} disabled>`;
                 break;
@@ -1101,42 +1257,6 @@ class FormBuilder {
                 fieldHTML += `</select>
                     <span class="ms-2"><i class="fas fa-pen small text-muted" title="Manage options" style="cursor:pointer" onclick="formBuilder.openOptionsManagerById('${fieldData.id}')"></i></span>
                 </div>`;
-                break;
-            case 'radio':
-                // Render radio fields as a group of checkboxes (multi-select) per new requirement
-                fieldHTML += `<div class="d-flex flex-wrap gap-2 align-items-center">`;
-                if (fieldData.options && Array.isArray(fieldData.options)) {
-                    fieldData.options.forEach((option, idx) => {
-                        let optLabel = '';
-                        let optValue = '';
-                        if (typeof option === 'object' && option !== null) {
-                            optLabel = String(option.label || '');
-                            optValue = String(option.sub_field || option.label || '');
-                        } else {
-                            optLabel = String(option);
-                            optValue = String(option);
-                        }
-                        const safeLabel = this.escapeHtml(optLabel);
-                        const safeVal = this.escapeHtml(optValue);
-                        fieldHTML += `<div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" name="${name}[]" id="${name}_${idx}" value="${safeVal}" disabled>
-                            <label class="form-check-label small" for="${name}_${idx}">${safeLabel}</label>
-                        </div>`;
-                    });
-                    // If options include an "Other" entry, render a disabled small text input (hidden by default)
-                    const hasOther = fieldData.options.some(o => {
-                        const testVal = (typeof o === 'object' && o !== null) ? (o.label || o.sub_field || '') : String(o);
-                        return /^others?$/i.test(String(testVal));
-                    });
-                    if (hasOther) {
-                        fieldHTML += `<input type="text" class="form-control form-control-sm ms-2 other-input-preview" name="${name}_other" placeholder="Other (text)" disabled style="display:none; max-width:200px">`;
-                    }
-                } else {
-                    fieldHTML += `<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" disabled><label class="form-check-label small">Option 1</label></div>`;
-                }
-                // edit icon to open edit modal for the field
-                fieldHTML += `<span class="ms-2"><i class="fas fa-pen small text-muted" title="Manage options" style="cursor:pointer" onclick="formBuilder.openOptionsManagerById('${fieldData.id}')"></i></span>`;
-                fieldHTML += `</div>`;
                 break;
 
             case 'checkboxes':
@@ -1181,19 +1301,7 @@ class FormBuilder {
                     </div>
                 `;
                 break;
-            case 'radio':
-            case 'yesno':
-                fieldHTML += `<div class="d-flex">
-                    <div class="form-check me-3">
-                        <input class="form-check-input" type="radio" name="${name}" value="yes" ${fieldData.required ? 'required' : ''} disabled>
-                        <label class="form-check-label">Yes</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="${name}" value="no" disabled>
-                        <label class="form-check-label">No</label>
-                    </div>
-                </div>`;
-                break;
+            // 'yesno' removed
             case 'date':
             case 'datepicker':
                 // Determine value: support CURRENTDATE (case-insensitive) to populate today's date
@@ -1676,7 +1784,7 @@ class FormBuilder {
                                             <option value="dropdown">Dropdown</option>
                                             <option value="radio">Radio</option>
                                             <option value="datepicker">Date Picker</option>
-                                            <option value="yesno">Yes/No</option>
+                                            
                                         </select>
                                     </div>
                                 </div>
@@ -2077,14 +2185,22 @@ class FormBuilder {
         // Filter out any falsy or placeholder objects without a type
         existingFields = existingFields.filter(f => f && (f.field_type || f.type));
         // Map & normalize
-        let normalized = existingFields.map(field => ({
-            ...field,
-            id: field.id || 'field_' + Date.now() + '_' + Math.random(),
-            width: field.width || 12,
-            type: field.type || field.field_type,
-            label: field.label || field.field_label || 'Field',
-            name: field.name || field.field_name || (field.label ? field.label.toLowerCase().replace(/[^a-z0-9]+/g,'_') : '')
-        }));
+        let normalized = existingFields.map(field => {
+            const rawLabel = field.label || field.field_label || 'Field';
+            const cleanLabel = rawLabel.replace(/\s+/g,' ').trim();
+            const baseName = field.name || field.field_name || cleanLabel;
+            const cleanName = baseName.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]+/g,'').replace(/^_+|_+$/g,'');
+            return {
+                ...field,
+                id: field.id || 'field_' + Date.now() + '_' + Math.random(),
+                width: field.width || 12,
+                type: field.type || field.field_type,
+                label: cleanLabel,
+                field_label: cleanLabel,
+                name: cleanName,
+                field_name: cleanName
+            };
+        });
         // De-duplicate by id then by name (keep first occurrence)
         const seenIds = new Set();
         const seenNames = new Set();
@@ -2108,67 +2224,7 @@ class FormBuilder {
         });
         // Reassign sequential field_order
         normalized.forEach((f,i)=>{ f.field_order = i+1; });
-        this.fields = normalized;
-        // Normalize options stored in default_value (if used) or options property
-        this.fields = this.fields.map(f => {
-            if ((!f.options || !Array.isArray(f.options) || f.options.length===0) && f.default_value) {
-                try {
-                    const parsed = JSON.parse(f.default_value);
-                    if (Array.isArray(parsed)) f.options = parsed;
-                } catch (e) {
-                    // Not JSON - perhaps newline separated
-                    const lines = (''+f.default_value).split('\n').map(s=>s.trim()).filter(s=>s);
-                    if (lines.length>0) f.options = lines;
-                }
-            }
-            return f;
-        });
-        
-        // Reorganize the form layout
-        this.reorganizeFormLayout();
-    }
-
-    showDeleteModal(fieldId) {
-        // Deprecated: no confirmation, call deleteField directly
-        this.deleteField(fieldId);
-    }
-
-    deleteField(fieldId) {
-        // Custom removal without immediate full rebuild to avoid accidental cloning
-        const idx = this.fields.findIndex(f => f.id === fieldId);
-        if (idx === -1) return;
-        this.fields.splice(idx,1);
-        // Remove DOM element if present
-        const el = document.querySelector(`[data-field-id="${fieldId}"]`);
-        if (el) {
-            try { el.classList.add('field-removing'); } catch(e){}
-            setTimeout(()=>{ if (el.parentNode) el.parentNode.removeChild(el); this.afterFieldRemoval(); }, 60);
-        } else {
-            this.afterFieldRemoval();
-        }
-    }
-
-    afterFieldRemoval(){
-        // Dedupe remaining (safety)
-        const dedup = []; const seen = new Set();
-        for (const f of this.fields){
-            const type = (f.type||f.field_type||'').toLowerCase();
-            const key = ( (f.name||f.field_name||'').toLowerCase() + '::' + type );
-            if (seen.has(key)) continue; seen.add(key); dedup.push(f);
-        }
-        this.fields = dedup;
-        // Reassign order sequential
-        this.fields.forEach((f,i)=> f.field_order = i+1);
-        // Rebuild only if DOM order and array length mismatch
-        const domCount = document.querySelectorAll('.form-builder-area .field-item-container').length;
-        if (domCount !== this.fields.length) {
-            this.reorganizeFormLayout();
-        }
-        this.updateEmptyState();
-    }
-
-    updateFieldElement(fieldId, fieldData) {
-        // Find and update the field in the array
+        // Removed deprecated earlier saveForm() (panel_id based). Unified saveForm() implementation retained later in file.
         const fieldIndex = this.fields.findIndex(f => f.id === fieldId);
         if (fieldIndex >= 0) {
             this.fields[fieldIndex] = { ...this.fields[fieldIndex], ...fieldData };
@@ -2346,25 +2402,19 @@ class FormBuilder {
     }
 
     insertFieldAtPosition(fieldElement, dropY = null, fieldData = null) {
-        const formBuilder = document.querySelector('.form-builder-area');
-        if (!formBuilder) {
-            console.error('Panels area not found');
-            return;
-        }
+        // Always target the explicit drop zone to avoid creating sibling duplicate rows
+        const dropZone = document.getElementById('formBuilderDropZone');
+        if (!dropZone) { console.error('Drop zone not found'); return; }
         // If no drop position provided or there are no existing fields, append to the last row (or create first)
         if (dropY === null || this.fields.length === 0) {
             // Push to fields array at end
             if (fieldData) this.fields.push(fieldData);
-
-            const lastRow = formBuilder.querySelector('.row:last-child');
-            if (lastRow) {
-                lastRow.appendChild(fieldElement);
-            } else {
-                // Create first row if none exists
+            const lastRow = dropZone.querySelector('.row:last-child');
+            if (lastRow) lastRow.appendChild(fieldElement); else {
                 const newRow = document.createElement('div');
                 newRow.className = 'row';
                 newRow.appendChild(fieldElement);
-                formBuilder.appendChild(newRow);
+                dropZone.appendChild(newRow);
             }
             // Clean up any accidental empty rows
             this.removeEmptyRows();
@@ -2378,7 +2428,7 @@ class FormBuilder {
 
         if (betweenRows) {
             // Insert as a new row between the two rows surrounding insertAfter/nextElement
-            const fieldElements = [...document.querySelectorAll('.field-item-container')];
+            const fieldElements = [...dropZone.querySelectorAll('.field-item-container')];
             const nextElement = insertAfter ? fieldElements[fieldElements.indexOf(insertAfter) + 1] : fieldElements[0];
             const referenceRow = nextElement ? nextElement.parentNode : null;
 
@@ -2386,12 +2436,9 @@ class FormBuilder {
             newRow.className = 'row';
             newRow.appendChild(fieldElement);
 
-            if (referenceRow && referenceRow.parentNode) {
-                referenceRow.parentNode.insertBefore(newRow, referenceRow);
-            } else {
-                // Fallback: append to panels area
-                formBuilder.appendChild(newRow);
-            }
+            if (referenceRow && referenceRow.parentNode === dropZone) {
+                dropZone.insertBefore(newRow, referenceRow);
+            } else { dropZone.appendChild(newRow); }
 
                 // Insert into fields array before the first field of the next row (if exists)
             if (nextElement && fieldData) {
@@ -2418,7 +2465,7 @@ class FormBuilder {
                 }
             } else {
                 // Insert at start before first field
-                const firstField = document.querySelector('.field-item-container');
+                const firstField = dropZone.querySelector('.field-item-container');
                     if (firstField && firstField.parentNode) {
                     firstField.parentNode.insertBefore(fieldElement, firstField);
                     if (fieldData) {
@@ -2429,8 +2476,13 @@ class FormBuilder {
                     }
                 } else {
                     // As a last resort append to last row
-                    const lastRow = formBuilder.querySelector('.row:last-child');
-                    if (lastRow) lastRow.appendChild(fieldElement);
+                    const lastRow = dropZone.querySelector('.row:last-child');
+                    if (lastRow) lastRow.appendChild(fieldElement); else {
+                        const newRow = document.createElement('div');
+                        newRow.className = 'row';
+                        newRow.appendChild(fieldElement);
+                        dropZone.appendChild(newRow);
+                    }
                     if (fieldData) this.fields.push(fieldData);
                 }
             // Clean up any empty rows after insertion
@@ -2508,7 +2560,7 @@ class FormBuilder {
             textarea: 'Text Area',
             dropdown: 'Dropdown',
             datepicker: 'Date Picker',
-            yesno: 'Yes/No'
+            
         };
         return labels[fieldType] || 'Field Label';
     }

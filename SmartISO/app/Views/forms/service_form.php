@@ -262,58 +262,7 @@ document.addEventListener('change', function(e) {
                                                     </div>
                                                 <?php endif; ?>
                                             </div>
-                                        <?php elseif ($field['field_type'] === 'yesno'): ?>
-                                            <select class="form-select" 
-                                                    id="<?= $field['field_name'] ?>" 
-                                                    name="<?= $field['field_name'] ?>"
-                                                    <?= (isset($field['required']) && $field['required']) ? 'required' : '' ?>>
-                                                <option value="">Select...</option>
-                                                <option value="Yes" <?= ($submission_data[$field['field_name']] ?? '') == 'Yes' ? 'selected' : '' ?>>Yes</option>
-                                                <option value="No" <?= ($submission_data[$field['field_name']] ?? '') == 'No' ? 'selected' : '' ?>>No</option>
-                                            </select>
-                                        <?php elseif ($field['field_type'] === 'checkboxes'): ?>
-                                            <?php
-                                                $opts = [];
-                                                if (!empty($field['options']) && is_array($field['options'])) {
-                                                    $opts = $field['options'];
-                                                } elseif (!empty($field['default_value'])) {
-                                                    $decoded = json_decode($field['default_value'], true);
-                                                    if (is_array($decoded) && !empty($decoded)) {
-                                                        $opts = $decoded;
-                                                    } else {
-                                                        $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
-                                                        if (!empty($lines)) $opts = $lines;
-                                                    }
-                                                }
-                                                $hasOther = false;
-                                                foreach ($opts as $opt) { $test = is_array($opt) ? ($opt['label'] ?? $opt['sub_field'] ?? '') : $opt; if (preg_match('/^others?$/i', trim($test))) { $hasOther = true; break; } }
-                                            ?>
-                                            <div class="d-flex flex-wrap gap-2 align-items-center">
-                                                <?php foreach ($opts as $oi => $opt): ?>
-                                                    <?php
-                                                        if (is_array($opt)) {
-                                                            $optLabel = $opt['label'] ?? '';
-                                                            $optValue = $opt['sub_field'] ?? ($opt['label'] ?? '');
-                                                        } else {
-                                                            $optLabel = $opt;
-                                                            $optValue = $opt;
-                                                        }
-                                                    ?>
-                                                    <div class="form-check form-check-inline">
-                                                        <input class="form-check-input" type="checkbox" 
-                                                            id="<?= $field['field_name'] ?>_<?= $oi ?>" 
-                                                            name="<?= $field['field_name'] ?>[]" 
-                                                            value="<?= esc($optValue) ?>" 
-                                                            <?= (isset($field['required']) && $field['required']) ? 'required' : '' ?> >
-                                                        <label class="form-check-label small" for="<?= $field['field_name'] ?>_<?= $oi ?>"><?= esc($optLabel) ?></label>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                                <?php if ($hasOther): ?>
-                                                    <div class="d-inline-block ms-2">
-                                                        <input type="text" class="form-control form-control-sm other-input" name="<?= $field['field_name'] ?>_other" placeholder="Other (please specify)" style="display:none; max-width:220px" value="<?= esc(old($field['field_name'] . '_other', '')) ?>">
-                                                    </div>
-                                                <?php endif; ?>
-                                            </div>
+                                            
                                         <?php elseif ($field['field_type'] === 'list' || $field['field_type'] === 'listitems'): ?>
                                             <?php
                                                 // Prepopulate from submission_data or default_value

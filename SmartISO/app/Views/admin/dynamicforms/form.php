@@ -153,30 +153,7 @@
                                     <?php endif; ?>
                                 </div>
 
-                            <?php elseif ($field['field_type'] === 'yesno'): ?>
-                                <div class="d-flex">
-                                    <div class="form-check me-4">
-                                        <input class="form-check-input" type="radio" 
-                                            id="<?= $field['field_name'] ?>_yes" 
-                                            name="<?= $field['field_name'] ?>" 
-                                            value="Yes"
-                                            <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
-                                            <?= $isRequired ? 'required' : '' ?>>
-                                        <label class="form-check-label" for="<?= $field['field_name'] ?>_yes">
-                                            Yes
-                                        </label>
-                                    </div>
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio" 
-                                            id="<?= $field['field_name'] ?>_no" 
-                                            name="<?= $field['field_name'] ?>" 
-                                            value="No"
-                                            <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>>
-                                        <label class="form-check-label" for="<?= $field['field_name'] ?>_no">
-                                            No
-                                        </label>
-                                    </div>
-                                </div>
+                            
                             <?php endif; ?>
                         </div>
                     <?php 

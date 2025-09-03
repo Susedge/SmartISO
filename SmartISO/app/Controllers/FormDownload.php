@@ -113,11 +113,7 @@ class FormDownload extends BaseController
                     $yPosition += 12;
                     break;
                     
-                case 'yesno':
-                    // Yes/No checkboxes
-                    $pdf->Cell(120, 8, '☐ Yes  ☐ No', 1, 1, 'L');
-                    $yPosition += 12;
-                    break;
+                
                     
                 default: // input
                     // Single line text
@@ -242,11 +238,7 @@ class FormDownload extends BaseController
                     ]);
                     break;
                     
-                case 'yesno':
-                    $section->addText('☐ Yes    ☐ No', [
-                        'name' => 'Arial', 'size' => 10
-                    ]);
-                    break;
+                
                     
                 default: // input
                     $section->addText(str_repeat('_', 50), [

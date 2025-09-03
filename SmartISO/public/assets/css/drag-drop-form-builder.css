@@ -22,7 +22,6 @@
     background: #f8f9fa;
     color: #222;
 }
-/* Yes/No (radio group) field spacing */
 .field-content .d-flex {
     gap: 18px;
     padding: 8px 12px 8px 12px;
@@ -41,21 +40,26 @@
 
 /* Panels Page Wrapper */
 .form-builder-page {
-    margin: -1.5rem -1.5rem 0 -1.5rem; /* Negative margins to extend to container edges and remove top space */
+    /* Removed negative margins that stretched layout */
+    margin: 0;
+    padding: 0 0 1.25rem 0;
+    background: linear-gradient(180deg,#f5f7fa 0%, #ffffff 240px);
 }
 
 /* Panels Toolbar */
 .form-builder-toolbar {
-    background: white;
-    border-bottom: 1px solid #e9ecef;
-    padding: 15px 20px;
+    background: #ffffff;
+    border: 1px solid #e2e6ea;
+    padding: 12px 18px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    position: relative; /* Changed from sticky to relative so it scrolls with content */
-    z-index: 10; /* Reduced z-index since it's not sticky anymore */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 0; /* Remove bottom margin since it's now handled by container */
+    position: relative; /* was sticky - user requested non-floating */
+    top: auto;
+    z-index: 10;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    margin-bottom: 14px;
+    border-radius: 8px; /* unified shape */
 }
 
 .form-builder-toolbar h4 {
@@ -72,7 +76,7 @@
 /* Main Container */
 .form-builder-container {
     height: auto;
-    min-height: calc(100vh - 80px);
+    min-height: calc(100vh - 88px);
     overflow: visible;
 }
 
@@ -86,82 +90,50 @@
 
 /* Left Sidebar - Config Panel */
 .form-builder-sidebar {
-    width: 280px; /* Reduced from 320px */
+    width: 280px;
     min-width: 280px;
     max-width: 280px;
     background: #f8f9fa;
-    border-right: 2px solid #dee2e6;
+    border-right: 1px solid #d9dee2;
     display: flex;
     flex-direction: column;
+    /* removed sticky so it scrolls with the page */
     position: relative;
+    top: auto;
+    align-self: stretch;
     z-index: 10;
-    padding: 12px; /* Reduced from 15px */
+    padding: 14px 14px 18px 14px;
+    gap: 10px;
 }
 
-/* Remove scrollable container - direct content */
-.field-palette-scroll {
-    display: flex;
-    flex-direction: column;
-}
+/* Cleaned malformed earlier block (was causing layout issues) */
+/* Placeholder overlay kept; main field-item-container styling defined later */
 
-/* Field Palette */
-.field-palette {
-    margin-bottom: 15px; /* Reduced from 20px */
-    background: #ffffff;
-    border: 1px solid #dee2e6;
-    border-radius: 5px; /* Reduced from 6px */
-    padding: 12px; /* Reduced from 15px */
+/* DOCX Import Modal Enhancements */
+.docx-import-list {
+    border: 1px solid #e2e6ea;
+    border-radius: 8px;
+    background: #fff;
 }
-
-.palette-title {
-    font-size: 0.9rem; /* Reduced from 0.95rem */
-    font-weight: 600;
-    margin-bottom: 10px; /* Reduced from 12px */
-    color: #495057;
-    border-bottom: 1px solid #e9ecef; /* Reduced from 2px */
-    padding-bottom: 5px; /* Reduced from 6px */
+.docx-import-row + .docx-import-row { border-top: 1px solid #edf0f2; }
+.docx-import-row {
+    position: relative;
+    transition: background .18s, box-shadow .18s;
 }
-
-.field-types {
-    display: flex;
-    flex-direction: column;
-    gap: 4px; /* Reduced from 6px */
+.docx-import-row:hover {
+    background: #f7fbff;
 }
-
-.field-type-item {
-    display: flex;
-    align-items: center;
-    gap: 6px; /* Reduced from 8px */
-    padding: 6px 10px; /* Reduced from 8px 12px */
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 4px; /* Reduced from 5px */
-    cursor: grab;
-    transition: all 0.2s ease;
-    user-select: none;
-}
-
-.field-type-item:hover {
-    background: #e9ecef;
-    border-color: #0d6efd;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(13, 110, 253, 0.15);
-}
-
-.field-type-item:active {
-    cursor: grabbing;
-}
+.docx-import-row .small strong { letter-spacing: .25px; }
+.docx-import-row .form-check-input { cursor: pointer; }
+.docx-import-row:focus-within { box-shadow: inset 0 0 0 2px rgba(13,110,253,0.2); }
+.docx-import-row code { background: #f1f3f5; padding: 1px 4px; border-radius: 4px; font-size: .7rem; }
 
 .field-type-item.dragging {
-    opacity: 0.6;
-    transform: rotate(2deg);
-}
-
-.field-type-item i {
-    font-size: 0.9rem; /* Reduced from 1rem */
-    color: #6c757d;
-    width: 14px; /* Reduced from 16px */
-    text-align: center;
+    opacity: 0.65;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    border-color: #5c8fce;
+    background: #e9f3ff;
+    cursor: grabbing;
 }
 
 .field-type-item span {
@@ -170,13 +142,51 @@
     font-size: 0.8rem; /* Reduced from 0.9rem */
 }
 
+/* Make the single palette item look like a button/pill */
+.field-type-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ffffff;
+    border: 1px dashed #8aa4bc;
+    padding: 8px 14px;
+    border-radius: 30px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #2f5d88;
+    cursor: grab;
+    user-select: none;
+    transition: background .2s, border-color .2s, box-shadow .2s, transform .15s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.field-type-item:hover {
+    background: #e9f3ff;
+    border-color: #5c8fce;
+}
+
+.field-type-item:active {
+    transform: scale(.97);
+    cursor: grabbing;
+}
+
+.field-type-item i.fa-grip-vertical {
+    color: #6c757d;
+    opacity: .8;
+}
+
+.field-type-item i.fa-plus-circle {
+    color: #0d6efd;
+}
+
 /* Config Panel */
 .config-panel {
     background: #ffffff;
-    border: 1px solid #dee2e6;
-    border-radius: 5px; /* Reduced from 6px */
-    padding: 12px; /* Reduced from 15px */
-    margin-top: 6px; /* Reduced from 8px */
+    border: 1px solid #dfe3e6;
+    border-radius: 10px;
+    padding: 14px 14px 10px 14px;
+    margin-top: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .panel-title {
@@ -201,16 +211,18 @@
 
 .form-builder-area {
     flex: 1;
-    margin: 20px;
+    margin: 10px 18px 24px 18px;
     background: #ffffff;
-    border: 2px dashed #dee2e6;
-    border-radius: 8px;
-    padding: 25px 25px 25px 25px; /* Increased top padding for tooltips */
+    border: 1px solid #d5dae0;
+    border-radius: 16px;
+    padding: 28px;
     position: relative;
     min-height: 0;
     height: 100%;
     display: flex;
     flex-direction: column;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+    transition: border-color .25s, box-shadow .25s;
 }
 
 .form-builder-area.drag-over {

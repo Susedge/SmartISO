@@ -265,7 +265,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,yesno,radio,checkbox]',
+            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,radio,checkbox]',
             'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         
@@ -319,7 +319,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,yesno,radio,checkbox]',
+            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,radio,checkbox]',
             'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         

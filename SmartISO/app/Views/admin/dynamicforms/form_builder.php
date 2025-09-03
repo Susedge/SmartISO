@@ -56,9 +56,14 @@
             <div class="field-palette">
                 <div class="field-types">
                     <!-- Single draggable starter item -->
-                    <div class="field-type-item" data-field-type="input" draggable="true">
-                        <i class="fas fa-grip-vertical"></i>
-                        <span>Drag me</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="field-type-item" data-field-type="input" draggable="true" title="Drag this pill into the canvas to add a new field using the configuration below (label, name, type, width, etc.)" role="button" aria-label="Add Field">
+                            <i class="fas fa-grip-vertical"></i>
+                            <span>Add Field</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-light p-1" data-bs-toggle="tooltip" data-bs-placement="right" title="Drag this into the canvas to add a field; the Field Configuration panel sets the label, name, type and width that will be used when dropped.">
+                            <i class="fas fa-info-circle text-muted"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -72,8 +77,20 @@
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <p class="small text-muted">Select tags to add to the panel. You can edit label and name after import.</p>
-                                    <div id="docxImportList" style="max-height:420px; overflow:auto"></div>
+                                    <p class="small text-muted mb-2">Select tags to add to the panel. You can edit label and name after import.</p>
+                                    <div id="docxImportTools" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 small">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <div class="form-check mb-0">
+                                                <input class="form-check-input" type="checkbox" id="docxSelectAll">
+                                                <label class="form-check-label" for="docxSelectAll">Select All</label>
+                                            </div>
+                                            <span id="docxSelectedCount" class="text-muted">0 selected</span>
+                                        </div>
+                                        <div style="min-width:220px; max-width:260px" class="flex-grow-1">
+                                            <input type="text" id="docxFilterInput" class="form-control form-control-sm" placeholder="Filter tags...">
+                                        </div>
+                                    </div>
+                                    <div id="docxImportList" class="docx-import-list" style="max-height:420px; overflow:auto"></div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -95,7 +112,7 @@
                             <option value="radio">Checkboxes</option>
                             <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
-                            <option value="yesno">Yes/No</option>
+                            
                         </select>
                     </div>
                     <div class="mb-3">
@@ -192,7 +209,7 @@
                             <option value="radio">Checkboxes</option>
                             <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
-                            <option value="yesno">Yes/No</option>
+                            
                         </select>
                     </div>
                     
