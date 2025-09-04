@@ -30,7 +30,7 @@ class PdfGenerator extends BaseController
         $this->departmentModel = new DepartmentModel();
     }
     
-    public function generateFormPdf($submissionId)
+    public function generateFormPdf($submissionId, $outputFormat = 'docx')
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
@@ -101,8 +101,13 @@ class PdfGenerator extends BaseController
             }
         }
         
+    // Determine desired output format: priority (explicit param) > query ?format=
+    $reqFormat = strtolower($this->request->getGet('format') ?? $outputFormat ?? 'docx');
+    if ($reqFormat === 'word') { $reqFormat = 'docx'; }
+    if (!in_array($reqFormat, ['docx','pdf'], true)) { $reqFormat = 'docx'; }
+
         try {
-            // Load the Word template
+            // Load the Word template (base for both docx & pdf)
             $templateProcessor = new TemplateProcessor($templatePath);
             
             // Replace all text placeholders using any variables present in the template
@@ -114,19 +119,23 @@ class PdfGenerator extends BaseController
             }
 
             foreach ($templateVars as $var) {
-                // Map back to our placeholder values which include braces
+                $upperVar = strtoupper($var);
+                // Handle P_ signature image placeholders specially
+                if (in_array($upperVar, ['P_REQUESTOR_SIGNATURE','P_APPROVER_SIGNATURE','P_SERVICE_STAFF_SIGNATURE'])) {
+                    // We'll attempt to set the image if available below after loop; skip normal value substitution here
+                    continue;
+                }
                 $placeholderKey = '{{' . $var . '}}';
                 $value = $placeholderValues[$placeholderKey] ?? '';
-                try {
-                    $templateProcessor->setValue($var, $value);
-                } catch (\Exception $e) {
-                    // Log and continue; don't break document generation for a single variable
-                    log_message('warning', 'Failed to set template variable ' . $var . ': ' . $e->getMessage());
-                }
+                try { $templateProcessor->setValue($var, $value); }
+                catch (\Exception $e) { log_message('warning','Failed to set template variable '.$var.': '.$e->getMessage()); }
             }
             
             // Add signature images
             $this->addSignatureImages($templateProcessor, $requestor, $approver, $serviceStaff);
+
+            // Additionally map new P_ prefixed placeholders to the same images if those tags exist in template
+            $this->applyPrefixedSignaturePlaceholders($templateProcessor, $requestor, $approver, $serviceStaff);
             
             // Create a temporary directory if it doesn't exist
             $tempDir = WRITEPATH . 'temp/';
@@ -141,9 +150,43 @@ class PdfGenerator extends BaseController
             // Generate a unique filename for the Word document
             $docxFilename = 'Form_' . $form['code'] . '_Submission_' . $submissionId . '.docx';
             
-            // Just return the DOCX directly since PDF conversion is problematic
-            return $this->response->download($tempDocxFile, null)
-                                ->setFileName($docxFilename);
+            // After initial save, fill any Word Content Controls (structured document tags) using field names, labels, and placeholder map
+            $this->fillContentControls($tempDocxFile, $panelFields, $submissionData, $placeholderValues);
+
+            if ($reqFormat === 'pdf') {
+                // Placeholder: convert DOCX to PDF via iLovePDF when API keys configured
+                // If conversion fails or not configured, fallback to DOCX
+                $pdfFile = $tempDir . uniqid('form_') . '.pdf';
+                $converted = false;
+                try {
+                    $publicKey = getenv('ILOVEPDF_PUBLIC_KEY');
+                    $secretKey = getenv('ILOVEPDF_SECRET_KEY');
+                    if ($publicKey && $secretKey) {
+                        // Lazy-load library
+                        if (class_exists('Ilovepdf\Ilovepdf')) {
+                            $ilovepdf = new \Ilovepdf\Ilovepdf($publicKey, $secretKey);
+                            $task = $ilovepdf->newTask('officepdf');
+                            $file = $task->addFile($tempDocxFile);
+                            $task->execute();
+                            $task->download($tempDir);
+                            // Find newest pdf in tempDir from this task
+                            foreach (glob($tempDir . '*.pdf') as $candidate) {
+                                if (filemtime($candidate) >= filemtime($tempDocxFile)) {
+                                    @rename($candidate, $pdfFile);
+                                    $converted = true; break;
+                                }
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    log_message('error','PDF conversion failed: '.$e->getMessage());
+                }
+                if ($converted && file_exists($pdfFile)) {
+                    return $this->response->download($pdfFile, null)->setFileName(str_replace('.docx','.pdf',$docxFilename));
+                }
+                // Fallback
+            }
+            return $this->response->download($tempDocxFile, null)->setFileName($docxFilename);
             
         } catch (\Exception $e) {
             log_message('error', 'Document generation error: ' . $e->getMessage());
@@ -236,10 +279,17 @@ class PdfGenerator extends BaseController
 
         // Add form fields to placeholders
         $checkboxFieldCounter = 0; // used to assign A_, B_, C_ prefixes
+        // Use helper functions to render human-friendly values for placeholders
         foreach ($panelFields as $field) {
             $fieldName = $field['field_name'];
-            $fieldValue = isset($submissionData[$fieldName]) ? $submissionData[$fieldName] : '';
-            $placeholders['{{' . strtoupper($fieldName) . '}}'] = $fieldValue;
+            // Prefer labeled display for selectable fields, fallback to raw value for simple fields
+            try {
+                // The helper is autoloaded; call the raw version (no escaping) for templates
+                $display = function_exists('render_field_display_raw') ? render_field_display_raw($field, $submissionData) : (isset($submissionData[$fieldName]) ? $submissionData[$fieldName] : '');
+            } catch (\Throwable $e) {
+                $display = isset($submissionData[$fieldName]) ? $submissionData[$fieldName] : '';
+            }
+            $placeholders['{{' . strtoupper($fieldName) . '}}'] = $display;
         }
 
         // Also provide short placeholders for DOCX templates using ${F_fieldname} and ${B_fieldname}
@@ -250,7 +300,9 @@ class PdfGenerator extends BaseController
             $fieldKeyF = '{{F_' . $fieldName . '}}';
             $fieldKeyB = '{{B_' . $fieldName . '}}';
 
+            // Use helpers to get raw/unescaped values for template placeholders
             $rawValue = isset($submissionData[$fieldName]) ? $submissionData[$fieldName] : '';
+            $displayF = function_exists('render_field_display_raw') ? render_field_display_raw($field, $submissionData) : $rawValue;
 
             // Normalize stored values: may be JSON array (checkboxes) or scalar
             $selectedValues = [];
@@ -285,27 +337,58 @@ class PdfGenerator extends BaseController
                 }
             }
 
-            // F placeholder: first selected value or empty
+            // F placeholder: first selected value or empty — prefer labeled display
             $placeholders[$fieldKeyF] = !empty($selectedValues) ? (string)$selectedValues[0] : '';
 
             // B placeholder: compact block of options; selected marked with '◉', others blank marker
             if (empty($opts)) {
-                // If no options known, join selected values by comma
-                $placeholders[$fieldKeyB] = !empty($selectedValues) ? implode(', ', $selectedValues) : '';
+                // If no options known, use displayF (which may join values) or join selected values
+                $placeholders[$fieldKeyB] = $displayF !== '' ? $displayF : (!empty($selectedValues) ? implode(', ', $selectedValues) : '');
             } else {
                 $lines = [];
                 foreach ($opts as $opt) {
-                        // Marker present if option is in selected values (case-insensitive)
-                        $marker = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? '◉ ' : '';
-                    $lines[] = $marker . $opt;
+                    // Normalize option to a scalar string for comparisons (supports array structures)
+                    if (is_array($opt)) {
+                        $optCompare = mb_strtolower((string)($opt['sub_field'] ?? $opt['label'] ?? reset($opt) ?? '')); 
+                        $optLabelOut = (string)($opt['label'] ?? $opt['sub_field'] ?? $optCompare);
+                    } else {
+                        $optCompare = mb_strtolower((string)$opt);
+                        $optLabelOut = (string)$opt;
+                    }
+                    $marker = in_array($optCompare, $selectedValuesLower, true) ? '◉ ' : '';
+                    $lines[] = $marker . $optLabelOut;
                 }
                 $placeholders[$fieldKeyB] = implode("\n", $lines);
+            }
+
+            // NEW: C_ placeholder -> inline checkbox representation e.g. "☑Yes  ☐No"
+            if (!empty($opts)) {
+                $checkboxPieces = [];
+                foreach ($opts as $opt) {
+                    if (is_array($opt)) {
+                        $optCompare = mb_strtolower((string)($opt['sub_field'] ?? $opt['label'] ?? reset($opt) ?? ''));
+                        $optLabelOut = (string)($opt['label'] ?? $opt['sub_field'] ?? $optCompare);
+                    } else {
+                        $optCompare = mb_strtolower((string)$opt);
+                        $optLabelOut = (string)$opt;
+                    }
+                    $isSel = in_array($optCompare, $selectedValuesLower, true);
+                    $checkboxPieces[] = ($isSel ? '☑' : '☐') . $optLabelOut;
+                }
+                $placeholders['{{C_' . $fieldName . '}}'] = implode('  ', $checkboxPieces); // double space between groups
             }
 
             // Legacy: numeric per-option placeholders: {{A_fieldname_1}}, {{A_fieldname_2}}, ...
             foreach ($opts as $idx => $opt) {
                 $legacyKey = '{{A_' . $fieldName . '_' . ($idx + 1) . '}}';
-                $placeholders[$legacyKey] = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? $opt : '';
+                if (is_array($opt)) {
+                    $optCompare = mb_strtolower((string)($opt['sub_field'] ?? $opt['label'] ?? reset($opt) ?? ''));
+                    $optLabelOut = (string)($opt['label'] ?? $opt['sub_field'] ?? $optCompare);
+                } else {
+                    $optCompare = mb_strtolower((string)$opt);
+                    $optLabelOut = (string)$opt;
+                }
+                $placeholders[$legacyKey] = in_array($optCompare, $selectedValuesLower, true) ? $optLabelOut : '';
             }
 
             // New standard: option tag = FIELDNAME_OPTIONNAME (both uppercased, OPTIONNAME slugged)
@@ -343,14 +426,25 @@ class PdfGenerator extends BaseController
                     if (in_array($cand, $selectedValuesLower, true)) { $isSelected = true; break; }
                 }
                 $placeholders[$optPlaceholder] = $isSelected ? $optLabel : '';
+
+                // NEW: Per-option content-control friendly checkbox symbol placeholder
+                // Tag format: C_FIELDNAME_OPTION (e.g. C_UNDER_WARRANTY_YES)
+                // Value: ☑ if selected else ☐
+                $checkboxSymbolKey = '{{C_' . strtoupper($fieldName) . '_' . $slug . '}}';
+                $placeholders[$checkboxSymbolKey] = $isSelected ? '☑' : '☐';
             }
 
             // If this is a checkbox-like field with options, also add short lettered aliases
             if (!empty($opts)) {
                 $prefix = $indexToLetters($checkboxFieldCounter); // 0 -> A, 1 -> B, etc.
                 foreach ($opts as $idx => $opt) {
+                    if (is_array($opt)) {
+                        $optCompare = mb_strtolower((string)($opt['sub_field'] ?? $opt['label'] ?? reset($opt) ?? ''));
+                    } else {
+                        $optCompare = mb_strtolower((string)$opt);
+                    }
                     $shortKey = '{{' . $prefix . '_' . ($idx + 1) . '}}';
-                    $placeholders[$shortKey] = in_array(mb_strtolower((string)$opt), $selectedValuesLower, true) ? '◉ ' : '';
+                    $placeholders[$shortKey] = in_array($optCompare, $selectedValuesLower, true) ? '◉ ' : '';
                 }
                 $checkboxFieldCounter++;
             }
@@ -429,5 +523,219 @@ class PdfGenerator extends BaseController
                 log_message('warning', 'Service staff signature file not found: ' . $signaturePath);
             }
         }
+    }
+
+    /**
+     * Support new P_ signature placeholders (P_REQUESTOR_SIGNATURE, etc.) by injecting images
+     * if those variables exist in the DOCX template.
+     */
+    private function applyPrefixedSignaturePlaceholders(TemplateProcessor $templateProcessor, $requestor, $approver, $serviceStaff)
+    {
+        $vars = [];
+        try { $vars = $templateProcessor->getVariables(); } catch (\Throwable $e) { $vars = []; }
+        if (empty($vars)) return;
+        $varsUpper = array_map('strtoupper', $vars);
+
+        $setImageIfExists = function($needle, $user) use ($varsUpper, $vars, $templateProcessor) {
+            if (!in_array($needle, $varsUpper, true)) return; // not in template
+            if (!$user || empty($user['signature'])) return;
+            $signaturePath = strpos($user['signature'], 'uploads/signatures/') === 0
+                ? FCPATH . $user['signature']
+                : FCPATH . 'uploads/signatures/' . $user['signature'];
+            if (!file_exists($signaturePath)) return;
+            // Find original case variable name
+            $index = array_search($needle, $varsUpper, true);
+            $originalVar = $vars[$index];
+            try { $templateProcessor->setImageValue($originalVar, $signaturePath); }
+            catch (\Throwable $e) { log_message('warning','Failed P_ signature image for '.$originalVar.': '.$e->getMessage()); }
+        };
+
+        $setImageIfExists('P_REQUESTOR_SIGNATURE', $requestor);
+        $setImageIfExists('P_APPROVER_SIGNATURE', $approver);
+        $setImageIfExists('P_SERVICE_STAFF_SIGNATURE', $serviceStaff);
+    }
+
+    /**
+     * Fill DOCX content controls (structured document tags) whose tag/alias matches a field_name.
+     * This allows using Word content controls instead of ${VAR} placeholders.
+     */
+    private function fillContentControls(string $docxPath, array $panelFields, array $submissionData, array $placeholderValues): void
+    {
+        if (!is_file($docxPath)) return;
+        $zip = new \ZipArchive();
+        if ($zip->open($docxPath) !== true) return;
+        $xml = $zip->getFromName('word/document.xml');
+        if ($xml === false) { $zip->close(); return; }
+        $doc = new \DOMDocument();
+        $doc->preserveWhiteSpace = false;
+        $doc->formatOutput = false;
+        if (!@$doc->loadXML($xml)) { $zip->close(); return; }
+        $xpath = new \DOMXPath($doc);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        // Build map of canonical keys => values from placeholders first (covers system/meta fields)
+        $valueMap = [];
+        foreach ($placeholderValues as $pKey => $pVal) {
+            // Placeholder keys like {{FIELD_NAME}} => FIELD_NAME
+            $trimmed = trim($pKey, '{}');
+            $canonical = $this->canonicalKey($trimmed);
+            if (is_array($pVal)) { $pVal = implode(', ', $pVal); }
+            $valueMap[$canonical] = (string)$pVal;
+        }
+        // Add panel field name + label variants
+        foreach ($panelFields as $field) {
+            $fname = $field['field_name'];
+            $flabel = $field['field_label'] ?? '';
+            $rawValue = isset($submissionData[$fname]) ? $submissionData[$fname] : '';
+            try {
+                $display = function_exists('render_field_display_raw') ? render_field_display_raw($field, $submissionData) : $rawValue;
+            } catch (\Throwable $e) { $display = $rawValue; }
+            if (is_array($display)) { $display = implode(', ', $display); }
+            if (is_array($rawValue)) { $rawValue = implode(', ', $rawValue); }
+            $valString = (string)$display;
+            $valueMap[$this->canonicalKey($fname)] = $valString;
+            if ($flabel) { $valueMap[$this->canonicalKey($flabel)] = $valString; }
+        }
+
+        // Derive checkbox/multi-select helpers for content control tags:
+        // 1. C_fieldname => inline boxes for all options
+        // 2. C_fieldname_option => single box (☑/☐) per option
+        foreach ($panelFields as $field) {
+            $fname = $field['field_name'];
+            $raw = $submissionData[$fname] ?? '';
+            // Decode selected values to array
+            $selected = [];
+            if (is_array($raw)) { $selected = $raw; }
+            else {
+                $dec = json_decode($raw, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($dec)) $selected = $dec; else if ($raw !== '' && $raw !== null) $selected = preg_split('/\s*[,;]\s*/', (string)$raw); 
+            }
+            $selectedLower = array_map(fn($v)=>mb_strtolower((string)$v), $selected);
+            // Collect options similar to helper logic
+            $opts = [];
+            if (!empty($field['options']) && is_array($field['options'])) { $opts = $field['options']; }
+            elseif (!empty($field['default_value'])) {
+                $dec = json_decode($field['default_value'], true);
+                if (is_array($dec) && !empty($dec)) $opts = $dec; else $opts = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+            }
+            if (empty($opts)) continue; // nothing to build
+            $inlinePieces = [];
+            foreach ($opts as $opt) {
+                if (is_array($opt)) { $optLabel = $opt['label'] ?? ($opt['sub_field'] ?? ''); $optValue = $opt['sub_field'] ?? ($opt['label'] ?? $optLabel); }
+                else { $optLabel = (string)$opt; $optValue = $optLabel; }
+                $isSel = in_array(mb_strtolower((string)$optValue), $selectedLower, true) || in_array(mb_strtolower((string)$optLabel), $selectedLower, true);
+                $inlinePieces[] = ($isSel ? '☑' : '☐') . $optLabel;
+                // per-option symbol tag: C_field_option
+                $slug = preg_replace('/[^A-Za-z0-9]+/','_', strtoupper($optValue));
+                $slug = trim($slug, '_');
+                if ($slug !== '') {
+                    $valueMap[$this->canonicalKey('C_' . $fname . '_' . $slug)] = $isSel ? '☑' : '☐';
+                }
+            }
+            $valueMap[$this->canonicalKey('C_' . $fname)] = implode('  ', $inlinePieces);
+        }
+
+        $nodes = $xpath->query('//w:sdt');
+        if (!$nodes) { $zip->close(); return; }
+        $modified = false;
+        $unmatched = [];
+        foreach ($nodes as $sdt) {
+            $tag = null;
+            $tagNode = $xpath->query('.//w:tag', $sdt)->item(0);
+            if ($tagNode && $tagNode->hasAttribute('w:val')) {
+                $tag = trim($tagNode->getAttribute('w:val'));
+            }
+            if (!$tag) {
+                $aliasNode = $xpath->query('.//w:alias', $sdt)->item(0);
+                if ($aliasNode && $aliasNode->hasAttribute('w:val')) {
+                    $tag = trim($aliasNode->getAttribute('w:val'));
+                }
+            }
+            if (!$tag) continue;
+            $canonical = $this->canonicalKey($tag);
+            if (!array_key_exists($canonical, $valueMap)) { $unmatched[] = $tag; continue; }
+            $value = $valueMap[$canonical];
+            $contentNode = $xpath->query('.//w:sdtContent', $sdt)->item(0);
+            if (!$contentNode) continue;
+            $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+            // SAFER STRATEGY: Try to reuse existing w:t nodes so we do not destroy table/row structure inside complex content controls.
+            $textNodes = $xpath->query('.//w:t', $contentNode);
+            $lines = preg_split('/\r\n|\n|\r/', (string)$value);
+            if (empty($lines)) { $lines = ['']; }
+
+            if ($textNodes && $textNodes->length > 0) {
+                // Put first line in first w:t, clear existing text
+                /** @var \DOMElement $firstT */
+                $firstT = $textNodes->item(0);
+                while ($firstT->firstChild) { $firstT->removeChild($firstT->firstChild); }
+                if (preg_match('/^\s|\s$/', $lines[0])) { $firstT->setAttribute('xml:space','preserve'); }
+                $firstT->appendChild($doc->createTextNode($lines[0]));
+
+                // Remove extra w:t nodes; we'll rebuild multi-line using new paragraphs appended at end of contentNode if needed
+                for ($i=1; $i < $textNodes->length; $i++) {
+                    $tn = $textNodes->item($i);
+                    if ($tn && $tn->parentNode) { $tn->parentNode->removeChild($tn); }
+                }
+                // Additional lines -> append new paragraphs after existing structure (unless structure already has multiple paragraphs)
+                if (count($lines) > 1) {
+                    for ($i=1; $i < count($lines); $i++) {
+                        $p = $doc->createElementNS($wNs, 'w:p');
+                        $r = $doc->createElementNS($wNs, 'w:r');
+                        $t = $doc->createElementNS($wNs, 'w:t');
+                        if (preg_match('/^\s|\s$/', $lines[$i])) { $t->setAttribute('xml:space','preserve'); }
+                        $t->appendChild($doc->createTextNode($lines[$i]));
+                        $r->appendChild($t);
+                        $p->appendChild($r);
+                        $contentNode->appendChild($p);
+                    }
+                }
+            } else {
+                // Fallback: only clear if contentNode contains simple paragraphs; if it has table rows or tables leave structure intact.
+                $hasTable = ($xpath->query('.//w:tbl', $contentNode)->length > 0) || ($xpath->query('./w:tr', $contentNode)->length > 0);
+                if (!$hasTable) {
+                    while ($contentNode->firstChild) { $contentNode->removeChild($contentNode->firstChild); }
+                    foreach ($lines as $lineText) {
+                        $p = $doc->createElementNS($wNs, 'w:p');
+                        $r = $doc->createElementNS($wNs, 'w:r');
+                        $t = $doc->createElementNS($wNs, 'w:t');
+                        if (preg_match('/^\s|\s$/', $lineText)) { $t->setAttribute('xml:space','preserve'); }
+                        $t->appendChild($doc->createTextNode($lineText));
+                        $r->appendChild($t);
+                        $p->appendChild($r);
+                        $contentNode->appendChild($p);
+                    }
+                } else {
+                    // If complex (table) structure, inject value into first cell's first paragraph to avoid corruption
+                    $firstPara = $xpath->query('.//w:tc//w:p', $contentNode)->item(0);
+                    if ($firstPara) {
+                        // Remove existing runs in first paragraph
+                        while ($firstPara->firstChild) { $firstPara->removeChild($firstPara->firstChild); }
+                        $r = $doc->createElementNS($wNs, 'w:r');
+                        $t = $doc->createElementNS($wNs, 'w:t');
+                        if (preg_match('/^\s|\s$/', $lines[0])) { $t->setAttribute('xml:space','preserve'); }
+                        $t->appendChild($doc->createTextNode($lines[0]));
+                        $r->appendChild($t);
+                        $firstPara->appendChild($r);
+                    }
+                }
+            }
+            $modified = true;
+        }
+        if ($modified) {
+            $zip->addFromString('word/document.xml', $doc->saveXML());
+        }
+        $zip->close();
+        if (!empty($unmatched)) {
+            // Log unmatched tags to help template designers align tag names
+            try { log_message('debug', 'DOCX content controls unmatched tags: '.json_encode($unmatched)); } catch (\Throwable $e) {}
+        }
+    }
+
+    private function canonicalKey(string $name): string
+    {
+        $name = strtolower($name);
+        $name = preg_replace('/[^a-z0-9_]+/','_', $name);
+        return trim($name, '_');
     }
 }

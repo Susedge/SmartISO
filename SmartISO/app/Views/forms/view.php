@@ -93,7 +93,7 @@
                                     <?= $isRequired ? 'required' : '' ?> >
 
                                 
-                            <?php elseif ($field['field_type'] === 'select'): ?>
+                            <?php elseif ($field['field_type'] === 'select' || $field['field_type'] === 'dropdown'): ?>
                                 <select class="form-select" id="<?= $field['field_name'] ?>" name="<?= $field['field_name'] ?>" <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?> <?= $isRequired ? 'required' : '' ?>>
                                 <?php
                                     $opts = [];
@@ -149,7 +149,7 @@
                                     <?= $valueAttr ?>
                                     <?= $field['bump_next_field'] ? 'data-bump-next="true"' : '' ?>
                                     <?= $isRequired ? 'required' : '' ?> >
-                            <?php elseif ($field['field_type'] === 'radio'): ?>
+                            <?php elseif (in_array($field['field_type'], ['radio','checkbox','checkboxes'])): ?>
                                 <?php
                                 $opts = [];
                                 if (!empty($field['options']) && is_array($field['options'])) {
@@ -533,64 +533,91 @@ document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
             // Try group match: name[] (checkbox groups)
             var group = document.getElementsByName(key + '[]');
             if (group && group.length) {
-                const parts = (val||'').split(/[,;]\s*/).filter(v=>v);
+                const parts = (val||'')
+                    .split(/[\n,;]+/)
+                    .map(s=>s.trim())
+                    .filter(Boolean);
                 Array.prototype.forEach.call(group, function(chkbox){
                     var matched = parts.some(function(p){
-                        var lp = (p||'').toLowerCase();
+                        var lp = p.toLowerCase();
                         if ((chkbox.value||'').toLowerCase() === lp) return true;
-                        // try matching label text
                         try {
                             var lab = (document.querySelector('label[for="' + chkbox.id + '"]') || {}).textContent || '';
                             if (lab && lab.toLowerCase().trim() === lp) return true;
                         } catch(e){}
                         return false;
                     });
-                    chkbox.checked = matched;
-                    if (matched) try { chkbox.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                    if (matched) {
+                        chkbox.checked = true;
+                        try { chkbox.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                    }
                 });
                 console.info('[DOCX_PREFILL] group match -> name[]', key+'[]', 'values set:', parts);
                 return true;
             }
 
-            // If key looks like FIELD_OPTION (e.g., SERVICES_LIGHTING), apply to option inside field
+            // If key represents a single option inside a group (e.g., C_UNDER_WARRANTY_YES or UNDER_WARRANTY_YES)
             if (key && key.indexOf('_') !== -1) {
-                const idx = key.indexOf('_');
-                const base = key.substring(0, idx);
-                const optName = key.substring(idx + 1);
-                const tryNames = [base, base.toLowerCase(), base.toUpperCase()];
+                let raw = key;
+                let base = '';
+                let optName = '';
+                if (/^C_/i.test(raw)) { // C_ prefix pattern
+                    const core = raw.replace(/^C_/i,'');
+                    const parts = core.split('_');
+                    if (parts.length >= 2) {
+                        optName = parts.pop();
+                        base = parts.join('_');
+                    }
+                }
+                if (!base) { // generic last underscore split
+                    const li = raw.lastIndexOf('_');
+                    if (li > 0) {
+                        base = raw.substring(0, li);
+                        optName = raw.substring(li + 1);
+                    }
+                }
+                if (base && optName) {
+                    const tryNames = [base, base.toLowerCase(), base.toUpperCase(), base.toLowerCase().replace(/[^a-z0-9_]+/g,'_')];
                     for (const bn of tryNames) {
-                    const grp = document.getElementsByName(bn + '[]');
-                    if (grp && grp.length) {
-                        Array.prototype.forEach.call(grp, function(chk){
-                            var match = false;
-                            if ((chk.value||'').toLowerCase() === (optName||'').toLowerCase()) match = true;
-                            try {
-                                var lab = (document.querySelector('label[for="' + chk.id + '"]') || {}).textContent || '';
-                                if (lab && lab.toLowerCase().trim() === (optName||'').toLowerCase()) match = true;
-                            } catch(e){}
-                            if (match) {
-                                chk.checked = true;
-                                try { chk.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
-                                console.info('[DOCX_PREFILL] field_option match -> checked', bn+'[]', chk.value);
-                            }
-                        });
-                        return true;
-                    }
-                    const sel = (document.getElementsByName(bn) || [])[0] || null;
-                    if (sel && sel.tagName && sel.tagName.toUpperCase() === 'SELECT') {
-                        const loweredOpt = (optName||'').toLowerCase();
-                        const opt = Array.from(sel.options).find(o => ((o.value||'').toLowerCase() === loweredOpt) || ((o.text||'').toLowerCase() === loweredOpt));
-                        if (opt) { sel.value = opt.value; try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}; console.info('[DOCX_PREFILL] field_option match -> select', bn, opt.value); return true; }
-                    }
-                    const inputs = document.getElementsByName(bn);
-                    if (inputs && inputs.length) {
-                        Array.prototype.forEach.call(inputs, function(i){
-                            if ((i.value||'').toLowerCase() === (optName||'').toLowerCase()) {
-                                i.checked = true;
-                                console.info('[DOCX_PREFILL] field_option match -> input', bn, i.value);
-                            }
-                        });
-                        return true;
+                        const grp = document.getElementsByName(bn + '[]');
+                        if (grp && grp.length) {
+                            Array.prototype.forEach.call(grp, function(chk){
+                                let match = false;
+                                const ov = (chk.value||'').toLowerCase();
+                                const target = (optName||'').toLowerCase();
+                                if (ov === target) match = true;
+                                if (!match) {
+                                    try {
+                                        const lab = (document.querySelector('label[for="' + chk.id + '"]') || {}).textContent || '';
+                                        if (lab && lab.toLowerCase().trim() === target) match = true;
+                                    } catch(e){}
+                                }
+                                if (match) {
+                                    chk.checked = true;
+                                    try { chk.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                                    console.info('[DOCX_PREFILL] option match ->', bn+'[]', chk.value);
+                                }
+                            });
+                            return true;
+                        }
+                        // Also support select and radio groups without []
+                        const sel = (document.getElementsByName(bn) || [])[0] || null;
+                        if (sel && sel.tagName && sel.tagName.toUpperCase() === 'SELECT') {
+                            const loweredOpt = (optName||'').toLowerCase();
+                            const opt = Array.from(sel.options).find(o => ((o.value||'').toLowerCase() === loweredOpt) || ((o.text||'').toLowerCase() === loweredOpt));
+                            if (opt) { sel.value = opt.value; try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){} console.info('[DOCX_PREFILL] option match select ->', bn, opt.value); return true; }
+                        }
+                        const inputs = document.getElementsByName(bn);
+                        if (inputs && inputs.length) {
+                            Array.prototype.forEach.call(inputs, function(i){
+                                if ((i.value||'').toLowerCase() === (optName||'').toLowerCase()) {
+                                    i.checked = true;
+                                    try { i.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}
+                                    console.info('[DOCX_PREFILL] option match input ->', bn, i.value);
+                                }
+                            });
+                            return true;
+                        }
                     }
                 }
             }
@@ -600,7 +627,10 @@ document.getElementById('btnUploadDocx')?.addEventListener('click', function(){
                     var gn = cand[ci] + '[]';
                     var groupTry = document.getElementsByName(gn);
                     if (groupTry && groupTry.length) {
-                        const parts = (val||'').split(/[,;]\s*/).filter(v=>v);
+                        const parts = (val||'')
+                            .split(/[\n,;]+/)
+                            .map(s=>s.trim())
+                            .filter(Boolean);
                         Array.prototype.forEach.call(groupTry, function(chkbox){
                             chkbox.checked = parts.some(p => (p||'').toLowerCase() === (chkbox.value||'').toLowerCase());
                             if (chkbox.checked) try { chkbox.dispatchEvent(new Event('change', { bubbles: true })); } catch(e){}

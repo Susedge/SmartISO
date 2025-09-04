@@ -100,7 +100,7 @@
                 ?>
                 <tr>
                     <td class="field-label"><?= esc($fieldLabel) ?></td>
-                    <td><?= esc($fieldValue) ?></td>
+                    <td><?= esc(render_field_display($field, $submission_data)) ?></td>
                 </tr>
             <?php endforeach; ?>
         </table>

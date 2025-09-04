@@ -291,25 +291,44 @@
         <div id="layoutSidenav_content">
             <main>
                 <div class="container-fluid px-4 py-2">
-                    <?php if(session()->getFlashdata('message')): ?>
-                        <div class="alert alert-success alert-dismissible fade show mb-4 d-flex align-items-center">
-                            <i class="fas fa-check-circle me-3 fs-4"></i>
-                            <div>
-                                <?= session()->getFlashdata('message') ?>
-                            </div>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <?php if(session()->getFlashdata('error')): ?>
-                        <div class="alert alert-danger alert-dismissible fade show mb-4 d-flex align-items-center">
-                            <i class="fas fa-exclamation-circle me-3 fs-4"></i>
-                            <div>
-                                <?= session()->getFlashdata('error') ?>
-                            </div>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    <?php endif; ?>
+                    <?php $flashMessage = session()->getFlashdata('message'); $flashError = session()->getFlashdata('error'); ?>
+                    <noscript>
+                        <?php if($flashMessage): ?>
+                            <div class="alert alert-success mb-4"><?= esc($flashMessage) ?></div>
+                        <?php endif; ?>
+                        <?php if($flashError): ?>
+                            <div class="alert alert-danger mb-4"><?= esc($flashError) ?></div>
+                        <?php endif; ?>
+                    </noscript>
+                    <div id="flash-aria-live" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+                    <script>
+                    (function(){
+                        const msg = <?php echo json_encode($flashMessage); ?>;
+                        const err = <?php echo json_encode($flashError); ?>;
+                        function showToast(text, type){
+                            if(!text) return;
+                            if(typeof Toastify === 'undefined'){ console.warn('Toastify not loaded'); return; }
+                            const isError = type === 'error';
+                            Toastify({
+                                text: text,
+                                duration: 5000,
+                                close: true,
+                                gravity: 'top',
+                                position: 'right',
+                                stopOnFocus: true,
+                                escapeMarkup: true,
+                                style: {
+                                    background: isError ? 'linear-gradient(to right,#e74c3c,#c0392b)' : 'linear-gradient(to right,#00b09b,#96c93d)',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                },
+                                offset: { x: '8px', y: '72px' }
+                            }).showToast();
+                            try { const live = document.getElementById('flash-aria-live'); if(live) live.textContent = text; } catch(e){}
+                        }
+                        if(msg) showToast(msg, 'success');
+                        if(err) showToast(err, 'error');
+                    })();
+                    </script>
                     
                     <div class="fade-in">
                         <?= $this->renderSection('content') ?>
@@ -341,25 +360,44 @@
     <!-- Regular layout without sidebar (for non-logged in users) -->
     <main>
         <div class="container py-3">
-            <?php if(session()->getFlashdata('message')): ?>
-                <div class="alert alert-success alert-dismissible fade show mb-4 d-flex align-items-center">
-                    <i class="fas fa-check-circle me-3 fs-4"></i>
-                    <div>
-                        <?= session()->getFlashdata('message') ?>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            <?php endif; ?>
-            
-            <?php if(session()->getFlashdata('error')): ?>
-                <div class="alert alert-danger alert-dismissible fade show mb-4 d-flex align-items-center">
-                    <i class="fas fa-exclamation-circle me-3 fs-4"></i>
-                    <div>
-                        <?= session()->getFlashdata('error') ?>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            <?php endif; ?>
+            <?php $flashMessage = session()->getFlashdata('message'); $flashError = session()->getFlashdata('error'); ?>
+            <noscript>
+                <?php if($flashMessage): ?>
+                    <div class="alert alert-success mb-4"><?= esc($flashMessage) ?></div>
+                <?php endif; ?>
+                <?php if($flashError): ?>
+                    <div class="alert alert-danger mb-4"><?= esc($flashError) ?></div>
+                <?php endif; ?>
+            </noscript>
+            <div id="flash-aria-live" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+            <script>
+            (function(){
+                const msg = <?php echo json_encode($flashMessage); ?>;
+                const err = <?php echo json_encode($flashError); ?>;
+                function showToast(text, type){
+                    if(!text) return;
+                    if(typeof Toastify === 'undefined'){ console.warn('Toastify not loaded'); return; }
+                    const isError = type === 'error';
+                    Toastify({
+                        text: text,
+                        duration: 5000,
+                        close: true,
+                        gravity: 'top',
+                        position: 'right',
+                        stopOnFocus: true,
+                        escapeMarkup: true,
+                        style: {
+                            background: isError ? 'linear-gradient(to right,#e74c3c,#c0392b)' : 'linear-gradient(to right,#00b09b,#96c93d)',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        },
+                        offset: { x: '8px', y: '16px' }
+                    }).showToast();
+                    try { const live = document.getElementById('flash-aria-live'); if(live) live.textContent = text; } catch(e){}
+                }
+                if(msg) showToast(msg, 'success');
+                if(err) showToast(err, 'error');
+            })();
+            </script>
             
             <div class="fade-in">
                 <?= $this->renderSection('content') ?>

@@ -1,6 +1,9 @@
 /**
- * Drag and Drop Panels JavaScript
- * For SmartISO Dynamic Forms
+ * LEGACY MONOLITH Form Builder Script (drag-drop-form-builder.js)
+ * This file is being incrementally refactored into ES module files under assets/js/form-builder/.
+ * New development should go into the modular files. This legacy script will be trimmed down once
+ * feature parity is reached. Temporary coexistence allows a staged migration without breaking
+ * existing functionality.
  */
 // Global notification helper (uses Toastify if available, falls back to alert)
 window.notify = function(message, type = 'info', options = {}) {
@@ -65,13 +68,10 @@ window.notify = function(message, type = 'info', options = {}) {
         if (window.bootstrap && window.bootstrap.Toast) {
             const bsToast = new bootstrap.Toast(toastEl, { delay: duration });
             bsToast.show();
-            // Remove element after hidden
-            toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
+            toastEl.addEventListener('hidden.bs.toast', () => { try { toastEl.remove(); } catch(e){} });
         } else {
             // Simple fallback: remove after duration
-            setTimeout(() => {
-                try { toastEl.remove(); } catch (e) {}
-            }, duration);
+            setTimeout(() => { try { toastEl.remove(); } catch (e) {} }, duration);
         }
         return;
     } catch (e) {
@@ -1655,6 +1655,11 @@ class FormBuilder {
 
         // Get values from the modal form
         field.type = document.getElementById('editFieldType').value;
+        // Detect if the user chose the option whose label text is 'Checkboxes' (legacy value 'radio')
+        const typeSelectEdit = document.getElementById('editFieldType');
+        if (field.type === 'radio' && typeSelectEdit && /checkboxes/i.test(typeSelectEdit.options[typeSelectEdit.selectedIndex].text || '')) {
+            field.type = 'checkboxes';
+        }
         field.field_type = field.type; // Keep both for compatibility
         field.label = document.getElementById('editFieldLabel').value;
         field.field_label = field.label; // Keep both for compatibility
@@ -2180,58 +2185,23 @@ class FormBuilder {
     }
 
     loadExistingFields() {
-        // Start with raw fields from server
         let existingFields = window.panelFields || [];
-        // Filter out any falsy or placeholder objects without a type
         existingFields = existingFields.filter(f => f && (f.field_type || f.type));
-        // Map & normalize
         let normalized = existingFields.map(field => {
             const rawLabel = field.label || field.field_label || 'Field';
             const cleanLabel = rawLabel.replace(/\s+/g,' ').trim();
             const baseName = field.name || field.field_name || cleanLabel;
             const cleanName = baseName.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]+/g,'').replace(/^_+|_+$/g,'');
-            return {
-                ...field,
-                id: field.id || 'field_' + Date.now() + '_' + Math.random(),
-                width: field.width || 12,
-                type: field.type || field.field_type,
-                label: cleanLabel,
-                field_label: cleanLabel,
-                name: cleanName,
-                field_name: cleanName
-            };
+            return { ...field, id: field.id || 'field_' + Date.now() + '_' + Math.random(), width: field.width || 12, type: field.type || field.field_type, label: cleanLabel, field_label: cleanLabel, name: cleanName, field_name: cleanName };
         });
-        // De-duplicate by id then by name (keep first occurrence)
-        const seenIds = new Set();
-        const seenNames = new Set();
-        normalized = normalized.filter(f => {
-            if (seenIds.has(f.id)) return false;
-            if (f.name && seenNames.has(f.name)) return false;
-            seenIds.add(f.id);
-            if (f.name) seenNames.add(f.name);
-            return true;
-        });
-        // Final defensive dedupe (name+type OR label+type) to catch server duplicates with different ids
+        const seenIds = new Set(); const seenNames = new Set();
+        normalized = normalized.filter(f => { if (seenIds.has(f.id)) return false; if (f.name && seenNames.has(f.name)) return false; seenIds.add(f.id); if (f.name) seenNames.add(f.name); return true; });
         const comboSeen = new Set();
-        normalized = normalized.filter(f => {
-            const type = f.type || f.field_type || '';
-            const nameKey = (f.name || '') + '::' + type;
-            const labelKey = (f.label || '') + '::' + type;
-            if (comboSeen.has(nameKey) || comboSeen.has(labelKey)) return false;
-            comboSeen.add(nameKey);
-            comboSeen.add(labelKey);
-            return true;
-        });
-        // Reassign sequential field_order
-        normalized.forEach((f,i)=>{ f.field_order = i+1; });
-        // Removed deprecated earlier saveForm() (panel_id based). Unified saveForm() implementation retained later in file.
-        const fieldIndex = this.fields.findIndex(f => f.id === fieldId);
-        if (fieldIndex >= 0) {
-            this.fields[fieldIndex] = { ...this.fields[fieldIndex], ...fieldData };
-        }
-        
-        // Reorganize the entire layout to reflect changes
+        normalized = normalized.filter(f => { const type = f.type || f.field_type || ''; const nk = (f.name||'')+'::'+type; const lk = (f.label||'')+'::'+type; if (comboSeen.has(nk) || comboSeen.has(lk)) return false; comboSeen.add(nk); comboSeen.add(lk); return true; });
+        normalized.forEach((f,i)=> f.field_order = i+1);
+        this.fields = normalized; // assign
         this.reorganizeFormLayout();
+        this.updateEmptyState();
     }
 
     saveForm() {
@@ -2258,14 +2228,39 @@ class FormBuilder {
             if (!field.type && field.field_type) field.type = field.field_type;
             if (!field.field_type) field.field_type = 'input';
 
-            // Normalize options: make sure options is an array when applicable
-            if (field.options && !Array.isArray(field.options)) {
-                try {
-                    const parsed = JSON.parse(field.options);
-                    if (Array.isArray(parsed)) field.options = parsed;
-                    else field.options = String(field.options).split('\n').map(s => s.trim()).filter(Boolean);
-                } catch (e) {
-                    field.options = String(field.options).split('\n').map(s => s.trim()).filter(Boolean);
+            // Map legacy 'radio' used as multi-select checkboxes (UI label "Checkboxes") to 'checkboxes'
+            if (field.field_type === 'radio' && Array.isArray(field.options)) {
+                // Heuristic: if any option objects exist or name suggests plural, treat as checkboxes
+                if (field.options.some(o => typeof o === 'object') || /(\b|_)(options|choices|yes|no|select|list)(\b|_)/i.test(field.field_name||'')) {
+                    field.field_type = 'checkboxes';
+                    field.type = 'checkboxes';
+                }
+            }
+
+            // Normalize options: ensure array of objects {label, sub_field} for selectable types
+            if (['dropdown','radio','checkbox','checkboxes'].includes(field.field_type)) {
+                if (field.options && !Array.isArray(field.options)) {
+                    try {
+                        const parsed = JSON.parse(field.options);
+                        if (Array.isArray(parsed)) field.options = parsed; else field.options = String(field.options).split('\n').map(s=>s.trim()).filter(Boolean);
+                    } catch(e) {
+                        field.options = String(field.options).split('\n').map(s=>s.trim()).filter(Boolean);
+                    }
+                }
+                if (!field.options || !Array.isArray(field.options) || field.options.length === 0) {
+                    field.options = [];
+                } else {
+                    field.options = field.options.map(o => {
+                        if (typeof o === 'object' && o !== null) {
+                            const lbl = (o.label || o.field_label || '').toString();
+                            const sf = (o.sub_field || o.value || lbl).toString().replace(/[^a-z0-9]+/ig,'_').replace(/^_+|_+$/g,'').toLowerCase();
+                            return { label: lbl || sf || 'Option', sub_field: sf || 'option' };
+                        } else {
+                            const lbl = o.toString();
+                            const sf = lbl.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+                            return { label: lbl, sub_field: sf || 'option' };
+                        }
+                    });
                 }
             }
 
@@ -2534,6 +2529,16 @@ class FormBuilder {
             bump_next_field: document.getElementById('fieldBumpNext').checked || false
         };
 
+        // UI currently reuses 'radio' option label "Checkboxes" in the dropdown to mean a multi-select checkbox group.
+        // Normalize this to a dedicated internal type 'checkboxes' so persistence & rendering logic treat it correctly.
+        if (fieldData.type === 'radio') {
+            const typeSelect = document.getElementById('fieldType');
+            // If the visible text chosen is 'Checkboxes' (legacy mismatch), coerce type
+            if (typeSelect && /checkboxes/i.test(typeSelect.options[typeSelect.selectedIndex].text || '')) {
+                fieldData.type = 'checkboxes';
+            }
+        }
+
         // Read field role from the side panel if present
         const roleEl = document.getElementById('fieldRole');
         fieldData.field_role = (roleEl && roleEl.value) ? roleEl.value : (fieldData.field_role || 'requestor');
@@ -2542,12 +2547,16 @@ class FormBuilder {
     fieldData.default_value = (defaultEl && defaultEl.value) ? defaultEl.value : (fieldData.default_value || '');
 
     // Handle options for dropdown and radio fields
-    if (fieldData.type === 'dropdown' || fieldData.type === 'radio') {
+    if (fieldData.type === 'dropdown' || fieldData.type === 'radio' || fieldData.type === 'checkboxes') {
             const optionsText = document.getElementById('fieldOptions').value;
             if (optionsText.trim()) {
-                fieldData.options = optionsText.split('\n').filter(option => option.trim() !== '');
+                fieldData.options = optionsText.split('\n').map(o=>o.trim()).filter(option => option.trim() !== '').map(o=> ({ label: o, sub_field: o.replace(/[^a-z0-9]+/ig,'_').toLowerCase() }));
             } else {
-                fieldData.options = ['Option 1', 'Option 2', 'Option 3'];
+                fieldData.options = [
+                    { label: 'Option 1', sub_field: 'option_1' },
+                    { label: 'Option 2', sub_field: 'option_2' },
+                    { label: 'Option 3', sub_field: 'option_3' }
+                ];
             }
         }
 

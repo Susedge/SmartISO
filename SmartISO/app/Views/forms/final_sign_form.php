@@ -43,13 +43,14 @@
                     </tr>
                 </thead>
                 <tbody>
+                    <?php /* helper functions autoloaded via app/Helpers/form_helper.php */ ?>
                     <?php foreach ($panel_fields as $field): ?>
                         <tr>
                             <td><?= esc($field['field_label']) ?></td>
                             <td>
                                 <?php 
-                                $value = $submission_data[$field['field_name']] ?? '-';
-                                echo esc($value);
+                                $display = render_field_display($field, $submission_data);
+                                echo esc($display);
                                 ?>
                             </td>
                         </tr>

@@ -519,7 +519,12 @@ class Forms extends BaseController
         
         // Determine if current user can take action on this form
         $canApprove = ($userType === 'approving_authority' && $submission['status'] === 'submitted');
-        $canService = ($userType === 'service_staff' && $submission['status'] === 'pending_service' && $submission['service_staff_id'] == $userId);
+        // Allow service staff to service when status is either 'pending_service' or legacy 'approved'
+        $canService = (
+            $userType === 'service_staff'
+            && in_array($submission['status'], ['approved', 'pending_service'])
+            && $submission['service_staff_id'] == $userId
+        );
         $canSignCompletion = ($userType === 'requestor' && $submission['submitted_by'] == $userId && 
                              !empty($submission['service_staff_signature_date']) && empty($submission['requestor_signature_date']));
         $canAssignServiceStaff = (in_array($userType, ['admin', 'approving_authority']) && 
@@ -600,24 +605,24 @@ class Forms extends BaseController
             $comments = $this->request->getPost('approval_comments') ?? '';
             // Optional: assign service staff if provided on the approval form
             $serviceStaffId = $this->request->getPost('service_staff_id') ?? null;
+
+            // NEW: Enforce that a service staff member must be selected before approving
+            if (empty($serviceStaffId)) {
+                return redirect()->back()->with('error', 'Please select a service staff member before approving.');
+            }
             
             // Record approver signature and update status
             // Use model method to mark approved
             $this->formSubmissionModel->approveSubmission($id, $userId, $comments);
 
-            // If a service staff was selected, persist it and move to pending_service
-            // Use the model helper so the assignment notification is created
-            if (!empty($serviceStaffId)) {
-                try {
-                    // If the submission needs a status change, ensure it's applied first
-                    $this->formSubmissionModel->update($id, [
-                        'status' => 'pending_service'
-                    ]);
-
-                    $this->formSubmissionModel->assignServiceStaff($id, $serviceStaffId);
-                } catch (\Exception $e) {
-                    log_message('error', 'Failed to assign service staff during signForm: ' . $e->getMessage());
-                }
+            // Persist service staff assignment and move status to pending_service
+            try {
+                $this->formSubmissionModel->update($id, [
+                    'status' => 'pending_service'
+                ]);
+                $this->formSubmissionModel->assignServiceStaff($id, $serviceStaffId);
+            } catch (\Exception $e) {
+                log_message('error', 'Failed to assign service staff during signForm: ' . $e->getMessage());
             }
             
             return redirect()->to('/forms/pending-approval')
@@ -1099,6 +1104,10 @@ class Forms extends BaseController
         
         // Update submission based on action
         if ($action === 'approve') {
+            // Require service staff selection when approving
+            if (empty($serviceStaffId)) {
+                return redirect()->back()->with('error', 'Please select a service staff member before approving.');
+            }
             $updateData = [
                 'status' => 'pending_service',
                 'approver_id' => session()->get('user_id'),
@@ -1335,13 +1344,12 @@ class Forms extends BaseController
             return redirect()->to('/forms/my-submissions')->with('error', 'Export is only available for completed submissions');
         }
 
-        if ($format == 'pdf') {
-            // Redirect to the PDF generator controller
+        $format = strtolower($format);
+
+        // Currently we only generate DOCX via PdfGenerator::generateFormPdf().
+        // Treat pdf/word/docx requests the same for now; future real PDF generation can branch here.
+        if (in_array($format, ['pdf','word','docx'])) {
             return redirect()->to('/pdfgenerator/generateFormPdf/' . $id);
-        } else if ($format == 'excel') {
-            // In a real app, you'd generate an Excel file using a library like PhpSpreadsheet
-            // For this example, we'll just return a message
-            return redirect()->back()->with('message', 'Excel export functionality would be implemented here');
         }
 
         return redirect()->back()->with('error', 'Invalid export format');
@@ -1576,6 +1584,72 @@ class Forms extends BaseController
         }
 
         return redirect()->back()->with('error', 'Unable to cancel the request. It may have already been processed.');
+    }
+
+    /**
+     * Permanently delete a submission and all related data (requestor only or admin)
+     */
+    public function deleteSubmission()
+    {
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+        $submissionId = $this->request->getPost('submission_id');
+
+        if (empty($submissionId)) {
+            return redirect()->back()->with('error', 'Missing submission ID');
+        }
+
+        $submission = $this->formSubmissionModel->find($submissionId);
+        if (!$submission) {
+            return redirect()->back()->with('error', 'Submission not found');
+        }
+
+    // Authorization: requestor can delete own completed, rejected, or cancelled submissions; admin/superuser can delete any
+    $allowedStatuses = ['completed', 'rejected', 'cancelled'];
+        $isOwner = ($submission['submitted_by'] ?? null) == $userId;
+        $isAdmin = in_array($userType, ['admin','superuser']);
+    if (!($isAdmin || ($isOwner && in_array($submission['status'] ?? '', $allowedStatuses)))) {
+            return redirect()->back()->with('error', 'You are not allowed to delete this submission');
+        }
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+        try {
+            // Delete related field data
+            $this->formSubmissionDataModel->where('submission_id', $submissionId)->delete();
+
+            // Delete feedback
+            $feedbackModel = new \App\Models\FeedbackModel();
+            $feedbackModel->where('submission_id', $submissionId)->delete();
+
+            // Delete schedules referencing this submission
+            if (class_exists('App\\Models\\ScheduleModel')) {
+                $scheduleModel = new \App\Models\ScheduleModel();
+                if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
+                    $scheduleModel->where('submission_id', $submissionId)->delete();
+                } else {
+                    $scheduleModel->where('submission_id', $submissionId)->delete();
+                }
+            }
+
+            // Delete notifications referencing this submission (best effort)
+            if (class_exists('App\\Models\\NotificationModel')) {
+                $notifModel = new \App\Models\NotificationModel();
+                if (method_exists($notifModel, 'where')) {
+                    $notifModel->where('submission_id', $submissionId)->delete();
+                }
+            }
+
+            // Finally delete submission
+            $this->formSubmissionModel->delete($submissionId);
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'Failed to delete submission ' . $submissionId . ': ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to delete submission');
+        }
+        $db->transComplete();
+
+        return redirect()->to('/forms/my-submissions')->with('message', 'Submission deleted successfully');
     }
 
 

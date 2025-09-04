@@ -90,5 +90,5 @@ class Autoload extends AutoloadConfig
      *
      * @var list<string>
      */
-    public $helpers = ['timezone'];
+    public $helpers = ['timezone', 'form'];
 }

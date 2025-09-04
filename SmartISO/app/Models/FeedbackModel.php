@@ -107,8 +107,17 @@ class FeedbackModel extends Model
      */
     public function hasFeedback($submissionId, $userId)
     {
+        return $this->getFeedbackBySubmissionAndUser($submissionId, $userId) !== null;
+    }
+
+    /**
+     * Get a single feedback record for a specific submission & user
+     * Returns array|null
+     */
+    public function getFeedbackBySubmissionAndUser($submissionId, $userId)
+    {
         return $this->where('submission_id', $submissionId)
-                   ->where('user_id', $userId)
-                   ->first() !== null;
+                    ->where('user_id', $userId)
+                    ->first();
     }
 }

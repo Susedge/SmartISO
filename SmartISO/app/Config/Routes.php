@@ -73,6 +73,9 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/view/(:segment)', 'Forms::view/$1');
     $routes->post('forms/submit', 'Forms::submit');
     $routes->get('forms/my-submissions', 'Forms::mySubmissions');
+    // Submission lifecycle actions
+    $routes->post('forms/cancel-submission', 'Forms::cancelSubmission');
+    $routes->post('forms/delete-submission', 'Forms::deleteSubmission');
     $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
     $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
     $routes->get('forms/completed', 'Forms::completedForms');
@@ -92,6 +95,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     // Form actions
     $routes->get('forms/sign/(:num)', 'Forms::signForm/$1');
     $routes->get('forms/approve/(:num)', 'Forms::approveForm/$1');
+    // Backwards compatibility for earlier link variant 'approve-form'
+    $routes->get('forms/approve-form/(:num)', 'Forms::approveForm/$1');
     $routes->post('forms/approve', 'Forms::submitApproval');
     $routes->get('forms/reject/(:num)', 'Forms::rejectForm/$1');
     $routes->post('forms/reject', 'Forms::submitRejection');
@@ -107,8 +112,9 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/final-sign/(:num)', 'Forms::finalSignForm/$1');
     $routes->post('forms/confirm-service', 'Forms::confirmService');
 
-    // PDF viewer
+    // Export generator (DOCX base + optional PDF conversion)
     $routes->get('pdfgenerator/generateFormPdf/(:num)', 'PdfGenerator::generateFormPdf/$1');
+    $routes->get('pdfgenerator/generateFormPdf/(:num)/(:alpha)', 'PdfGenerator::generateFormPdf/$1/$2');
     
     // Form download routes (fillable forms without placeholders)
     $routes->get('forms/download/pdf/(:segment)', 'FormDownload::downloadPDF/$1');

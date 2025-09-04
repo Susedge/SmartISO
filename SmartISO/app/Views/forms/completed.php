@@ -52,8 +52,6 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/pdf') ?>">
                                             <i class="fas fa-file-word me-2 text-primary"></i> Word
-                                        </a></li>                                        <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/excel') ?>">
-                                            <i class="fas fa-file-excel me-2 text-success"></i> Excel
                                         </a></li>
                                     </ul>
                                 </div>

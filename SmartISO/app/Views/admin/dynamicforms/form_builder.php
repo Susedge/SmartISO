@@ -39,6 +39,9 @@
             <i class="fas fa-file-upload"></i> Import DOCX
         </label>
         <input type="file" id="docxImportInput" accept=".docx" style="display:none">
+        <button type="button" class="btn btn-outline-danger me-2" id="clearAllFieldsBtn">
+            <i class="fas fa-trash-alt"></i> Clear All
+        </button>
         <button type="button" class="btn btn-success" id="saveFormBuilder">
             <i class="fas fa-save"></i> Save Panel
         </button>
@@ -342,7 +345,35 @@
         } catch (e) {
             console.warn('Bootstrap tooltips initialization failed', e);
         }
+        // Clear All Fields handler
+        const clearBtn = document.getElementById('clearAllFieldsBtn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function(){
+                if (!window.formBuilder || !Array.isArray(window.formBuilder.fields)) {
+                    window.notify && window.notify('Form builder not ready','error');
+                    return;
+                }
+                if (window.formBuilder.fields.length === 0) {
+                    window.notify && window.notify('No fields to clear','info');
+                    return;
+                }
+                const confirmed = confirm('Clear all fields? This will remove them from the canvas. Unsaved changes will be lost unless you save after clearing.');
+                if (!confirmed) return;
+                try {
+                    window.formBuilder.fields = [];
+                    if (typeof window.formBuilder.reorganizeFormLayout === 'function') window.formBuilder.reorganizeFormLayout();
+                    if (typeof window.formBuilder.updateEmptyState === 'function') window.formBuilder.updateEmptyState();
+                    window.notify && window.notify('All fields cleared','warning');
+                } catch (err) {
+                    console.error('Clear all failed', err);
+                    window.notify && window.notify('Failed to clear fields','error');
+                }
+            });
+        }
     });
 </script>
-<script src="<?= base_url('assets/js/drag-drop-form-builder.js') ?>"></script>
+<!-- Legacy monolith (will be removed after full modular migration) -->
+<script src="<?= base_url('assets/js/drag-drop-form-builder.js') ?>" defer></script>
+<!-- Modular refactor entrypoint -->
+<script type="module" src="<?= base_url('assets/js/form-builder/init.js') ?>"></script>
 <?= $this->endSection() ?>

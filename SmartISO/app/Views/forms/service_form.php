@@ -77,29 +77,102 @@ document.addEventListener('change', function(e) {
                                 <div class="col-md-<?= $width ?>">
                                     <div class="mb-3">
                                         <label class="form-label"><?= $field['field_label'] ?></label>
-                                        <?php if ($field['field_type'] === 'textarea'): ?>
-                                            <textarea class="form-control" readonly rows="3"><?= esc($submission_data[$field['field_name']] ?? '') ?></textarea>
-                                        <?php elseif ($field['field_type'] === 'radio'): ?>
-                                            <?php $val = $submission_data[$field['field_name']] ?? ''; ?>
-                                            <div class="form-text">
-                                                <?php
-                                                    $rawVal = $submission_data[$field['field_name']] ?? null;
-                                                    if (!function_exists('render_submission_value')) {
-                                                        function render_submission_value($raw) {
-                                                            if ($raw === null || $raw === '') return '-';
-                                                            if (is_array($raw)) return esc(implode(', ', $raw));
-                                                            $decoded = json_decode($raw, true);
-                                                            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) return esc(implode(', ', $decoded));
-                                                            return esc($raw);
+                                        <?php
+                                        $ft = $field['field_type'];
+                                        $name = $field['field_name'];
+                                        $rawVal = $submission_data[$name] ?? '';
+                                        // Normalize selected values
+                                        $selectedVals = [];
+                                        if (is_array($rawVal)) {
+                                            $selectedVals = $rawVal;
+                                        } else {
+                                            $dec = json_decode($rawVal, true);
+                                            if (json_last_error() === JSON_ERROR_NONE && is_array($dec)) {
+                                                $selectedVals = $dec;
+                                            } elseif (strlen(trim($rawVal))) {
+                                                $selectedVals = preg_split('/\s*[,;]\s*/', (string)$rawVal);
+                                            }
+                                        }
+                                        // For radio, ensure only one value
+                                        if ($ft === 'radio' && count($selectedVals) > 1) {
+                                            $selectedVals = [reset($selectedVals)];
+                                        }
+
+                                        // Build options (similar to service staff section)
+                                        $opts = [];
+                                        if (!empty($field['options']) && is_array($field['options'])) {
+                                            $opts = $field['options'];
+                                        } elseif (!empty($field['default_value'])) {
+                                            $decoded = json_decode($field['default_value'], true);
+                                            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                                $opts = $decoded;
+                                            } else {
+                                                $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+                                                if (!empty($lines)) $opts = $lines;
+                                            }
+                                        } elseif (!empty($field['code_table'])) {
+                                            $table = $field['code_table'];
+                                            if (preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+                                                try {
+                                                    $db = \Config\Database::connect();
+                                                    $query = $db->table($table)->get();
+                                                    if ($query) {
+                                                        $rows = $query->getResultArray();
+                                                        foreach ($rows as $r) {
+                                                            $opts[] = [
+                                                                'label' => $r['description'] ?? ($r['name'] ?? ($r['code'] ?? ($r['id'] ?? ''))),
+                                                                'sub_field' => $r['code'] ?? ($r['id'] ?? '')
+                                                            ];
                                                         }
                                                     }
-                                                    $out = render_submission_value($rawVal);
-                                                    echo ($out && $out !== '-') ? $out : '<span class="text-muted">(no selection)</span>';
-                                                ?>
-                                            </div>
-                                        <?php else: ?>
-                                            <input type="text" class="form-control" value="<?= esc(is_array($submission_data[$field['field_name']] ?? null) ? implode(', ', $submission_data[$field['field_name']]) : ($submission_data[$field['field_name']] ?? '')) ?>" readonly>
-                                        <?php endif; ?>
+                                                } catch (Throwable $e) { /* ignore */ }
+                                            }
+                                        }
+
+                                        // Helper to extract label/value
+                                        $mapOption = function($opt){
+                                            if (is_array($opt)) {
+                                                $label = $opt['label'] ?? ($opt['sub_field'] ?? '');
+                                                $value = $opt['sub_field'] ?? ($opt['label'] ?? '');
+                                            } else {
+                                                $label = $opt; $value = $opt;
+                                            }
+                                            return [$label, $value];
+                                        };
+
+                                        switch ($ft) {
+                                            case 'textarea':
+                                                echo '<textarea class="form-control" readonly rows="3">' . render_field_display($field, $submission_data) . '</textarea>'; break;
+                                            case 'dropdown':
+                                            case 'select':
+                                                echo '<select class="form-select" disabled>'; 
+                                                echo '<option value="">Select...</option>';
+                                                foreach ($opts as $opt){ list($lbl,$val) = $mapOption($opt); $sel = in_array((string)$val, array_map('strval',$selectedVals)) ? 'selected' : ''; echo '<option '.$sel.' value="'.esc($val).'">'.esc($lbl).'</option>'; }
+                                                echo '</select>'; break;
+                                            case 'datepicker':
+                                                echo '<input type="date" class="form-control" value="'.esc($rawVal).'" disabled>'; break;
+                                            case 'radio':
+                                                echo '<div class="d-flex flex-wrap gap-3">';
+                                                foreach ($opts as $oi=>$opt){ list($lbl,$val)=$mapOption($opt); $chk = in_array((string)$val, array_map('strval',$selectedVals)) ? 'checked' : ''; echo '<div class="form-check">'; echo '<input class="form-check-input" type="radio" disabled id="'.$name.'_ro_'.$oi.'" '.$chk.'>'; echo '<label class="form-check-label" for="'.$name.'_ro_'.$oi.'">'.esc($lbl).'</label>'; echo '</div>'; }
+                                                echo '</div>'; break;
+                                            case 'checkbox':
+                                            case 'checkboxes':
+                                                echo '<div class="d-flex flex-wrap gap-3">';
+                                                foreach ($opts as $oi=>$opt){ list($lbl,$val)=$mapOption($opt); $chk = in_array((string)$val, array_map('strval',$selectedVals)) ? 'checked' : ''; echo '<div class="form-check">'; echo '<input class="form-check-input" type="checkbox" disabled id="'.$name.'_ro_'.$oi.'" '.$chk.'>'; echo '<label class="form-check-label" for="'.$name.'_ro_'.$oi.'">'.esc($lbl).'</label>'; echo '</div>'; }
+                                                echo '</div>'; break;
+                                            case 'list':
+                                            case 'listitems':
+                                                $items = [];
+                                                if (!empty($rawVal)) { $dec = json_decode($rawVal,true); if (is_array($dec)) $items = $dec; else $items = array_filter(array_map('trim', explode('\n',$rawVal))); }
+                                                if (empty($items)) { $items = $selectedVals; }
+                                                echo '<ul class="list-group" style="max-width:640px;">';
+                                                foreach ($items as $i=>$it){ echo '<li class="list-group-item py-1"><input type="text" class="form-control form-control-sm" value="'.esc($it).'" disabled placeholder="_'.($i+1).'" /></li>'; }
+                                                if (empty($items)) echo '<li class="list-group-item py-1 text-muted">(No items)</li>';
+                                                echo '</ul>'; break;
+                                            default: // input & fallback
+                                                echo '<input type="text" class="form-control" value="'.render_field_display($field,$submission_data).'" readonly>'; break;
+                                        }
+                                        ?>
                                     </div>
                                 </div>
                             <?php 
@@ -210,7 +283,7 @@ document.addEventListener('change', function(e) {
                                                    name="<?= $field['field_name'] ?>" 
                                                    value="<?= esc($value) ?>"
                                                    <?= (isset($field['required']) && $field['required']) ? 'required' : '' ?>>
-                                        <?php elseif ($field['field_type'] === 'radio'): ?>
+                                        <?php elseif (in_array($field['field_type'], ['radio','checkbox','checkboxes'])): ?>
                                             <?php
                                                 $opts = [];
                                                 if (!empty($field['options']) && is_array($field['options'])) {

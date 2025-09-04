@@ -92,6 +92,31 @@ class DynamicForms extends BaseController
         }
         
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
+        foreach ($panelFields as &$pf3) {
+            $ft3 = $pf3['field_type'] ?? '';
+            if (in_array($ft3, ['dropdown','radio','checkbox','checkboxes'])) {
+                if (!empty($pf3['default_value'])) {
+                    $decoded = json_decode($pf3['default_value'], true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                        $pf3['options'] = $decoded;
+                    }
+                }
+            }
+        }
+        unset($pf3);
+        // Decode JSON stored options (stored in default_value) for selectable field types so builder can show them
+        foreach ($panelFields as &$pf) {
+            $ft = $pf['field_type'] ?? '';
+            if (in_array($ft, ['dropdown','radio','checkbox','checkboxes'])) {
+                if (!empty($pf['default_value'])) {
+                    $decoded = json_decode($pf['default_value'], true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                        $pf['options'] = $decoded;
+                    }
+                }
+            }
+        }
+        unset($pf);
         
         $data = [
             'title' => 'Form: ' . $form['description'],
@@ -227,6 +252,18 @@ class DynamicForms extends BaseController
         }
         
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
+        foreach ($panelFields as &$pf2) {
+            $ft = $pf2['field_type'] ?? '';
+            if (in_array($ft, ['dropdown','radio','checkbox','checkboxes'])) {
+                if (!empty($pf2['default_value'])) {
+                    $decoded = json_decode($pf2['default_value'], true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                        $pf2['options'] = $decoded;
+                    }
+                }
+            }
+        }
+        unset($pf2);
         
         $data = [
             'title' => 'Edit Panel: ' . $panelName,
@@ -249,6 +286,22 @@ class DynamicForms extends BaseController
         $panelFields = array_filter($panelFields, function($field) {
             return $field['field_name'] !== '_placeholder';
         });
+
+        // Decode JSON stored options (default_value) for selectable field types so the builder
+        // round-trips dropdown / radio / checkbox / checkboxes option sets correctly.
+        // (This was previously missing here which caused options to disappear after save.)
+        foreach ($panelFields as &$pfb) {
+            $ft = $pfb['field_type'] ?? '';
+            if (in_array($ft, ['dropdown','radio','checkbox','checkboxes'])) {
+                if (!empty($pfb['default_value'])) {
+                    $decoded = json_decode($pfb['default_value'], true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                        $pfb['options'] = $decoded;
+                    }
+                }
+            }
+        }
+        unset($pfb);
         
         $data = [
             'title' => 'Panel Builder: ' . $panelName,
@@ -265,7 +318,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,radio,checkbox]',
+            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,radio,checkbox,checkboxes]',
             'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         
@@ -319,7 +372,7 @@ class DynamicForms extends BaseController
             'panel_name' => 'required|max_length[100]',
             'field_name' => 'required|max_length[100]',
             'field_label' => 'required|max_length[100]',
-            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,radio,checkbox]',
+            'field_type' => 'required|in_list[input,dropdown,textarea,list,datepicker,radio,checkbox,checkboxes]',
             'field_role' => 'required|in_list[requestor,service_staff,both,readonly]'
         ];
         
@@ -703,14 +756,10 @@ class DynamicForms extends BaseController
                             ->with('error', 'Export is only available for completed submissions');
         }
         
-        if ($format == 'pdf') {
-            // Redirect to the PDF generator controller
+        $format = strtolower($format);
+        if (in_array($format, ['pdf','word','docx'])) {
             return redirect()->to('/pdfgenerator/generateFormPdf/' . $id);
-        } else if ($format == 'excel') {
-            // In a real app, you'd generate an Excel file using a library like PhpSpreadsheet
-            return redirect()->back()->with('message', 'Excel export functionality would be implemented here');
         }
-        
         return redirect()->back()->with('error', 'Invalid export format');
     }
 
@@ -988,9 +1037,24 @@ class DynamicForms extends BaseController
 
                 // Add default_value only if the column is allowed in the model
                 if (in_array('default_value', $allowed)) {
-                    // If this field has options (dropdown or radio), persist them as JSON
-                    if (!empty($field['options']) && is_array($field['options']) && in_array($field['field_type'] ?? '', ['dropdown', 'radio'])) {
-                        $fieldData['default_value'] = json_encode(array_values($field['options']));
+                    // If this field has options (dropdown, radio, checkbox), persist them as JSON
+                    $ftype = $field['field_type'] ?? '';
+                    if (!empty($field['options']) && is_array($field['options']) && in_array($ftype, ['dropdown', 'radio', 'checkbox', 'checkboxes'])) {
+                        try {
+                            // Normalize option objects/strings to simple array preserving label/sub_field if provided
+                            $normOpts = [];
+                            foreach ($field['options'] as $opt) {
+                                if (is_array($opt)) {
+                                    // Keep structure if it has label or sub_field for later editing
+                                    $normOpts[] = $opt;
+                                } else {
+                                    $normOpts[] = (string)$opt;
+                                }
+                            }
+                            $fieldData['default_value'] = json_encode($normOpts);
+                        } catch (\Throwable $t) {
+                            $fieldData['default_value'] = json_encode(array_values($field['options']));
+                        }
                     } else {
                         $fieldData['default_value'] = $field['default_value'] ?? '';
                     }

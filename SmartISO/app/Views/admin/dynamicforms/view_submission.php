@@ -149,19 +149,7 @@
                     <?php foreach ($panel_fields as $field): ?>
                         <tr>
                             <td><?= esc($field['field_label']) ?></td>
-                            <td>
-                                <?php 
-                                $value = $submission_data[$field['field_name']] ?? '-';
-                                
-                                // If this is a dropdown and uses a code table, we might want to display the description instead of the ID
-                                if ($field['field_type'] == 'dropdown' && $field['code_table'] && is_numeric($value)) {
-                                    // In a real app, you'd look up the value's description from the appropriate table
-                                    echo esc($value); // For now, just show the ID
-                                } else {
-                                    echo esc($value);
-                                }
-                                ?>
-                            </td>
+                            <td><?= esc(render_field_display($field, $submission_data)) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

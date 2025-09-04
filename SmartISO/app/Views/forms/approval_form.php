@@ -45,22 +45,7 @@
                     <?php foreach ($panel_fields as $field): ?>
                         <tr>
                             <td><?= esc($field['field_label']) ?></td>
-                            <td>
-                                <?php 
-                                // Helper to render arrays or JSON arrays cleanly
-                                $raw = $submission_data[$field['field_name']] ?? null;
-                                if (!function_exists('render_submission_value')) {
-                                    function render_submission_value($raw) {
-                                        if ($raw === null || $raw === '') return '-';
-                                        if (is_array($raw)) return esc(implode(', ', $raw));
-                                        $decoded = json_decode($raw, true);
-                                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) return esc(implode(', ', $decoded));
-                                        return esc($raw);
-                                    }
-                                }
-                                echo render_submission_value($raw);
-                                ?>
-                            </td>
+                            <td><?= esc(render_field_display($field, $submission_data)) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -94,13 +79,17 @@
                                 if (!empty($staffList)):
                                 ?>
                                     <div class="mb-3">
-                                        <label for="service_staff_id" class="form-label">Assign Service Staff (Optional)</label>
-                                        <select name="service_staff_id" id="service_staff_id" class="form-select">
-                                            <option value="">-- No assignment --</option>
+                                        <label for="service_staff_id" class="form-label">Assign Service Staff <span class="text-danger">*</span></label>
+                                        <?php if (session()->getFlashdata('error')): ?>
+                                            <div class="alert alert-danger py-1 px-2 mb-2"><?= esc(session()->getFlashdata('error')) ?></div>
+                                        <?php endif; ?>
+                                        <select name="service_staff_id" id="service_staff_id" class="form-select" required>
+                                            <option value="">-- Select service staff --</option>
                                             <?php foreach ($staffList as $s): ?>
                                                 <option value="<?= esc($s['id']) ?>" <?= (!empty($submission['service_staff_id']) && $submission['service_staff_id'] == $s['id']) ? 'selected' : '' ?>><?= esc($s['full_name']) ?></option>
                                             <?php endforeach; ?>
                                         </select>
+                                        <div class="form-text">You must assign a service staff member before approval.</div>
                                     </div>
                                 <?php else: ?>
                                     <div class="mb-3 text-muted">

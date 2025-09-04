@@ -50,6 +50,33 @@
                                     <a href="<?= base_url('forms/submission/' . $submission['id']) ?>" class="btn btn-sm btn-info">
                                         <i class="fas fa-eye me-1"></i> View
                                     </a>
+                                    <?php
+                                        $userType = session()->get('user_type');
+                                        $userId = session()->get('user_id');
+                                        $isOwner = $submission['submitted_by'] == $userId;
+                                        $status = $submission['status'];
+                                        $canCancel = $isOwner && in_array($status, ['submitted','approved','pending_service']) && !in_array($userType, ['admin','superuser']);
+                                        // Owner can delete completed/rejected/cancelled; admins/superusers can delete any
+                                        $canDelete = ($isOwner && in_array($status, ['completed','rejected','cancelled'])) || in_array($userType, ['admin','superuser']);
+                                    ?>
+                                    <?php if ($canCancel): ?>
+                                        <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline" onsubmit="return confirm('Cancel this submission? This will mark it as cancelled.')">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning">
+                                                <i class="fas fa-ban"></i>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
+                                    <?php if ($canDelete): ?>
+                                        <form action="<?= base_url('forms/delete-submission') ?>" method="post" class="d-inline" onsubmit="return confirm('Delete this submission and ALL related data? This cannot be undone.')">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                     
                                     <?php if ($submission['status'] == 'completed'): ?>
                                     <div class="btn-group">
@@ -62,9 +89,6 @@
                                             </a></li>
                                             <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/word') ?>">
                                                 <i class="fas fa-file-word me-2 text-primary"></i> Word
-                                            </a></li>
-                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/excel') ?>">
-                                                <i class="fas fa-file-excel me-2 text-success"></i> Excel
                                             </a></li>
                                         </ul>
                                     </div>
