@@ -153,6 +153,9 @@ class PdfGenerator extends BaseController
             // After initial save, fill any Word Content Controls (structured document tags) using field names, labels, and placeholder map
             $this->fillContentControls($tempDocxFile, $panelFields, $submissionData, $placeholderValues);
 
+            // Inject signature images into picture content controls with tags P_REQUESTOR_SIGNATURE, etc.
+            $this->injectSignaturePictureControls($tempDocxFile, $requestor, $approver, $serviceStaff);
+
             if ($reqFormat === 'pdf') {
                 // Placeholder: convert DOCX to PDF via iLovePDF when API keys configured
                 // If conversion fails or not configured, fallback to DOCX
@@ -737,5 +740,161 @@ class PdfGenerator extends BaseController
         $name = strtolower($name);
         $name = preg_replace('/[^a-z0-9_]+/','_', $name);
         return trim($name, '_');
+    }
+
+    /**
+     * Post-process the DOCX to replace picture content controls tagged with P_* signature tags
+     * (P_REQUESTOR_SIGNATURE, P_APPROVER_SIGNATURE, P_SERVICE_STAFF_SIGNATURE) with the actual
+     * signature images if available. This is needed because TemplateProcessor only handles
+     * variable-based image placeholders, not arbitrary picture content controls.
+     */
+    private function injectSignaturePictureControls(string $docxPath, $requestor, $approver, $serviceStaff): void
+    {
+        if (!is_file($docxPath)) return;
+        $zip = new \ZipArchive();
+        if ($zip->open($docxPath) !== true) return;
+
+        $documentXml = $zip->getFromName('word/document.xml');
+        if ($documentXml === false) { $zip->close(); return; }
+        $relsXml = $zip->getFromName('word/_rels/document.xml.rels');
+        if ($relsXml === false) { $relsXml = '<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships" />'; }
+
+        $doc = new \DOMDocument();
+        $doc->preserveWhiteSpace = false; $doc->formatOutput = false;
+        if (!@$doc->loadXML($documentXml)) { $zip->close(); return; }
+        $relsDoc = new \DOMDocument(); $relsDoc->preserveWhiteSpace=false; $relsDoc->formatOutput=false;
+        if (!@$relsDoc->loadXML($relsXml)) { $zip->close(); return; }
+
+        $xpath = new \DOMXPath($doc);
+        $xpath->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        // Collect existing relationship IDs to avoid collision
+        $relsXpath = new \DOMXPath($relsDoc);
+        $relsXpath->registerNamespace('r','http://schemas.openxmlformats.org/package/2006/relationships');
+        $existingIds = [];
+        foreach ($relsDoc->getElementsByTagName('Relationship') as $relEl) {
+            if ($relEl->hasAttribute('Id')) { $existingIds[] = $relEl->getAttribute('Id'); }
+        }
+        $nextRelId = function() use (&$existingIds) {
+            $i = 1; while (in_array('rId'.$i, $existingIds, true)) { $i++; } $existingIds[] = 'rId'.$i; return 'rId'.$i; };
+
+        $signatureMap = [
+            'P_REQUESTOR_SIGNATURE' => $requestor['signature'] ?? null,
+            'P_APPROVER_SIGNATURE' => $approver['signature'] ?? null,
+            'P_SERVICE_STAFF_SIGNATURE' => $serviceStaff['signature'] ?? null,
+        ];
+
+        // Normalize signature paths
+        foreach ($signatureMap as $k=>$sig) {
+            if (!$sig) continue;
+            if (strpos($sig, 'uploads/signatures/') === 0) {
+                $signatureMap[$k] = FCPATH . $sig;
+            } else if (is_file(FCPATH . 'uploads/signatures/' . $sig)) {
+                $signatureMap[$k] = FCPATH . 'uploads/signatures/' . $sig;
+            } else if (is_file(FCPATH . $sig)) {
+                $signatureMap[$k] = FCPATH . $sig;
+            } else {
+                $signatureMap[$k] = null; // file not found
+            }
+        }
+
+        // Find all content controls with a matching tag
+        $sdtNodes = $xpath->query('//w:sdt[w:sdtPr/w:tag]');
+        if (!$sdtNodes) { $zip->close(); return; }
+
+        $modified = false;
+        foreach ($sdtNodes as $sdt) {
+            $tagNode = $xpath->query('.//w:sdtPr/w:tag', $sdt)->item(0);
+            if (!$tagNode || !$tagNode->hasAttribute('w:val')) continue;
+            $tag = strtoupper(trim($tagNode->getAttribute('w:val')));
+            if (!isset($signatureMap[$tag])) continue; // not a signature tag
+            $imgPath = $signatureMap[$tag];
+            if (!$imgPath || !is_file($imgPath)) continue;
+
+            // Read image binary
+            $imgData = @file_get_contents($imgPath);
+            if ($imgData === false) continue;
+            // Add image file into media folder with stable name to avoid duplicates
+            $ext = strtolower(pathinfo($imgPath, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['png','jpg','jpeg'], true)) { $ext = 'png'; }
+            $mediaName = 'signature_' . strtolower($tag) . '.' . $ext;
+            $zip->addFromString('word/media/' . $mediaName, $imgData);
+
+            // Determine size (EMU units) using getimagesize
+            $cx = 120; $cy = 40; // default px
+            if ($info = @getimagesize($imgPath)) { $cx = $info[0]; $cy = $info[1]; }
+            // Convert px -> EMU (assuming 96 DPI): px * 9525
+            $emuX = (int)($cx * 9525); $emuY = (int)($cy * 9525);
+
+            // Create relationship
+            $relsRoot = $relsDoc->documentElement;
+            $relId = $nextRelId();
+            $relEl = $relsDoc->createElement('Relationship');
+            $relEl->setAttribute('Id', $relId);
+            $relEl->setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image');
+            $relEl->setAttribute('Target', 'media/' . $mediaName);
+            $relsRoot->appendChild($relEl);
+
+            // Build drawing XML
+            $wNs = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+            $wpNs = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+            $aNs = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+            $picNs = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+            $rNs = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+            // Clear existing content inside sdtContent
+            $contentNode = $xpath->query('.//w:sdtContent', $sdt)->item(0);
+            if (!$contentNode) continue;
+            while ($contentNode->firstChild) { $contentNode->removeChild($contentNode->firstChild); }
+
+            $p = $doc->createElementNS($wNs, 'w:p');
+            $r = $doc->createElementNS($wNs, 'w:r');
+            $drawing = $doc->createElementNS($wNs, 'w:drawing');
+            $inline = $doc->createElementNS($wpNs, 'wp:inline');
+            $inline->setAttribute('distT','0');$inline->setAttribute('distB','0');$inline->setAttribute('distL','0');$inline->setAttribute('distR','0');
+            $extent = $doc->createElementNS($wpNs, 'wp:extent');
+            $extent->setAttribute('cx', (string)$emuX); $extent->setAttribute('cy', (string)$emuY);
+            $effect = $doc->createElementNS($wpNs, 'wp:effectExtent');
+            $effect->setAttribute('l','0');$effect->setAttribute('t','0');$effect->setAttribute('r','0');$effect->setAttribute('b','0');
+            $docPr = $doc->createElementNS($wpNs, 'wp:docPr');
+            $docPr->setAttribute('id','1'); $docPr->setAttribute('name', $tag);
+            $cNv = $doc->createElementNS($wpNs, 'wp:cNvGraphicFramePr');
+            $graphic = $doc->createElementNS($aNs, 'a:graphic');
+            $graphicData = $doc->createElementNS($aNs, 'a:graphicData');
+            $graphicData->setAttribute('uri','http://schemas.openxmlformats.org/drawingml/2006/picture');
+            $pic = $doc->createElementNS($picNs, 'pic:pic');
+            $nvPicPr = $doc->createElementNS($picNs, 'pic:nvPicPr');
+            $cNvPr = $doc->createElementNS($picNs, 'pic:cNvPr');
+            $cNvPr->setAttribute('id','0'); $cNvPr->setAttribute('name', $mediaName);
+            $cNvPicPr = $doc->createElementNS($picNs, 'pic:cNvPicPr');
+            $nvPicPr->appendChild($cNvPr); $nvPicPr->appendChild($cNvPicPr);
+            $blipFill = $doc->createElementNS($picNs, 'pic:blipFill');
+            $blip = $doc->createElementNS($aNs, 'a:blip');
+            $blip->setAttributeNS($rNs, 'r:embed', $relId);
+            $stretch = $doc->createElementNS($aNs, 'a:stretch');
+            $fillRect = $doc->createElementNS($aNs, 'a:fillRect');
+            $stretch->appendChild($fillRect);
+            $blipFill->appendChild($blip); $blipFill->appendChild($stretch);
+            $spPr = $doc->createElementNS($picNs, 'pic:spPr');
+            $xfrm = $doc->createElementNS($aNs, 'a:xfrm');
+            $off = $doc->createElementNS($aNs, 'a:off'); $off->setAttribute('x','0'); $off->setAttribute('y','0');
+            $ext = $doc->createElementNS($aNs, 'a:ext'); $ext->setAttribute('cx',(string)$emuX); $ext->setAttribute('cy',(string)$emuY);
+            $xfrm->appendChild($off); $xfrm->appendChild($ext);
+            $prst = $doc->createElementNS($aNs, 'a:prstGeom'); $prst->setAttribute('prst','rect');
+            $avLst = $doc->createElementNS($aNs, 'a:avLst'); $prst->appendChild($avLst);
+            $spPr->appendChild($xfrm); $spPr->appendChild($prst);
+
+            $pic->appendChild($nvPicPr); $pic->appendChild($blipFill); $pic->appendChild($spPr);
+            $graphicData->appendChild($pic); $graphic->appendChild($graphicData);
+            $inline->appendChild($extent); $inline->appendChild($effect); $inline->appendChild($docPr); $inline->appendChild($cNv); $inline->appendChild($graphic);
+            $drawing->appendChild($inline); $r->appendChild($drawing); $p->appendChild($r); $contentNode->appendChild($p);
+            $modified = true;
+        }
+
+        if ($modified) {
+            $zip->addFromString('word/document.xml', $doc->saveXML());
+            $zip->addFromString('word/_rels/document.xml.rels', $relsDoc->saveXML());
+        }
+        $zip->close();
     }
 }

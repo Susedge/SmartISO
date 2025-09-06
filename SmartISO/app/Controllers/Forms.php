@@ -910,33 +910,64 @@ class Forms extends BaseController
     public function uploadSignature()
     {
         $userId = session()->get('user_id');
-        
-        // Validate file upload
+
+        // Strengthened validation: enforce file, size, mime
         $validationRules = [
             'signature' => [
                 'label' => 'Signature',
-                'rules' => 'uploaded[signature]|max_size[signature,1024]|mime_in[signature,image/png,image/jpeg]'
+                'rules' => 'uploaded[signature]|max_size[signature,512]|mime_in[signature,image/png,image/jpeg]' // 512KB limit tightened
             ]
         ];
-        
+
         if (!$this->validate($validationRules)) {
             return redirect()->back()
                 ->with('error', $this->validator->getErrors()['signature'] ?? 'Invalid signature file');
         }
-        
+
         $file = $this->request->getFile('signature');
-        
+
         if (!$file->isValid() || $file->hasMoved()) {
             return redirect()->back()->with('error', 'Invalid file upload');
         }
-        
-        // Upload signature
+
+        // Additional content inspection (signature spoof + simple malware mitigation)
+        $tmpPath = $file->getTempName();
+        $imageInfo = @getimagesize($tmpPath);
+        if (!$imageInfo || !in_array($imageInfo[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG])) {
+            return redirect()->back()->with('error', 'Corrupted or unsupported image content');
+        }
+
+        // Re-encode image to strip any embedded payloads
+        $isPng = ($imageInfo[2] === IMAGETYPE_PNG);
+        $imageResource = $isPng ? imagecreatefrompng($tmpPath) : imagecreatefromjpeg($tmpPath);
+        if (!$imageResource) {
+            return redirect()->back()->with('error', 'Failed to process image');
+        }
+
+        // Generate deterministic sanitized filename
+        $newName = $userId . '_' . time() . ($isPng ? '.png' : '.jpg');
+        $targetDir = ROOTPATH . 'public/uploads/signatures/';
+        if (!is_dir($targetDir)) {
+            @mkdir($targetDir, 0755, true);
+        }
+        $targetPath = $targetDir . $newName;
+
+        $writeOk = $isPng ? imagepng($imageResource, $targetPath) : imagejpeg($imageResource, $targetPath, 90);
+        imagedestroy($imageResource);
+
+        if (!$writeOk || !file_exists($targetPath)) {
+            return redirect()->back()->with('error', 'Failed to store sanitized image');
+        }
+
+        // Persist filename in DB (avoid using original upload directly)
         try {
-            $this->userModel->setSignature($userId, $file);
+            $this->userModel->update($userId, ['signature' => $newName]);
+            // Optionally remove original tmp moved file (CI might auto-clean). We never move() original to avoid trusting it.
             return redirect()->to('/profile')
-                            ->with('message', 'Signature uploaded successfully');
+                ->with('message', 'Signature uploaded securely');
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Error uploading signature: ' . $e->getMessage());
+            @unlink($targetPath);
+            return redirect()->back()->with('error', 'Error saving signature: ' . $e->getMessage());
         }
     }
 

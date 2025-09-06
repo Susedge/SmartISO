@@ -37,7 +37,7 @@ class Auth extends BaseController
                     'full_name'     => $this->request->getPost('full_name'),
                     'office_id'     => $this->request->getPost('office_id'),
                     'user_type'     => 'user', // Default user type
-                    'active'        => 1, // Auto-activate for now (could use email verification later)
+                    'active'        => 0, // Require admin activation (VAPT remediation)
                 ];
                 
                 $userModel->insert($userData);
@@ -82,6 +82,8 @@ class Auth extends BaseController
                         return redirect()->back()->with('error', 'Account is not active. Please contact administrator.');
                     }
                     
+                    // Regenerate session ID to prevent fixation
+                    session()->regenerate(true);
                     // Set session data
                     $sessionData = [
                         'user_id' => $user['id'],

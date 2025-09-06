@@ -27,7 +27,15 @@ class AuthFilter implements FilterInterface
         }
         
         // Update last activity time
-        session()->set('last_activity', time());
+        $now = time();
+        session()->set('last_activity', $now);
+
+        // Periodic session ID regeneration (every 10 minutes) to reduce hijack window
+        $lastRegen = session()->get('last_regen') ?? 0;
+        if (($now - $lastRegen) > 600) { // 600 = 10 minutes
+            session()->regenerate(true);
+            session()->set('last_regen', $now);
+        }
         
         // Check for specific user types if arguments are provided
         if (!empty($arguments)) {
