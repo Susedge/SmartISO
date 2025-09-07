@@ -16,7 +16,7 @@
                             <th>Form</th>
                             <th>Requestor</th>
                             <th>Approval Date</th>
-                            <th>Office</th>
+                            <th>Department</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -26,7 +26,7 @@
                             <td><?= esc($item['form_code']) ?> - <?= esc($item['form_description']) ?></td>
                             <td><?= esc($item['requestor_name']) ?></td>
                             <td><?= isset($item['approved_at']) ? date('M d, Y', strtotime($item['approved_at'])) : date('M d, Y', strtotime($item['updated_at'])) ?></td>
-                            <td><?= esc($item['office_name'] ?? 'N/A') ?></td>
+                            <td><?= esc($item['department_name'] ?? 'N/A') ?></td>
                             <td>
                                 <a href="<?= base_url('forms/service/' . $item['id']) ?>" class="btn btn-sm btn-primary">Service</a>
                                 <a href="<?= base_url('forms/submission/' . $item['id']) ?>" class="btn btn-sm btn-info">View</a>

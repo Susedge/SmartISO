@@ -43,4 +43,23 @@ class FormSubmissionDataModel extends Model
         
         return $result;
     }
+
+    /**
+     * Upsert a single field value for a submission (used for priority_level updates on calendar UI)
+     */
+    public function setFieldValue(int $submissionId, string $fieldName, $value): bool
+    {
+        $existing = $this->where('submission_id', $submissionId)
+                         ->where('field_name', $fieldName)
+                         ->first();
+        $data = [
+            'submission_id' => $submissionId,
+            'field_name' => $fieldName,
+            'field_value' => (string)$value
+        ];
+        if ($existing) {
+            return (bool)$this->update($existing['id'], $data);
+        }
+        return (bool)$this->insert($data, true);
+    }
 }

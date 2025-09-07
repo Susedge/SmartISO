@@ -47,36 +47,83 @@ class Forms extends BaseController
     
     public function index()
     {
-    // Get office filter from request (use fallback when running under tests)
     $req = $this->getRequest();
-    $selectedOffice = $req->getGet('office');
-        
-        // Get all active offices for the dropdown if model available
-        $offices = [];
-        if (isset($this->officeModel) && method_exists($this->officeModel, 'getActiveOffices')) {
-            $offices = $this->officeModel->getActiveOffices();
-        }
+    // Read raw GET values then normalize to integers where appropriate so
+    // the query builder receives consistent types (helps avoid "0"/"" problems)
+    $rawDept = $req->getGet('department');
+    $rawOffice = $req->getGet('office');
+    $selectedDepartment = (is_numeric($rawDept) && $rawDept !== '') ? (int)$rawDept : null;
+    $selectedOffice = (is_numeric($rawOffice) && $rawOffice !== '') ? (int)$rawOffice : null;
 
-        // Get forms based on office filter; allow unit tests to set a simple formModel stub
+        $departments = $this->departmentModel->findAll();
+        // Offices: load all (including inactive) so user can still filter; then optionally restrict in list
+        try {
+            $allOffices = $this->officeModel->orderBy('description','ASC')->findAll();
+        } catch (\Throwable $e) {
+            $allOffices = [];
+        }
+        // Keep both the full office list and a department-filtered list. The view
+        // prefers the full list and lets JS hide/show options, but we keep the
+        // filtered list for backward compatibility.
+        $allOffices = is_array($allOffices) ? $allOffices : [];
+        $offices = [];
+        if (!empty($selectedDepartment)) {
+            foreach ($allOffices as $o) {
+                if ((string)($o['department_id'] ?? '') === (string)$selectedDepartment) {
+                    $offices[] = $o;
+                }
+            }
+        } else {
+            $offices = $allOffices;
+        }
+        // Guarantee office array shape
+        if (!is_array($offices)) { $offices = []; }
+
         $forms = [];
         if (isset($this->formModel)) {
-            if ($selectedOffice && method_exists($this->formModel, 'getFormsByOfficeWithOffice')) {
-                $forms = $this->formModel->getFormsByOfficeWithOffice($selectedOffice);
-            } elseif (method_exists($this->formModel, 'getFormsWithOffice')) {
-                $forms = $this->formModel->getFormsWithOffice();
-            } elseif (method_exists($this->formModel, 'findAll')) {
-                // Fallback for simple test stubs
-                $forms = $this->formModel->findAll();
+            // Base query: join office and departments. A form may have a department_id
+            // or rely on the office -> department relationship. Join departments
+            // from both the form (d1) and the office (d2) and use COALESCE so
+            // we display a department name when available via either path.
+            $builder = $this->db->table('forms f')
+                // d1 = department from form.department_id
+                // do = pivot mapping department_office for office -> department many-to-many
+                ->select('f.*, COALESCE(d1.description, d3.description) AS department_name, o.description AS office_name')
+                ->join('departments d1', 'd1.id = f.department_id', 'left')
+                ->join('offices o', 'o.id = f.office_id', 'left')
+                ->join('department_office do', 'do.office_id = o.id', 'left')
+                ->join('departments d3', 'd3.id = do.department_id', 'left');
+            if (!empty($selectedDepartment)) {
+                // Match forms where department is set on the form OR inherited via the pivot mapping
+                $builder->groupStart()
+                        ->where('f.department_id', $selectedDepartment)
+                        ->orWhere('do.department_id', $selectedDepartment)
+                    ->groupEnd();
             }
+            if (!empty($selectedOffice)) { $builder->where('f.office_id', $selectedOffice); }
+            // Capture compiled SQL for quick debugging in the view
+            try {
+                $compiled = $builder->getCompiledSelect();
+            } catch (\Throwable $e) {
+                $compiled = '';
+            }
+            $forms = $builder->orderBy('f.description','ASC')->get()->getResultArray();
         }
-        
+
         $data = [
             'title' => 'Available Forms',
             'forms' => $forms,
+            'departments' => $departments,
+            // pass both full list and filtered list
             'offices' => $offices,
+            'allOffices' => $allOffices,
+            'selectedDepartment' => $selectedDepartment,
             'selectedOffice' => $selectedOffice
         ];
-        
+
+        // include compiled SQL for debugging (if available)
+        if (!empty($compiled)) { $data['debugSql'] = $compiled; }
+
         return view('forms/index', $data);
     }
     
@@ -187,6 +234,68 @@ class Forms extends BaseController
         }
 
         $submissionId = $this->formSubmissionModel->insert($submissionData);
+
+        // Optional: Auto-create pending schedule when submissions are created
+        try {
+            // Prefer runtime DB configuration; fall back to App config
+            $configModel = new \App\Models\ConfigurationModel();
+            $dbFlag = $configModel->getConfig('auto_create_schedule_on_submit', null);
+            $appConf = config('App');
+            $enabled = ($dbFlag === null) ? ($appConf->autoCreateScheduleOnSubmit ?? false) : (bool)$dbFlag;
+
+            if (!empty($enabled) && class_exists('App\\Models\\ScheduleModel')) {
+                $scheduleModel = new \App\Models\ScheduleModel();
+                if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
+                    $scheduledDate = date('Y-m-d');
+                    $schedData = [
+                        'submission_id' => $submissionId,
+                        'scheduled_date' => $scheduledDate,
+                        'scheduled_time' => '09:00:00',
+                        'duration_minutes' => 60,
+                        'assigned_staff_id' => null,
+                        'location' => '',
+                        'notes' => 'Auto-created schedule on submit',
+                        'status' => 'pending'
+                    ];
+                    // Compute ETA based on priority: low=7 days (calendar), medium=5 business days, high=2 business days
+                    $etaDays = null; $estimatedDate = null;
+                    if ($priority === 'low') {
+                        $etaDays = 7;
+                        $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +7 days'));
+                    } elseif ($priority === 'medium') {
+                        $etaDays = 5;
+                        // Use Schedule controller helper if available, otherwise simple loop
+                        try {
+                            $schCtrl = new \App\Controllers\Schedule();
+                            $estimatedDate = $schCtrl->addBusinessDays($scheduledDate, 5);
+                        } catch (\Throwable $e) {
+                            // fallback: add calendar days (best-effort)
+                            $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +7 days'));
+                        }
+                    } elseif ($priority === 'high') {
+                        $etaDays = 3;
+                        try {
+                            $schCtrl = new \App\Controllers\Schedule();
+                            $estimatedDate = $schCtrl->addBusinessDays($scheduledDate, 3);
+                        } catch (\Throwable $e) {
+                            $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +3 days'));
+                        }
+                    }
+                    if ($etaDays && $estimatedDate) {
+                        $schedData['eta_days'] = $etaDays;
+                        $schedData['estimated_date'] = $estimatedDate;
+                        $schedData['priority_level'] = $priority;
+                    }
+                    try {
+                        $scheduleModel->insert($schedData);
+                    } catch (\Throwable $e) {
+                        log_message('error', 'Auto-schedule on submit failed for submission ' . $submissionId . ': ' . $e->getMessage());
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'Error while attempting auto-create schedule on submit: ' . $e->getMessage());
+        }
         
         // Save each field value based on user role
         foreach ($panelFields as $field) {
@@ -269,29 +378,29 @@ class Forms extends BaseController
             }
             
             // Get filter parameters
-            $officeFilter = $this->request->getGet('office');
+            $departmentFilter = $this->request->getGet('department');
             $priorityFilter = $this->request->getGet('priority');
             
             // Get pending submissions with filters
             try {
-                $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($officeFilter, $priorityFilter);
+                $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
             } catch (\Exception $e) {
                 log_message('error', 'Error getting pending approvals: ' . $e->getMessage());
                 $submissions = [];
             }
             
-            // Get all office names for filter dropdown
+            // Get all department names for filter dropdown
             try {
-                $officeNames = $this->db->table('offices')
+                $deptRows = $this->db->table('departments')
                     ->select('DISTINCT description')
                     ->where('active', 1)
                     ->orderBy('description')
                     ->get()
                     ->getResultArray();
-                $offices = array_column($officeNames, 'description');
+                $departments = array_column($deptRows, 'description');
             } catch (\Exception $e) {
-                log_message('error', 'Error getting offices: ' . $e->getMessage());
-                $offices = [];
+                log_message('error', 'Error getting departments: ' . $e->getMessage());
+                $departments = [];
             }
             
             // Get priority options with fallback
@@ -311,9 +420,9 @@ class Forms extends BaseController
             $data = [
                 'title' => 'Forms Pending Approval',
                 'submissions' => $submissions ?? [],
-                'offices' => $offices ?? [],
+                'departments' => $departments ?? [],
                 'priorities' => $priorities ?? [],
-                'selectedOffice' => $officeFilter ?? '',
+                'selectedDepartment' => $departmentFilter ?? '',
                 'selectedPriority' => $priorityFilter ?? ''
             ];
             
@@ -341,11 +450,11 @@ class Forms extends BaseController
             forms.code as form_code, 
             forms.description as form_description,
             requestor.full_name as requestor_name,
-            offices.description as office_name
+            d.description as department_name
         ');
         $builder->join('forms', 'forms.id = form_submissions.form_id');
         $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
-        $builder->join('offices', 'offices.id = requestor.office_id', 'left');
+        $builder->join('departments d', 'd.id = requestor.department_id', 'left');
         
     // Filter for forms assigned to this service staff.
     // Accept both 'approved' and 'pending_service' statuses for backward compatibility
@@ -1143,6 +1252,7 @@ class Forms extends BaseController
                 'status' => 'pending_service',
                 'approver_id' => session()->get('user_id'),
                 'approved_at' => date('Y-m-d H:i:s'),
+                'approver_signature_date' => date('Y-m-d H:i:s'),
                 'approval_comments' => $comments,
                 'service_staff_id' => $serviceStaffId, // NEW: Save selected service staff
             ];
@@ -1156,6 +1266,40 @@ class Forms extends BaseController
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to send service assignment notification in submitApproval: ' . $e->getMessage());
                 }
+            }
+
+            // OPTIONAL: Auto-create a pending schedule when a submission is approved and assigned
+            // Assumption: approval + service staff assignment implies a service should be scheduled.
+            // We create a minimal 'pending' schedule entry (non-blocking) so it appears on the calendar.
+            // Auto-create schedule only if enabled in config
+            try {
+                $appConf = config('App');
+                if (!empty($appConf->autoCreateScheduleOnApproval) && class_exists('App\\Models\\ScheduleModel')) {
+                    $scheduleModel = new \App\Models\ScheduleModel();
+                    // Only insert if ScheduleModel allows submission_id
+                    if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
+                        $schedData = [
+                            'submission_id' => $submissionId,
+                            'scheduled_date' => date('Y-m-d'),
+                            'scheduled_time' => '09:00:00',
+                            'duration_minutes' => 60,
+                            'assigned_staff_id' => $serviceStaffId,
+                            'location' => '',
+                            'notes' => 'Auto-created schedule on approval',
+                            'status' => 'pending'
+                        ];
+
+                        // Insert quietly; if it fails, log but don't block approval flow
+                        try {
+                            $scheduleModel->insert($schedData);
+                        } catch (\Throwable $inner) {
+                            log_message('error', 'Auto-schedule creation failed for submission ' . $submissionId . ': ' . $inner->getMessage());
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Non-fatal: log and continue
+                log_message('error', 'Error while attempting to auto-create schedule in submitApproval: ' . $e->getMessage());
             }
             
             return redirect()->to('/forms/approved-by-me')
@@ -1225,11 +1369,11 @@ class Forms extends BaseController
                 return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
             }
             
-            $officeFilter = $this->request->getPost('office_filter');
+            $departmentFilter = $this->request->getPost('department_filter');
             $priorityFilter = $this->request->getPost('priority_filter');
             
             // Use the same method as pendingApproval to get submissions
-            $pendingSubmissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($officeFilter, $priorityFilter);
+            $pendingSubmissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
             
             if (empty($pendingSubmissions)) {
                 return redirect()->to('/forms/pending-approval')
@@ -1245,6 +1389,7 @@ class Forms extends BaseController
                         'status' => 'pending_service',
                         'approver_id' => $userId,
                         'approved_at' => date('Y-m-d H:i:s'),
+                        'approver_signature_date' => date('Y-m-d H:i:s'),
                         'approval_comments' => 'Bulk approved'
                     ];
                     
@@ -1563,6 +1708,7 @@ class Forms extends BaseController
                 $updateData['status'] = 'pending_service';
                 $updateData['approver_id'] = $userId;
                 $updateData['approved_at'] = date('Y-m-d H:i:s');
+                $updateData['approver_signature_date'] = date('Y-m-d H:i:s');
                 $updateData['approval_comments'] = 'Auto-approved with service staff assignment';
             }
             

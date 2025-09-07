@@ -183,6 +183,18 @@ class App extends BaseConfig
     public array $proxyIPs = [];
 
     /**
+     * Whether to auto-create a pending schedule when a submission is approved
+     * and assigned to service staff. Set to false to disable automatic creation.
+     */
+    public bool $autoCreateScheduleOnApproval = true;
+
+    /**
+     * Whether to auto-create a pending schedule when a submission is created
+     * (submitted). Set to false to disable automatic creation at submission time.
+     */
+    public bool $autoCreateScheduleOnSubmit = false;
+
+    /**
      * --------------------------------------------------------------------------
      * Content Security Policy
      * --------------------------------------------------------------------------

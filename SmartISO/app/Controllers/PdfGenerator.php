@@ -55,8 +55,14 @@ class PdfGenerator extends BaseController
                             ->with('error', 'You don\'t have permission to export this submission or it is not completed');
         }
         
-        // Get form details
+        // Get form details (include office & department names via manual joins for placeholders)
         $form = $this->formModel->find($submission['form_id']);
+        $officeName = '';
+        $officeCode = '';
+        if (!empty($form['office_id'])) {
+            $officeRow = $this->db->table('offices')->select('code, description')->where('id', $form['office_id'])->get()->getRowArray();
+            if ($officeRow) { $officeCode = $officeRow['code']; $officeName = $officeRow['description']; }
+        }
         
         // Get panel fields
         $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
@@ -78,15 +84,17 @@ class PdfGenerator extends BaseController
         
         // Prepare placeholders and values
         $placeholderValues = $this->prepareTextPlaceholders(
-            $form, 
-            $submission, 
-            $submissionId, 
-            $requestor, 
-            $requestorDept, 
-            $approver, 
-            $serviceStaff, 
-            $panelFields, 
-            $submissionData
+            $form,
+            $submission,
+            $submissionId,
+            $requestor,
+            $requestorDept,
+            $approver,
+            $serviceStaff,
+            $panelFields,
+            $submissionData,
+            $officeCode,
+            $officeName
         );
         
         // Determine which template to use
@@ -200,7 +208,7 @@ class PdfGenerator extends BaseController
     /**
      * Prepare all text placeholder values from the form data
      */
-    private function prepareTextPlaceholders($form, $submission, $submissionId, $requestor, $requestorDept, $approver, $serviceStaff, $panelFields, $submissionData)
+    private function prepareTextPlaceholders($form, $submission, $submissionId, $requestor, $requestorDept, $approver, $serviceStaff, $panelFields, $submissionData, $officeCode = '', $officeName = '')
     {
         $placeholders = [
             // Basic form information
@@ -208,6 +216,8 @@ class PdfGenerator extends BaseController
             '{{FORM_CODE}}' => $form['code'],
             '{{FORM_DESCRIPTION}}' => $form['description'],
             '{{FORM_STATUS}}' => ucfirst($submission['status']),
+            '{{OFFICE_CODE}}' => $officeCode,
+            '{{OFFICE_NAME}}' => $officeName,
             
             // Submission information
             '{{SUBMISSION_ID}}' => $submissionId,
@@ -236,12 +246,16 @@ class PdfGenerator extends BaseController
             $placeholders['{{APPROVER_EMAIL}}'] = $approver['email'] ?? '';
             $placeholders['{{APPROVAL_DATE}}'] = !empty($submission['approved_at']) ? 
                 date('M d, Y', strtotime($submission['approved_at'])) : '';
+            // Unified explicit approver signature date placeholder (falls back to approved_at)
+            $approverSignSource = $submission['approver_signature_date'] ?? $submission['approved_at'] ?? null;
+            $placeholders['{{APPROVER_SIGN_DATE}}'] = $approverSignSource ? date('M d, Y', strtotime($approverSignSource)) : '';
             $placeholders['{{APPROVAL_COMMENTS}}'] = $submission['approval_comments'] ?? '';
         } else {
             $placeholders['{{APPROVER_ID}}'] = '';
             $placeholders['{{APPROVER_NAME}}'] = '';
             $placeholders['{{APPROVER_EMAIL}}'] = '';
             $placeholders['{{APPROVAL_DATE}}'] = '';
+            $placeholders['{{APPROVER_SIGN_DATE}}'] = '';
             $placeholders['{{APPROVAL_COMMENTS}}'] = '';
         }
         
@@ -479,8 +493,12 @@ class PdfGenerator extends BaseController
             if (file_exists($signaturePath)) {
                 log_message('info', 'Requestor signature image found: ' . $requestor['signature'] . ' for user ID: ' . $requestor['id']);
                 try {
-                    // Try using the simpler version without the options array
-                    $templateProcessor->setImageValue('REQUESTOR_SIGNATURE', $signaturePath);
+                    // Set a small, fixed display size for signature images (width x height in px)
+                    $templateProcessor->setImageValue('REQUESTOR_SIGNATURE', [
+                        'path' => $signaturePath,
+                        'width' => 200,
+                        'height' => 60
+                    ]);
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to add requestor signature: ' . $e->getMessage());
                 }
@@ -498,8 +516,12 @@ class PdfGenerator extends BaseController
             if (file_exists($signaturePath)) {
                 log_message('info', 'Approver signature image found: ' . $approver['signature'] . ' for user ID: ' . $approver['id']);
                 try {
-                    // Try using the simpler version without the options array
-                    $templateProcessor->setImageValue('APPROVER_SIGNATURE', $signaturePath);
+                    // Set a small, fixed display size for signature images
+                    $templateProcessor->setImageValue('APPROVER_SIGNATURE', [
+                        'path' => $signaturePath,
+                        'width' => 200,
+                        'height' => 60
+                    ]);
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to add approver signature: ' . $e->getMessage());
                 }
@@ -517,8 +539,12 @@ class PdfGenerator extends BaseController
             if (file_exists($signaturePath)) {
                 log_message('info', 'Service staff signature image found: ' . $serviceStaff['signature'] . ' for user ID: ' . $serviceStaff['id']);
                 try {
-                    // Try using the simpler version without the options array
-                    $templateProcessor->setImageValue('SERVICE_STAFF_SIGNATURE', $signaturePath);
+                    // Set a small, fixed display size for signature images
+                    $templateProcessor->setImageValue('SERVICE_STAFF_SIGNATURE', [
+                        'path' => $signaturePath,
+                        'width' => 200,
+                        'height' => 60
+                    ]);
                 } catch (\Exception $e) {
                     log_message('error', 'Failed to add service staff signature: ' . $e->getMessage());
                 }
@@ -820,9 +846,22 @@ class PdfGenerator extends BaseController
             $mediaName = 'signature_' . strtolower($tag) . '.' . $ext;
             $zip->addFromString('word/media/' . $mediaName, $imgData);
 
-            // Determine size (EMU units) using getimagesize
+            // Determine size (px) using getimagesize, but force a small display size for signatures
             $cx = 120; $cy = 40; // default px
-            if ($info = @getimagesize($imgPath)) { $cx = $info[0]; $cy = $info[1]; }
+            if ($info = @getimagesize($imgPath)) {
+                $origW = $info[0];
+                $origH = $info[1];
+                // Target width for signatures in px (small for docx)
+                $targetW = 200;
+                if ($origW > 0) {
+                    $scale = $targetW / $origW;
+                    $cx = (int)round($origW * $scale);
+                    $cy = (int)round($origH * $scale);
+                } else {
+                    $cx = $info[0];
+                    $cy = $info[1];
+                }
+            }
             // Convert px -> EMU (assuming 96 DPI): px * 9525
             $emuX = (int)($cx * 9525); $emuY = (int)($cy * 9525);
 

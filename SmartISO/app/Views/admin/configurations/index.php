@@ -1,206 +1,161 @@
 <?= $this->extend('layouts/default') ?>
-
 <?= $this->section('content') ?>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <h3><?= $title ?></h3>
-        <div class="d-flex">
-            <div class="dropdown me-2">
-                <button class="btn btn-secondary dropdown-toggle" type="button" id="tableTypeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                    <?= $tableType == 'system' ? 'System Settings' : ucfirst($tableType) ?>
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="tableTypeDropdown">
-                    <li><a class="dropdown-item <?= $tableType == 'offices' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=offices') ?>">Offices</a></li>
-                    <li><a class="dropdown-item <?= $tableType == 'forms' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=forms') ?>">Forms</a></li>
-                    <li><a class="dropdown-item <?= $tableType == 'system' ? 'active' : '' ?>" href="<?= base_url('admin/configurations?type=system') ?>">System Settings</a></li>
+<style>
+.config-layout{display:flex;gap:1.25rem;align-items:flex-start;}
+.config-table-wrap{flex:1 1 auto;min-width:0;}
+.config-table-wrap .table-responsive{overflow-x:visible;}
+.config-actions-panel{width:250px;position:sticky;top:12px;align-self:flex-start;}
+@media (max-width:992px){.config-layout{flex-direction:column;}.config-actions-panel{width:100%;position:static;}}
+.config-tabs .nav-link{background:#f5f7fa;border:1px solid #d9e2ec;color:#4a5568;}
+.config-tabs .nav-link.active{background:#fff;border-color:#0d6efd;color:#0d6efd;box-shadow:0 0 0 .15rem rgba(13,110,253,.15);}
+.config-tabs .nav-link:hover{background:#eef2f7;}
+.table-hover tbody tr.table-primary td{background:#cfe2ff!important;}
+.config-actions-panel .btn{text-align:left;}
+.config-actions-panel .btn + .btn{margin-top:.4rem;}
+.btn-panel-add{background:#fcd672;border:1px solid #e3b542;color:#333;font-weight:600;}
+.btn-panel-add:hover{background:#fbd25f;color:#222;}
+</style>
+<div class="card p-3">
+        <div class="mb-4">
+                <ul class="nav nav-pills gap-2 flex-wrap config-tabs" role="tablist" style="--bs-nav-pills-border-radius:0;">
+                        <li class="nav-item"><a class="nav-link rounded-pill px-3 <?= $tableType==='departments'?'active':'' ?>" href="<?= base_url('admin/configurations?type=departments') ?>"><i class="fas fa-building me-1"></i>Departments</a></li>
+                        <li class="nav-item"><a class="nav-link rounded-pill px-3 <?= $tableType==='offices'?'active':'' ?>" href="<?= base_url('admin/configurations?type=offices') ?>"><i class="fas fa-sitemap me-1"></i>Offices</a></li>
+                        <li class="nav-item"><a class="nav-link rounded-pill px-3 <?= $tableType==='forms'?'active':'' ?>" href="<?= base_url('admin/configurations?type=forms') ?>"><i class="fas fa-file-alt me-1"></i>Forms</a></li>
+                        <li class="nav-item"><a class="nav-link rounded-pill px-3 <?= $tableType==='panels'?'active':'' ?>" href="<?= base_url('admin/configurations?type=panels') ?>"><i class="fas fa-th-large me-1"></i>Panels</a></li>
+                        <li class="nav-item ms-auto"><a class="nav-link rounded-pill px-3 <?= $tableType==='system'?'active':'' ?>" href="<?= base_url('admin/configurations?type=system') ?>"><i class="fas fa-cog me-1"></i>System Settings</a></li>
                 </ul>
-            </div>
-            <?php if ($tableType == 'system'): ?>
-                <?php $userType = session()->get('user_type'); ?>
-                <?php if (in_array($userType, ['admin', 'superuser'])): ?>
-                    <a href="<?= base_url('admin/configurations/backup-db') ?>" class="btn btn-outline-secondary me-2">Download DB Backup</a>
-                <?php endif; ?>
-            <?php else: ?>
-                <a href="<?= base_url('admin/configurations/new?type=' . $tableType) ?>" class="btn btn-primary">Add <?= ucfirst(rtrim($tableType, 's')) ?></a>
-            <?php endif; ?>
         </div>
-    </div>
-    <div class="card-body">
-        
-        <?php if ($tableType == 'system'): ?>
-            <!-- System Settings Section -->
-            <div class="row">
-                <?php foreach ($configurations as $config): ?>
-                <div class="col-md-6 mb-4">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <h5 class="card-title"><?= ucwords(str_replace('_', ' ', $config['config_key'])) ?></h5>
-                            <p class="card-text text-muted"><?= esc($config['config_description']) ?></p>
-                            
-                            <form method="post" action="<?= base_url('admin/configurations/update-system-config') ?>" class="d-flex align-items-center">
-                                <input type="hidden" name="config_key" value="<?= $config['config_key'] ?>">
-                                
-                                <?php if ($config['config_type'] == 'boolean'): ?>
-                                    <form method="post" action="<?= base_url('admin/configurations/update-system-config') ?>" class="d-inline">
-                                        <input type="hidden" name="config_key" value="<?= $config['config_key'] ?>">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" name="config_value" value="1" <?= $config['config_value'] ? 'checked' : '' ?> onchange="this.form.submit()">
-                                            <?php if (!$config['config_value']): ?>
-                                                <input type="hidden" name="config_value" value="0">
-                                            <?php endif; ?>
-                                            <label class="form-check-label">
-                                                <?= $config['config_value'] ? 'Enabled' : 'Disabled' ?>
-                                            </label>
-                                        </div>
-                                    </form>
-                                <?php elseif ($config['config_type'] == 'integer'): ?>
-                                    <div class="input-group">
-                                        <input type="number" class="form-control" name="config_value" value="<?= esc($config['config_value']) ?>" min="<?= $config['config_key'] == 'session_timeout' ? '0' : '1' ?>" required>
-                                        <?php if ($config['config_key'] == 'session_timeout'): ?>
-                                            <span class="input-group-text">minutes</span>
-                                        <?php endif; ?>
-                                        <button type="submit" class="btn btn-primary btn-sm">Update</button>
-                                    </div>
-                                <?php elseif ($config['config_key'] == 'system_timezone'): ?>
-                                    <div class="input-group">
-                                        <select class="form-control" name="config_value" required>
-                                            <option value="Asia/Singapore" <?= $config['config_value'] == 'Asia/Singapore' ? 'selected' : '' ?>>Asia/Singapore (GMT+8)</option>
-                                            <option value="Asia/Shanghai" <?= $config['config_value'] == 'Asia/Shanghai' ? 'selected' : '' ?>>Asia/Shanghai (GMT+8)</option>
-                                            <option value="Asia/Manila" <?= $config['config_value'] == 'Asia/Manila' ? 'selected' : '' ?>>Asia/Manila (GMT+8)</option>
-                                            <option value="Asia/Kuala_Lumpur" <?= $config['config_value'] == 'Asia/Kuala_Lumpur' ? 'selected' : '' ?>>Asia/Kuala_Lumpur (GMT+8)</option>
-                                            <option value="Asia/Hong_Kong" <?= $config['config_value'] == 'Asia/Hong_Kong' ? 'selected' : '' ?>>Asia/Hong_Kong (GMT+8)</option>
-                                            <option value="Asia/Taipei" <?= $config['config_value'] == 'Asia/Taipei' ? 'selected' : '' ?>>Asia/Taipei (GMT+8)</option>
-                                        </select>
-                                        <button type="submit" class="btn btn-primary btn-sm">Update</button>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" name="config_value" value="<?= esc($config['config_value']) ?>" required>
-                                        <button type="submit" class="btn btn-primary btn-sm">Update</button>
-                                    </div>
-                                <?php endif; ?>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        <?php else: ?>
-            <!-- Existing tables for offices and forms -->
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Code</th>
-                            <th>Description</th>
-                            <th>Created</th>
-                            <?php if ($tableType == 'forms'): ?><th>Template</th><?php endif; ?>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($tableType == 'offices'): ?>
-                            <?php foreach ($offices as $item): ?>
-                            <tr>
-                                <td><?= $item['id'] ?></td>
-                                <td><?= esc($item['code']) ?></td>
-                                <td><?= esc($item['description']) ?></td>
-                                <td><?= date('M d, Y', strtotime($item['created_at'])) ?></td>
-                                <td>
-                                    <a href="<?= base_url('admin/configurations/edit/' . $item['id'] . '?type=' . $tableType) ?>" class="btn btn-sm btn-primary">Edit</a>
-                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $item['id'] ?>">Delete</button>
-                                    
-                                    <!-- Delete Modal -->
-                                    <div class="modal fade" id="deleteModal<?= $item['id'] ?>" tabindex="-1" aria-hidden="true">
-                                        <div class="modal-dialog">
-                                            <div class="modal-content">
-                                                <div class="modal-header">
-                                                    <h5 class="modal-title">Confirm Delete</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body">
-                                                    Are you sure you want to delete office <strong><?= esc($item['code']) ?> - <?= esc($item['description']) ?></strong>?
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <a href="<?= base_url('admin/configurations/delete/' . $item['id'] . '?type=' . $tableType) ?>" class="btn btn-danger">Delete</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                            
-                            <?php if (empty($offices)): ?>
-                            <tr>
-                                <td colspan="5" class="text-center">No offices found</td>
-                            </tr>
-                            <?php endif; ?>
-                        <?php elseif ($tableType == 'forms'): ?>
-                            <?php foreach ($forms as $item): ?>
-                            <tr>
-                                <td><?= $item['id'] ?></td>
-                                <td><?= esc($item['code']) ?></td>
-                                <td><?= esc($item['description']) ?></td>
-                                <td><?= date('M d, Y', strtotime($item['created_at'])) ?></td>
-                                <td>
-                                    <?php 
-                                    $templatePath = FCPATH . 'templates/docx/' . $item['code'] . '_template.docx';
-                                    $hasTemplate = file_exists($templatePath);
-                                    ?>
-                                    <?php if ($hasTemplate): ?>
-                                        <span class="badge bg-success">Template Available</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-warning text-dark">No Custom Template</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <!-- Keep existing buttons -->
-                                    <a href="<?= base_url('admin/configurations/form-signatories/' . $item['id']) ?>" class="btn btn-sm btn-info me-1">Signatories</a>
-                                    <a href="<?= base_url('admin/configurations/edit/' . $item['id'] . '?type=' . $tableType) ?>" class="btn btn-sm btn-primary">Edit</a>
-                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $item['id'] ?>">Delete</button>
-                                    
-                                    <!-- Add template button -->
-                                    <?php if ($hasTemplate): ?>
-                                        <a href="<?= base_url('admin/configurations/download-template/' . $item['id']) ?>" class="btn btn-sm btn-outline-info">
-                                            <i class="fas fa-download"></i> Template
-                                        </a>
-                                    <?php endif; ?>
-                                    
-                                    <!-- Delete Modal -->
-                                    <div class="modal fade" id="deleteModal<?= $item['id'] ?>" tabindex="-1" aria-hidden="true">
-                                        <div class="modal-dialog">
-                                            <div class="modal-content">
-                                                <div class="modal-header">
-                                                    <h5 class="modal-title">Confirm Delete</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body">
-                                                    Are you sure you want to delete form <strong><?= esc($item['code']) ?> - <?= esc($item['description']) ?></strong>?
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <a href="<?= base_url('admin/configurations/delete/' . $item['id'] . '?type=' . $tableType) ?>" class="btn btn-danger">Delete</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php endforeach; ?>
-                            
-                            <?php if (empty($forms)): ?>
-                            <tr>
-                                <td colspan="6" class="text-center">No forms found</td>
-                            </tr>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                    </tbody>
+
+                        <div class="config-layout">
+                        <div class="config-table-wrap">
+                        <div class="table-responsive mb-0">
+        <?php if ($tableType === 'system'): ?>
+                <table class="table table-sm table-striped table-hover align-middle" id="table-system" data-type="system">
+                        <thead><tr><th style="display:none">ID</th><th>Key</th><th>Description</th><th>Type</th><th>Value</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($configurations as $cfg): ?>
+                                <tr data-id="<?= $cfg['id'] ?>" data-key="<?= esc($cfg['config_key']) ?>" data-type="<?= esc($cfg['config_type']) ?>" data-value="<?= esc($cfg['config_value']) ?>">
+                                        <td style="display:none"><?= $cfg['id'] ?></td>
+                                        <td><?= esc($cfg['config_key']) ?></td>
+                                        <td><small><?= esc($cfg['config_description']) ?></small></td>
+                                        <td><?= esc($cfg['config_type']) ?></td>
+                                        <td>
+                                                <?php if ($cfg['config_type']==='boolean'): ?>
+                                                        <span class="badge bg-<?= $cfg['config_value']? 'success':'secondary' ?>"><?= $cfg['config_value']? 'Enabled':'Disabled' ?></span>
+                                                <?php else: ?>
+                                                        <code><?= esc($cfg['config_value']) ?></code>
+                                                <?php endif; ?>
+                                        </td>
+                                </tr>
+                        <?php endforeach; ?>
+                        <?php if (empty($configurations)): ?><tr><td colspan="5" class="text-center">No configurations</td></tr><?php endif; ?>
+                        </tbody>
                 </table>
-            </div>
+        <?php elseif ($tableType === 'departments'): ?>
+                                <table class="table table-sm table-striped table-hover align-middle" id="table-departments" data-type="departments">
+                                        <thead><tr><th style="display:none">ID</th><th>Code</th><th>Description</th><th>Offices</th><th>Created</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($departments as $d): $officeList = $departmentOffices[$d['id']] ?? []; ?>
+                                <tr data-id="<?= $d['id'] ?>" data-code="<?= esc($d['code']) ?>" data-description="<?= esc($d['description']) ?>">
+                                        <td style="display:none"><?= $d['id'] ?></td>
+                                        <td><?= esc($d['code']) ?></td>
+                                        <td><?= esc($d['description']) ?></td>
+                                        <td><small><?= empty($officeList)?'—':esc(implode(', ', array_map(fn($o)=>$o['code'],$officeList))) ?></small></td>
+                                            <td><?= date('Y-m-d', strtotime($d['created_at'])) ?></td>
+                                </tr>
+                        <?php endforeach; ?>
+                                    <?php if (empty($departments)): ?><tr><td colspan="5" class="text-center">No departments found</td></tr><?php endif; ?>
+                        </tbody>
+                </table>
+        <?php elseif ($tableType === 'offices'): ?>
+                                <table class="table table-sm table-striped table-hover align-middle" id="table-offices" data-type="offices">
+                                        <thead><tr><th style="display:none">ID</th><th>Code</th><th>Description</th><th>Department</th><th>Created</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($offices as $o): ?>
+                                <tr data-id="<?= $o['id'] ?>" data-code="<?= esc($o['code']) ?>" data-description="<?= esc($o['description']) ?>" data-department_id="<?= $o['department_id'] ?>">
+                                        <td style="display:none"><?= $o['id'] ?></td>
+                                        <td><?= esc($o['code']) ?></td>
+                                        <td><?= esc($o['description']) ?></td>
+                                        <td><?= esc($o['department_description'] ?? $o['department_name'] ?? 'Unassigned') ?></td>
+                                                    <td><?= date('Y-m-d', strtotime($o['created_at'])) ?></td>
+                                </tr>
+                        <?php endforeach; ?>
+                                            <?php if (empty($offices)): ?><tr><td colspan="5" class="text-center">No offices found</td></tr><?php endif; ?>
+                        </tbody>
+                </table>
+        <?php elseif ($tableType === 'forms'): ?>
+                                <table class="table table-sm table-striped table-hover align-middle" id="table-forms" data-type="forms">
+                                        <thead><tr><th style="display:none">ID</th><th>Code</th><th>Description</th><th>Template</th><th>Created</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($forms as $f): $templatePath = FCPATH.'templates/docx/'.$f['code'].'_template.docx'; $hasTemplate=file_exists($templatePath); ?>
+                                <tr data-id="<?= $f['id'] ?>" data-code="<?= esc($f['code']) ?>" data-description="<?= esc($f['description']) ?>" data-template="<?= $hasTemplate?1:0 ?>">
+                                        <td style="display:none"><?= $f['id'] ?></td>
+                                        <td><?= esc($f['code']) ?></td>
+                                        <td><?= esc($f['description']) ?></td>
+                                        <td><?= $hasTemplate?'<span class="badge bg-success">Yes</span>':'<span class="badge bg-secondary">No</span>' ?></td>
+                                                    <td><?= date('Y-m-d', strtotime($f['created_at'])) ?></td>
+                                </tr>
+                        <?php endforeach; ?>
+                                            <?php if (empty($forms)): ?><tr><td colspan="5" class="text-center">No forms found</td></tr><?php endif; ?>
+                        </tbody>
+                </table>
+        <?php elseif ($tableType === 'panels'): ?>
+                        <table class="table table-sm table-striped table-hover align-middle" id="table-panels" data-type="panels">
+                                <thead><tr><th style="display:none">ID</th><th>Panel Name</th></tr></thead>
+                        <tbody>
+                                <?php if (!empty($panels)): foreach ($panels as $panel): ?>
+                                        <tr data-id="<?= esc($panel['panel_name']) ?>" data-code="<?= esc($panel['panel_name']) ?>">
+                                                <td style="display:none">0</td>
+                                                <td><?= esc($panel['panel_name']) ?></td>
+                                        </tr>
+                                <?php endforeach; else: ?>
+                                        <tr><td colspan="2" class="text-center">No panels configured yet</td></tr>
+                                <?php endif; ?>
+                        </tbody>
+                </table>
         <?php endif; ?>
-    </div>
+        </div>
+                </div><!-- /table wrap -->
+                <div class="config-actions-panel">
+                        <div class="mb-3 d-grid">
+                                <?php if($tableType==='panels'): ?>
+                                        <a href="#" id="btnAddPanelModal" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add Panel</a>
+                                <?php elseif($tableType!=='system'): ?>
+                                        <a href="<?= base_url('admin/configurations/new?type='.$tableType) ?>" id="btnAdd" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add <?= ucfirst(rtrim($tableType,'s')) ?></a>
+                                <?php endif; ?>
+                        </div>
+                        <div class="card shadow-sm">
+                                <div class="card-header py-2"><strong>Actions</strong></div>
+                                <div class="card-body p-2">
+                                        <?php if($tableType==='panels'): ?>
+                                                <div id="panelSelectionActions" style="display:none" class="d-grid gap-2">
+                                                        <a href="#" class="btn btn-outline-success btn-sm" id="btnPanelBuilder"><i class="fas fa-tools me-1"></i>Panel Builder</a>
+                                                        <a href="#" class="btn btn-outline-primary btn-sm" id="btnPanelEditFields"><i class="fas fa-edit me-1"></i>Edit Fields</a>
+                                                        <button type="button" class="btn btn-outline-info btn-sm" id="btnPanelCopy"><i class="fas fa-copy me-1"></i>Copy Panel</button>
+                                                        <button type="button" class="btn btn-outline-danger btn-sm" id="btnPanelDelete"><i class="fas fa-trash me-1"></i>Delete</button>
+                                                </div>
+                                        <?php else: ?>
+                                                <!-- Render the generic selection actions for non-panel types (includes system) -->
+                                                <div id="selectionActions" style="display:none" class="d-grid gap-2">
+                                                        <a href="#" class="btn btn-outline-primary btn-sm" id="btnEdit"><i class="fas fa-edit me-1"></i>Edit</a>
+                                                        <button type="button" class="btn btn-outline-danger btn-sm" id="btnDelete"><i class="fas fa-trash me-1"></i>Delete</button>
+                                                        <?php if ($tableType==='forms'): ?>
+                                                                <a href="#" class="btn btn-outline-info btn-sm" id="btnSignatories"><i class="fas fa-user-pen me-1"></i>Signatories</a>
+                                                                <div id="templateGroup" style="display:none" class="d-grid gap-1 mt-1">
+                                                                        <button type="button" class="btn btn-outline-info btn-sm" id="tmplDownload"><i class="fas fa-download me-1"></i>Download Template</button>
+                                                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="tmplUpload"><i class="fas fa-upload me-1"></i>Upload / Replace Template</button>
+                                                                        <button type="button" class="btn btn-outline-danger btn-sm" id="tmplDelete"><i class="fas fa-trash me-1"></i>Delete Template</button>
+                                                                </div>
+                                                        <?php endif; ?>
+                                                </div>
+                                        <?php endif; ?>
+                                </div>
+                        </div>
+                </div><!-- /actions panel -->
+                </div><!-- /layout -->
 </div>
 <?= $this->endSection() ?>
+
+<?php $this->section('scripts') ?>
+<script src="<?= base_url('assets/js/admin-configurations.js') ?>"></script>
+<?php $this->endSection() ?>

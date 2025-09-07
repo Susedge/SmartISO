@@ -67,11 +67,57 @@ class DynamicForms extends BaseController
     
     public function index()
     {
+        $q = trim($this->request->getGet('q') ?? '');
+        $panelFilter = trim($this->request->getGet('panel') ?? '');
+        $officeFilter = $this->request->getGet('office');
+        $departmentFilter = $this->request->getGet('department');
+
+    // Show all offices (previously filtered by active=1 which hid legacy records without the flag)
+        $activeOffices = $this->officeModel->orderBy('description','ASC')->findAll();
+        if (empty($activeOffices)) {
+            // Fallback in case model has default scope filtering
+            try {
+                $activeOffices = $this->officeModel->builder()->orderBy('description','ASC')->get()->getResultArray();
+            } catch (\Throwable $e) {
+                // Log but continue with empty set
+                log_message('warning','DynamicForms index office fallback failed: '.$e->getMessage());
+            }
+        }
+        $officeMap = [];
+        foreach ($activeOffices as $o) { $officeMap[$o['id']] = $o['description']; }
+
+        // Build base query
+        $builder = $this->formModel->builder();
+        $builder->select('*');
+        if ($q !== '') {
+            $builder->groupStart()
+                ->like('code', $q)
+                ->orLike('description', $q)
+                ->groupEnd();
+        }
+        if ($panelFilter !== '') {
+            $builder->where('panel_name', $panelFilter);
+        }
+        if (!empty($officeFilter)) {
+            $builder->where('office_id', (int)$officeFilter);
+        }
+        if (!empty($departmentFilter)) {
+            $builder->where('department_id', (int)$departmentFilter);
+        }
+        $builder->orderBy('code','ASC');
+        $forms = $builder->get()->getResultArray();
+
         $data = [
             'title' => 'Forms',
-            'forms' => $this->formModel->findAll(),
+            'forms' => $forms,
             'panels' => $this->dbpanelModel->getPanels(), // Get unique panel names
-            'offices' => $this->officeModel->getActiveOffices()
+            'departments' => $this->departmentModel->findAll(),
+            'offices' => $activeOffices,
+            'officeMap' => $officeMap,
+            'q' => $q,
+            'panelFilter' => $panelFilter,
+            'officeFilter' => $officeFilter,
+            'departmentFilter' => $departmentFilter
         ];
         
         return view('admin/dynamicforms/index', $data);
@@ -153,36 +199,33 @@ class DynamicForms extends BaseController
     
     public function createPanel()
     {
-        $rules = [
-            'panel_name' => 'required|max_length[100]|is_unique[dbpanel.panel_name]'
-        ];
-        
-        if ($this->validate($rules)) {
-            $panelName = $this->request->getPost('panel_name');
-            
-            // Create an empty panel entry to establish the panel exists
-            // We'll use a placeholder field that can be removed later
-            $this->dbpanelModel->save([
-                'panel_name' => $panelName,
-                'field_name' => '_placeholder',
-                'field_label' => 'Placeholder Field',
-                'field_type' => 'input',
-                'field_role' => 'requestor',
-                'field_order' => 0,
-                'width' => 6,
-                'required' => 0,
-                'bump_next_field' => 0,
-                'code_table' => '',
-                'length' => null
-            ]);
-            
-            return redirect()->to('/admin/dynamicforms/form-builder/' . $panelName)
-                            ->with('message', 'Panel created successfully. Start building your panel!');
-        } else {
-            $errors = $this->validator->getErrors();
-            return redirect()->to('/admin/dynamicforms/panel-config')
-                            ->with('error', implode(', ', $errors));
+        if ($this->request->getMethod() !== 'POST') {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Invalid request method');
         }
+
+        $panelName = $this->request->getPost('panel_name');
+        if (empty($panelName)) {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
+        }
+
+        // Ensure uniqueness
+        $exists = $this->dbpanelModel->where('panel_name', $panelName)->countAllResults();
+        if ($exists) {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name already exists');
+        }
+
+        // Create a placeholder field so the panel is created and editable in the builder
+        $this->dbpanelModel->insert([
+            'panel_name' => $panelName,
+            'field_name' => '_placeholder',
+            'field_label' => 'Placeholder',
+            'field_type' => 'input',
+            'field_order' => 1,
+            'required' => 0,
+            'width' => 12
+        ]);
+
+    return redirect()->to('/admin/configurations?type=panels')->with('message', 'Panel created successfully');
     }
     
     public function copyPanel()
@@ -200,7 +243,7 @@ class DynamicForms extends BaseController
             $sourceFields = $this->dbpanelModel->getPanelFields($sourcePanelName);
             
             if (empty($sourceFields)) {
-                return redirect()->to('/admin/dynamicforms/panel-config')
+                return redirect()->to('/admin/configurations?type=panels')
                                 ->with('error', 'Source panel not found or has no fields');
             }
             
@@ -225,11 +268,11 @@ class DynamicForms extends BaseController
             }
             
             $fieldCount = count($sourceFields);
-            return redirect()->to('/admin/dynamicforms/panel-config')
+            return redirect()->to('/admin/configurations?type=panels')
                             ->with('message', "Panel '{$newPanelName}' created successfully with {$fieldCount} fields copied from '{$sourcePanelName}'");
         } else {
             $errors = $this->validator->getErrors();
-            return redirect()->to('/admin/dynamicforms/panel-config')
+            return redirect()->to('/admin/configurations?type=panels')
                             ->with('error', implode(', ', $errors));
         }
     }
@@ -248,7 +291,7 @@ class DynamicForms extends BaseController
     public function editPanel($panelName = null)
     {
         if (!$panelName) {
-            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Panel name is required');
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
         }
         
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
@@ -277,7 +320,7 @@ class DynamicForms extends BaseController
     public function formBuilder($panelName = null)
     {
         if (!$panelName) {
-            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Panel name is required');
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
         }
         
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
@@ -431,6 +474,56 @@ class DynamicForms extends BaseController
             'submitted_by' => session()->get('user_id'),
             'status' => 'submitted'
         ]);
+
+        // Optional auto-create schedule on submit (admin flow)
+        try {
+            $appConf = config('App');
+            if (!empty($appConf->autoCreateScheduleOnSubmit) && class_exists('App\\Models\\ScheduleModel')) {
+                $scheduleModel = new \App\Models\ScheduleModel();
+                if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
+                    $scheduledDate = date('Y-m-d');
+                    $schedData = [
+                        'submission_id' => $submissionId,
+                        'scheduled_date' => $scheduledDate,
+                        'scheduled_time' => '09:00:00',
+                        'duration_minutes' => 60,
+                        'assigned_staff_id' => null,
+                        'location' => '',
+                        'notes' => 'Auto-created schedule on submit (admin)',
+                        'status' => 'pending'
+                    ];
+                    // Attempt to compute ETA based on a priority field if present in POST
+                    $priority = $this->request->getPost('priority') ?? 'normal';
+                    $etaDays = null; $estimatedDate = null;
+                    if ($priority === 'low') {
+                        $etaDays = 7;
+                        $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +7 days'));
+                    } elseif ($priority === 'medium') {
+                        $etaDays = 5;
+                        try {
+                            $schCtrl = new \App\Controllers\Schedule();
+                            $estimatedDate = $schCtrl->addBusinessDays($scheduledDate, 5);
+                        } catch (\Throwable $e) {
+                            $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +7 days'));
+                        }
+                    } elseif ($priority === 'high') {
+                        $etaDays = 3;
+                        try {
+                            $schCtrl = new \App\Controllers\Schedule();
+                            $estimatedDate = $schCtrl->addBusinessDays($scheduledDate, 3);
+                        } catch (\Throwable $e) {
+                            $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +3 days'));
+                        }
+                    }
+                    if ($etaDays && $estimatedDate) {
+                        $schedData['eta_days'] = $etaDays;
+                        $schedData['estimated_date'] = $estimatedDate;
+                        $schedData['priority_level'] = $priority;
+                    }
+                    try { $scheduleModel->insert($schedData); } catch (\Throwable $e) { log_message('error', 'Auto-schedule on submit (admin) failed: ' . $e->getMessage()); }
+                }
+            }
+        } catch (\Throwable $e) { log_message('error', 'Error auto-creating schedule on admin submit: ' . $e->getMessage()); }
 
         // Save each field value
         foreach ($panelFields as $field) {
@@ -1118,7 +1211,7 @@ class DynamicForms extends BaseController
             return $this->response->setJSON([
                 'success' => true,
                 'message' => 'Form saved successfully',
-                'redirect' => base_url('admin/dynamicforms/panel-config'),
+                'redirect' => base_url('admin/configurations?type=panels'),
                 'csrf_name' => csrf_token(),
                 'csrf_hash' => csrf_hash()
             ]);
@@ -1202,12 +1295,21 @@ class DynamicForms extends BaseController
                            ->withInput()
                            ->with('error', 'Validation failed: ' . implode(', ', $validation->getErrors()));
         }
+
+        // Derive department from selected office to keep data consistent
+        $officeId = (int)$this->request->getPost('office_id');
+        $office   = $this->officeModel->find($officeId);
+        if (!$office) {
+            return redirect()->to('/admin/dynamicforms')->withInput()->with('error', 'Selected office not found');
+        }
+        $departmentId = $office['department_id'] ?? null;
         
         $data = [
             'code' => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
             'panel_name' => $this->request->getPost('panel_name') ?: null,
-            'office_id' => $this->request->getPost('office_id')
+            'office_id' => $officeId,
+            'department_id' => $departmentId
         ];
         
         if ($this->formModel->insert($data)) {
@@ -1241,12 +1343,20 @@ class DynamicForms extends BaseController
                            ->withInput()
                            ->with('error', 'Validation failed: ' . implode(', ', $validation->getErrors()));
         }
+
+        $officeId = (int)$this->request->getPost('office_id');
+        $office   = $this->officeModel->find($officeId);
+        if (!$office) {
+            return redirect()->to('/admin/dynamicforms')->withInput()->with('error', 'Selected office not found');
+        }
+        $departmentId = $office['department_id'] ?? null; // keep in sync automatically
         
         $data = [
             'code' => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
             'panel_name' => $this->request->getPost('panel_name') ?: null,
-            'office_id' => $this->request->getPost('office_id')
+            'office_id' => $officeId,
+            'department_id' => $departmentId
         ];
         
         if ($this->formModel->update($formId, $data)) {
@@ -1295,23 +1405,23 @@ class DynamicForms extends BaseController
     {
         // Check if user is admin or superuser
         if (!in_array(session('user_type'), ['admin', 'superuser'])) {
-            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Unauthorized access. Admin or Superuser privileges required.');
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Unauthorized access. Admin or Superuser privileges required.');
         }
         
         if (!$this->request->getMethod() === 'POST') {
-            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Invalid request method');
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Invalid request method');
         }
         
         $panelName = $this->request->getPost('panel_name');
         if (!$panelName) {
-            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Panel name is required');
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
         }
         
         // Check if any forms are using this panel
         $formsUsingPanel = $this->formModel->where('panel_name', $panelName)->findAll();
         if (!empty($formsUsingPanel)) {
             $formCodes = array_column($formsUsingPanel, 'code');
-            return redirect()->to('/admin/dynamicforms/panel-config')
+            return redirect()->to('/admin/configurations?type=panels')
                            ->with('error', 'Cannot delete panel. It is being used by forms: ' . implode(', ', $formCodes));
         }
         
@@ -1319,9 +1429,9 @@ class DynamicForms extends BaseController
         $deleted = $this->dbpanelModel->where('panel_name', $panelName)->delete();
         
         if ($deleted) {
-            return redirect()->to('/admin/dynamicforms/panel-config')->with('success', 'Panel "' . $panelName . '" deleted successfully');
+            return redirect()->to('/admin/configurations?type=panels')->with('success', 'Panel "' . $panelName . '" deleted successfully');
         } else {
-            return redirect()->to('/admin/dynamicforms/panel-config')->with('error', 'Failed to delete panel or panel not found');
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Failed to delete panel or panel not found');
         }
     }
     

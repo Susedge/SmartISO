@@ -5,7 +5,7 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <h3><?= $title ?></h3>
         <div>
-            <a href="<?= base_url('admin/dynamicforms/panel-config') ?>" class="btn btn-secondary">Back to Panels</a>
+        <a href="<?= base_url('admin/configurations?type=panels') ?>" class="btn btn-secondary">Back to Panels</a>
             <a href="<?= base_url('admin/dynamicforms/form-builder/' . $panel_name) ?>" class="btn btn-success">
                 <i class="fas fa-magic"></i> Drag & Drop Builder
             </a>

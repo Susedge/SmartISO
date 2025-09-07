@@ -57,6 +57,14 @@ class UserModel extends Model
                        ->getResultArray();
     }
 
+    public function getUsersWithDepartment()
+    {
+        return $this->db->table('users u')
+            ->select('u.*, d.code as department_code, d.description as department_name')
+            ->join('departments d', 'd.id = u.department_id', 'left')
+            ->get()->getResultArray();
+    }
+
     /**
      * Get users by office
      */

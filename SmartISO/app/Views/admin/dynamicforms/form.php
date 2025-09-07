@@ -6,7 +6,7 @@
         <h3><?= $title ?> - <?= $panel_name ?></h3>
         <div>
         <a href="<?= base_url('admin/dynamicforms') ?>" class="btn btn-secondary">Back to Forms</a>
-        <a href="<?= base_url('admin/dynamicforms/panel-config') ?>" class="btn btn-primary me-2">
+    <a href="<?= base_url('admin/configurations?type=panels') ?>" class="btn btn-primary me-2">
                 <i class="fas fa-cog"></i> Panel Configuration
             </a>
             </div>

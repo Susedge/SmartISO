@@ -32,7 +32,7 @@
         <small class="text-muted">Drag field types from the palette to build your panel</small>
     </div>
     <div class="form-builder-actions">
-        <a href="<?= base_url('admin/dynamicforms/panel-config') ?>" class="btn btn-secondary">
+    <a href="<?= base_url('admin/configurations?type=panels') ?>" class="btn btn-secondary">
             <i class="fas fa-arrow-left"></i> Back
         </a>
         <label class="btn btn-outline-primary mb-0 me-2" for="docxImportInput" style="cursor:pointer">
@@ -193,140 +193,13 @@
     </div>
 </div>
 
-<!-- Field Edit Modal -->
-<div class="modal fade" id="fieldEditModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Edit Field</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="editFieldForm">
-                    <div class="mb-3">
-                        <label for="editFieldType" class="form-label">Field Type</label>
-                        <select id="editFieldType" class="form-select">
-                            <option value="input">Input</option>
-                            <option value="textarea">Textarea</option>
-                            <option value="dropdown">Dropdown</option>
-                            <option value="radio">Checkboxes</option>
-                            <option value="list">List</option>
-                            <option value="datepicker">Date Picker</option>
-                            
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="editFieldLabel" class="form-label">Label</label>
-                        <input type="text" id="editFieldLabel" class="form-control" placeholder="Field Label">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="editFieldName" class="form-label">Field Name</label>
-                        <input type="text" id="editFieldName" class="form-control" placeholder="field_name">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="editFieldWidth" class="form-label">Width (3-12)</label>
-                        <select id="editFieldWidth" class="form-select">
-                            <option value="3">3 - Quarter</option>
-                            <option value="4">4 - Third</option>
-                            <option value="6">6 - Half</option>
-                            <option value="8">8 - Two Thirds</option>
-                            <option value="9">9 - Three Quarters</option>
-                            <option value="12">12 - Full Width</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="editFieldRole" class="form-label">Field Role</label>
-                        <select id="editFieldRole" class="form-select">
-                            <option value="requestor">Requestor Only</option>
-                            <option value="service_staff">Service Staff Only</option>
-                            <option value="both">Both (Requestor & Service Staff)</option>
-                            <option value="readonly">Read-only After Submission</option>
-                        </select>
-                    </div>
-                    <div class="mb-3 d-flex align-items-start">
-                        <div style="flex:1">
-                            <label for="editFieldDefault" class="form-label">Default Value</label>
-                            <input type="text" id="editFieldDefault" class="form-control" placeholder="Optional default value (e.g. CURRENTDATE for date fields)">
-                        </div>
-                        <div class="ms-2 mt-4">
-                            <button type="button" class="btn btn-link p-0" data-bs-toggle="tooltip" data-bs-placement="right" title="Use CURRENTDATE (case-insensitive) for date fields to populate today's date.">
-                                <i class="fas fa-info-circle text-muted"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="form-check mb-3">
-                        <input type="checkbox" id="editFieldRequired" class="form-check-input">
-                        <label for="editFieldRequired" class="form-check-label">Required</label>
-                    </div>
-                    
-                    <div class="form-check mb-3">
-                        <input type="checkbox" id="editFieldBumpNext" class="form-check-input">
-                        <label for="editFieldBumpNext" class="form-check-label">Bump Next Field</label>
-                    </div>
-                    
-                    <div id="editOptionsButtonContainer" class="mb-3" style="display: none;">
-                        <label class="form-label">Options</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <small id="editOptionsCount" class="text-muted">0 options</small>
-                        </div>
-                        <small class="text-muted d-block mt-2">Open the options manager to add, edit, or remove options (button on the right).</small>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="saveEditedField" class="btn btn-primary">Save Changes</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Options Manager Modal -->
-<div class="modal fade" id="optionsManagerModal" tabindex="-1">
-    <div class="modal-dialog modal-md modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Manage Field Options</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="optionsManagerList" class="mb-3"></div>
-                <div class="row g-2">
-                    <div class="col-md-7">
-                        <input type="text" id="optionsManagerNewInput" class="form-control" placeholder="Option label">
-                    </div>
-                    <div class="col-md-5 d-flex">
-                        <input type="text" id="optionsManagerNewSubfield" class="form-control me-2" placeholder="Option field name (optional)">
-                        <button type="button" id="optionsManagerAddBtn" class="btn btn-outline-primary">Add</button>
-                    </div>
-                </div>
-                <small class="text-muted d-block mt-2">Use the buttons to add, edit (focus), or remove options. Click Save to persist options to the field.</small>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="saveOptionsManagerBtn" class="btn btn-primary">Save Options</button>
-            </div>
-        </div>
-    </div>
-</div>
+<!-- Bootstrap modals removed; SimpleModal will be used dynamically (field edit & options manager). -->
 </div>
 
 <!-- Pass panel data to JavaScript -->
 <script>
     window.panelName = '<?= $panel_name ?>';
-    // Ensure modal elements are children of body to avoid stacking context issues
-    document.addEventListener('DOMContentLoaded', function(){
-        ['docxImportModal','fieldEditModal','optionsManagerModal'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el && el.parentNode !== document.body) {
-                document.body.appendChild(el);
-            }
-        });
-    });
+    // Legacy modal relocation removed – now using SimpleModal only.
     window.panelFields = <?= json_encode($panel_fields) ?>;
     window.baseUrl = '<?= base_url() ?>';
 </script>
@@ -357,17 +230,18 @@
                     window.notify && window.notify('No fields to clear','info');
                     return;
                 }
-                const confirmed = confirm('Clear all fields? This will remove them from the canvas. Unsaved changes will be lost unless you save after clearing.');
-                if (!confirmed) return;
-                try {
-                    window.formBuilder.fields = [];
-                    if (typeof window.formBuilder.reorganizeFormLayout === 'function') window.formBuilder.reorganizeFormLayout();
-                    if (typeof window.formBuilder.updateEmptyState === 'function') window.formBuilder.updateEmptyState();
-                    window.notify && window.notify('All fields cleared','warning');
-                } catch (err) {
-                    console.error('Clear all failed', err);
-                    window.notify && window.notify('Failed to clear fields','error');
-                }
+                SimpleModal.confirm('Clear all fields? This will remove them from the canvas and cannot be undone.', 'Confirm Clear', 'warning').then(function(ok){
+                    if (!ok) return;
+                    try {
+                        window.formBuilder.fields = [];
+                        if (typeof window.formBuilder.reorganizeFormLayout === 'function') window.formBuilder.reorganizeFormLayout();
+                        if (typeof window.formBuilder.updateEmptyState === 'function') window.formBuilder.updateEmptyState();
+                        window.notify && window.notify('All fields cleared','warning');
+                    } catch (err) {
+                        console.error('Clear all failed', err);
+                        window.notify && window.notify('Failed to clear fields','error');
+                    }
+                });
             });
         }
     });

@@ -8,7 +8,7 @@
                 <h3 class="mb-0"><?= $title ?></h3>
             </div>
             <div>
-                <a href="<?= base_url('admin/dynamicforms/panel-config') ?>" class="btn btn-primary me-2">
+                <a href="<?= base_url('admin/configurations?type=panels') ?>" class="btn btn-primary me-2">
                     <i class="fas fa-tools"></i> Panels
                 </a>
                 <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createFormModal">
@@ -26,6 +26,46 @@
             <div class="alert alert-danger"><?= session('error') ?></div>
         <?php endif; ?>
         
+        <form method="get" action="<?= base_url('admin/dynamicforms') ?>" class="row g-2 mb-3 align-items-end">
+            <div class="col-md-3 col-sm-6">
+                <label class="form-label small mb-1">Search</label>
+                <input type="text" name="q" value="<?= esc($q ?? '') ?>" class="form-control form-control-sm" placeholder="Code or description" />
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small mb-1">Panel</label>
+                <select name="panel" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <?php foreach ($panels as $p): $pn=$p['panel_name']; ?>
+                        <option value="<?= esc($pn) ?>" <?= ($panelFilter ?? '') === $pn ? 'selected' : '' ?>><?= esc($pn) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small mb-1">Department</label>
+                <select name="department" id="filterDepartment" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <?php foreach ($departments as $d): ?>
+                        <option value="<?= esc($d['id']) ?>" <?= ($departmentFilter ?? '') == $d['id'] ? 'selected' : '' ?>><?= esc($d['description']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2 col-sm-6">
+                <label class="form-label small mb-1">Office</label>
+                <select name="office" id="filterOffice" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <?php foreach ($offices as $o): ?>
+                        <option value="<?= esc($o['id']) ?>" data-dept="<?= esc($o['department_id'] ?? '') ?>" <?= ($officeFilter ?? '') == $o['id'] ? 'selected' : '' ?>><?= esc($o['description']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <button class="btn btn-sm btn-primary me-1">Apply</button>
+                <?php if (!empty($q) || !empty($panelFilter) || !empty($officeFilter) || !empty($departmentFilter)): ?>
+                    <a href="<?= base_url('admin/dynamicforms') ?>" class="btn btn-sm btn-outline-secondary">Reset</a>
+                <?php endif; ?>
+            </div>
+        </form>
+
         <div class="table-responsive">
             <table class="table table-striped">
                 <thead>
@@ -33,6 +73,7 @@
                         <th>Form Code</th>
                         <th>Description</th>
                         <th>Panel</th>
+                        <th>Office</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -40,6 +81,7 @@
                     <?php foreach ($forms as $form): ?>
                     <tr
                         data-form-id="<?= esc($form['id']) ?>"
+                        data-department-id="<?= esc($form['department_id'] ?? '') ?>"
                         data-office-id="<?= esc($form['office_id'] ?? '') ?>"
                         data-form-code="<?= esc($form['code']) ?>"
                         data-template-exists="<?= file_exists(FCPATH . 'templates/docx/' . $form['code'] . '_template.docx') ? '1' : '0' ?>"
@@ -55,6 +97,13 @@
                                 <span class="badge bg-info"><?= esc($form['panel_name']) ?></span>
                             <?php else: ?>
                                 <span class="text-muted">No panel assigned</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if (!empty($form['office_id'])): ?>
+                                <span class="badge bg-secondary"><?= esc($officeMap[$form['office_id']] ?? ('Office #' . $form['office_id'])) ?></span>
+                            <?php else: ?>
+                                <span class="text-muted">Unassigned</span>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -124,16 +173,18 @@
                         </select>
                         <small class="text-muted">Choose an existing panel or leave empty to assign later</small>
                     </div>
-                            <div class="mb-3">
-                                <label for="office_id" class="form-label">Office</label>
-                                <select class="form-select" id="office_id" name="office_id" required>
-                                    <option value="">-- Select Office --</option>
-                                    <?php foreach (($offices ?? []) as $office): ?>
-                                        <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small class="text-muted">Assign this form to an office</small>
-                            </div>
+                    <div class="mb-3">
+                        <label for="office_id" class="form-label">Office</label>
+                        <select class="form-select" id="office_id" name="office_id" required>
+                            <option value="">-- Select Office --</option>
+                            <?php foreach (($offices ?? []) as $office): ?>
+                                <option value="<?= esc($office['id']) ?>" data-dept="<?= esc($office['department_id'] ?? '') ?>">
+                                    <?= esc($office['description']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted">Assign this form to an office (department derived automatically)</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -181,10 +232,12 @@
                         <select class="form-select" id="edit_office_id" name="office_id" required>
                             <option value="">-- Select Office --</option>
                             <?php foreach (($offices ?? []) as $office): ?>
-                                <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
+                                <option value="<?= esc($office['id']) ?>" data-dept="<?= esc($office['department_id'] ?? '') ?>">
+                                    <?= esc($office['description']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
-                        <small class="text-muted">Change the office assignment for this form</small>
+                        <small class="text-muted">Change the office assignment (department auto-updated)</small>
                     </div>
 
                     <!-- Form Template Upload -->
@@ -254,11 +307,14 @@ function editForm(id, code, description, panelName) {
     document.getElementById('edit_form_code').value = code;
     document.getElementById('edit_form_description').value = description;
     document.getElementById('edit_panel_name').value = panelName || '';
-    // Try to set office id if available on the row data attribute
+    // Set office (and department derived implicitly)
     const row = document.querySelector(`[data-form-id="${id}"]`);
     if (row) {
         const officeId = row.getAttribute('data-office-id');
-        if (officeId) document.getElementById('edit_office_id').value = officeId;
+        if (officeId) {
+            const officeSelect = document.getElementById('edit_office_id');
+            officeSelect.value = officeId;
+        }
         // Update template section using row data
         if (typeof window.updateTemplateSection === 'function') {
             window.updateTemplateSection(row);
@@ -406,5 +462,26 @@ function deleteForm(id, code) {
             try { modal.show(); } catch(e){}
         }
 }
+</script>
+<script>
+// Cascade department -> office filter
+document.addEventListener('DOMContentLoaded', function(){
+    const deptSel = document.getElementById('filterDepartment');
+    const officeSel = document.getElementById('filterOffice');
+    if(!deptSel || !officeSel) return;
+    function syncOffices(){
+        const did = deptSel.value;
+        Array.from(officeSel.options).forEach(opt => {
+            if(opt.value==='') { opt.hidden=false; return; }
+            const od = opt.getAttribute('data-dept') || '';
+            opt.hidden = did && od !== did;
+        });
+        // If selected office no longer visible, reset
+        const currentOpt = officeSel.selectedOptions[0];
+        if(currentOpt && currentOpt.hidden){ officeSel.value=''; }
+    }
+    deptSel.addEventListener('change', syncOffices);
+    syncOffices();
+});
 </script>
 <?= $this->endSection() ?>

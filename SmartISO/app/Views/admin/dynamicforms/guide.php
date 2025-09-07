@@ -15,10 +15,10 @@
     h3:hover .anchor-link, h2:hover .anchor-link, h1:hover .anchor-link { opacity:1; }
 </style>
 <div class="docx-guide-wrapper">
-  <div class="d-flex align-items-center gap-2 mb-3">
-      <h1 class="h3 mb-0">DOCX Variables Guide</h1>
-      <span class="badge bg-secondary">Updated</span>
-  </div>
+    <div class="d-flex align-items-center gap-2 mb-3">
+            <h1 class="h3 mb-0">DOCX Variables Guide</h1>
+            <span class="badge bg-secondary">Updated Sep 6 2025</span>
+    </div>
   <div class="prefix-legend small">
       <p class="mb-2 fw-semibold text-muted">Tag / Placeholder Prefix Quick Reference</p>
       <div class="row g-3 small">
@@ -37,7 +37,7 @@
         </div>
       </div>
   </div>
-    <p class="mb-4"><strong>We now rely exclusively on Word Content Controls</strong> (Developer → Controls). Do <em>not</em> type <code>{{CURLEY}}</code> placeholders; instead set the control's <strong>Tag</strong> (or Alias) to the token (e.g. <code>REQUESTOR_NAME</code>, <code>C_UNDER_WARRANTY</code>). The exporter replaces the control contents with the resolved value or symbols.</p>
+    <p class="mb-4"><strong>We now rely exclusively on Word Content Controls</strong> (Developer → Controls). Do <em>not</em> type <code>{{CURLY}}</code> placeholders; instead set the control's <strong>Tag</strong> (or Alias) to the token (e.g. <code>REQUESTOR_NAME</code>, <code>C_UNDER_WARRANTY_YES</code>). The exporter replaces the control contents with the resolved value or symbols. (Curly placeholders are ignored if present.)</p>
   <h3 id="field-values" class="mt-4">1. Field Values (Single-Value)<a href="#field-values" class="anchor-link">#</a></h3>
   <p>Use uppercase plain or optional <code>F_</code> prefix:</p>
   <ul>
@@ -56,7 +56,7 @@
   <h3 id="checkbox-tags" class="mt-4">2. Checkbox & Multi‑Select Representations<a href="#checkbox-tags" class="anchor-link">#</a></h3>
   <p>You have several formatting choices depending on how you want the output to look in the generated DOCX/PDF.</p>
     <ol class="small mb-4">
-    <li><strong>Checkboxes (only recognized symbol form):</strong> Tag = <code>C_FIELDNAME_OPTION</code>. Example: <code>C_UNDER_WARRANTY_YES</code>, <code>C_UNDER_WARRANTY_NO</code>. Each renders ☑ if selected else ☐.</li>
+    <li><strong>Checkboxes (only recognized symbol form):</strong> Tag = <code>C_FIELDNAME_OPTION</code>. Example: <code>C_UNDER_WARRANTY_YES</code>, <code>C_UNDER_WARRANTY_NO</code>. Each renders ☑ if selected else ☐. (Group tags like <code>C_FIELDNAME</code> are deprecated; use per‑option only.)</li>
     <li><strong>Plain field value:</strong> Tag = <code>FIELDNAME</code> (or <code>F_FIELDNAME</code>) outputs selected labels joined by commas (no symbols).</li>
     <li><strong>Conditional label (NOT a checkbox):</strong> Tag = <code>FIELDNAME_OPTION</code> (no C_) returns the option text only if selected (used for dynamic sentences).</li>
         <li><strong>Legacy markers (optional/backward compatibility):</strong> <code>A_1</code>, <code>A_2</code> etc. still resolve but are not required for new templates.</li>
@@ -77,7 +77,7 @@ Tag: UNDER_WARRANTY        => Yes (plain joined value)
     <li>Content control priority: We evaluate the Tag (or Alias). Curly braces are ignored; only control metadata matters.</li>
     <li><strong>All checkbox symbols require the <code>C_</code> prefix.</strong> Tags without <code>C_</code> are treated as plain text labels.</li>
     <li><code>C_FIELDNAME_OPTION</code> → single checkbox symbol per option (only supported checkbox Tag format).</li>
-    <li><code>FIELDNAME_OPTION</code> (no C_) returns the label if selected; blank if not.</li>
+    <li><code>FIELDNAME_OPTION</code> (no C_) returns the label if selected; blank if not (useful for inline sentences).</li>
     <li><code>B_FIELDNAME</code> produces one paragraph per option with ◉ for selected ones.</li>
       <li>Case-insensitive parsing, but UPPERCASE recommended for clarity.</li>
       <li>Non-alphanumeric characters are normalized to underscores.</li>
@@ -85,8 +85,8 @@ Tag: UNDER_WARRANTY        => Yes (plain joined value)
       <li>Signature image placeholders use the <code>P_</code> prefix (see Signatures section below).</li>
   </ul>
 
-  <h3 id="signatures" class="mt-4">3. Signature Placeholders<a href="#signatures" class="anchor-link">#</a></h3>
-  <p>Insert image content controls (or plain image placeholders) whose <em>Tag</em> matches one of the following to have the system inject the captured signature images for completed forms:</p>
+    <h3 id="signatures" class="mt-4">3. Signature Placeholders<a href="#signatures" class="anchor-link">#</a></h3>
+    <p>Insert <strong>Picture Content Controls</strong> (preferred) whose <em>Tag</em> matches one of the following to have the system inject the captured signature images for completed forms. Variable-style image placeholders using the same names still work but content controls are future-proof.</p>
   <ul>
       <li><code>P_APPROVER_SIGNATURE</code> – Approver's signature image</li>
       <li><code>P_SERVICE_STAFF_SIGNATURE</code> – Service staff signature image</li>
@@ -100,6 +100,22 @@ Tag: UNDER_WARRANTY        => Yes (plain joined value)
           <li>Set its Tag (and optionally Title) to <code>P_REQUESTOR_SIGNATURE</code>.</li>
           <li>Leave it blank – the exporter replaces it with the actual image.</li>
       </ol>
+  </div>
+  <ul class="small mb-4">
+      <li>Signatures are injected only after the corresponding workflow step: approver signs (approval date), service staff signs (service completion), requestor final confirmation.</li>
+      <li>If a user has not uploaded a signature image, the control remains blank.</li>
+      <li>Supported formats: PNG or JPEG; images are stored and injected at native size (scaled by Word layout).</li>
+  </ul>
+
+  <h3 id="troubleshooting" class="mt-4">4. Troubleshooting<a href="#troubleshooting" class="anchor-link">#</a></h3>
+  <div class="docx-example-block mb-4 small">
+      <ul class="mb-0">
+          <li><strong>Blank checkbox:</strong> Ensure Tag exactly matches <code>C_FIELDNAME_OPTION</code> (no spaces, punctuation normalized to underscores).</li>
+          <li><strong>Wrong value shown:</strong> Verify the field name in the form builder matches the Tag (case-insensitive but spelling must align).</li>
+          <li><strong>Signature missing:</strong> Confirm the user uploaded their signature and the submission has reached the required status (e.g. completed).</li>
+          <li><strong>Control not replaced:</strong> Check it is a Content Control (not plain text with braces). Set its Tag in Properties, not just visible text.</li>
+          <li><strong>Need literal braces:</strong> Type them normally; the exporter ignores plain <code>{{TEXT}}</code> not wrapped in a content control.</li>
+      </ul>
   </div>
 </div>
 

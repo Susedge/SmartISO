@@ -3,7 +3,8 @@
 namespace App\Controllers;
 
 use App\Models\UserModel;
-use App\Models\OfficeModel;
+use App\Models\OfficeModel; // legacy
+use App\Models\DepartmentModel;
 
 class Auth extends BaseController
 {
@@ -11,9 +12,9 @@ class Auth extends BaseController
     {
         $data = [];
         
-        // Get offices for dropdown
-        $officeModel = new OfficeModel();
-        $data['offices'] = $officeModel->where('active', 1)->findAll();
+    // Get departments for dropdown (offices become departments)
+    $departmentModel = new DepartmentModel();
+    $data['departments'] = $departmentModel->findAll();
         
         if (strtoupper($this->request->getMethod()) === 'POST')
         {
@@ -23,7 +24,7 @@ class Auth extends BaseController
                 'username'      => 'required|alpha_numeric_punct|min_length[3]|max_length[30]|is_unique[users.username]',
                 'password'      => 'required|min_length[8]',
                 'full_name'     => 'required|min_length[3]|max_length[100]',
-                'office_id'     => 'required|integer',
+                'department_id' => 'required|integer',
             ];
             
             if ($this->validate($rules)) {
@@ -35,7 +36,7 @@ class Auth extends BaseController
                     'username'      => $this->request->getPost('username'),
                     'password_hash' => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
                     'full_name'     => $this->request->getPost('full_name'),
-                    'office_id'     => $this->request->getPost('office_id'),
+                    'department_id' => $this->request->getPost('department_id'),
                     'user_type'     => 'user', // Default user type
                     'active'        => 0, // Require admin activation (VAPT remediation)
                 ];
@@ -91,7 +92,7 @@ class Auth extends BaseController
                         'email' => $user['email'],
                         'full_name' => $user['full_name'],
                         'user_type' => $user['user_type'],
-                        'office_id' => $user['office_id'] ?? null,
+                        'department_id' => $user['department_id'] ?? null,
                         'isLoggedIn' => true,
                         'last_activity' => time() // Set initial last activity time
                     ];

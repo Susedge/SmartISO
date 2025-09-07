@@ -226,16 +226,19 @@
                         <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <div class="sidebar-heading">ADMINISTRATION</div>
                         
+                        <!-- User Management (restored to sidebar for quick access) -->
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
+                            <span>User Management</span>
+                        </a>
+
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'analytics' ? 'active' : '' ?>" href="<?= base_url('analytics') ?>">
                             <div class="nav-link-icon"><i class="fas fa-chart-line me-2"></i></div>
                             <span>Analytics</span>
                         </a>
                         <!-- Scheduling link intentionally omitted here to avoid duplication; kept under main menu -->
                         
-                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
-                            <span>User Management</span>
-                        </a>
+                        <!-- User Management accessible from the user menu (top-right) -->
                         
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/configurations' ? 'active' : '' ?>" href="<?= base_url('admin/configurations') ?>">
                             <div class="nav-link-icon"><i class="fas fa-cogs me-2"></i></div>
@@ -243,18 +246,9 @@
                         </a>
 
                         <!-- For admin users only -->
-                        <div class="sidebar-heading">FORM MANAGEMENT</div>
+                        <div class="sidebar-heading">FORM TOOLS</div>
 
-                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-edit me-2"></i></div>
-                            <span>Forms</span>
-                        </a>
-
-                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/panel-config' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/panel-config') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-cog me-2"></i></div>
-                            <span>Panels</span>
-                        </a>
-
+                        <!-- Forms and Panels moved into Configurations (Panels is available as a tab there) -->
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/submissions' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/submissions') ?>">
                             <div class="nav-link-icon"><i class="fas fa-clipboard-check me-2"></i></div>
                             <span>Review Submissions</span>
@@ -263,11 +257,6 @@
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/guide' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/guide') ?>">
                             <div class="nav-link-icon"><i class="fas fa-book me-2"></i></div>
                             <span>DOCX Variables Guide</span>
-                        </a>
-                        
-                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
-                            <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
-                            <span>Users</span>
                         </a>
 
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'feedback' ? 'active' : '' ?>" href="<?= base_url('feedback') ?>">
@@ -422,12 +411,17 @@
 
     <!-- jQuery CDN -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+    <!-- DataTables CSS/JS (used for client-side table search/pagination) -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <!-- Bootstrap JS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
     <!-- Optional Toastify JS (site-wide) -->
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <!-- Core theme JS-->
     <script src="<?= base_url('assets/js/scripts.js') ?>"></script>
+    <!-- Global utilities (helpers + SimpleModal) -->
+    <script src="<?= base_url('assets/js/utilities.js') ?>"></script>
     <?= $this->renderSection('scripts') ?>
     
     <!-- Additional Modern JS for enhanced interactions -->
@@ -456,7 +450,8 @@
             const warningTime = sessionTimeout - (5 * 60 * 1000); // 5 minutes before timeout
 
             function showSessionWarning() {
-                if (confirm('Your session will expire in 5 minutes. Do you want to extend it?')) {
+                SimpleModal.confirm('Your session will expire in 5 minutes. Do you want to extend it?', 'Session Expiry', 'info').then(function(ok){
+                    if (!ok) return;
                     fetch('<?= base_url('auth/extend-session') ?>', {
                         method: 'POST',
                         headers: {
@@ -470,7 +465,7 @@
                     }).catch(error => {
                         console.error('Error extending session:', error);
                     });
-                }
+                });
             }
 
             function resetSessionTimer() {
@@ -703,7 +698,15 @@
             try {
                 instance = bootstrap.Modal.getOrCreateInstance(modalEl, Object.assign({backdrop: true}, options));
                 instance.show();
-                setTimeout(()=>{ tagLatestBackdrop(modalEl); forceCleanup(); }, 50);
+                setTimeout(()=>{ 
+                    // If Bootstrap failed to inject a backdrop, synthesize one
+                    if(!document.querySelector('.modal-backdrop')){
+                        const bd = document.createElement('div');
+                        bd.className='modal-backdrop fade show';
+                        document.body.appendChild(bd);
+                    }
+                    tagLatestBackdrop(modalEl); forceCleanup(); 
+                }, 50);
                 const onHidden = () => { setTimeout(forceCleanup, 50); modalEl.removeEventListener('hidden.bs.modal', onHidden); };
                 modalEl.addEventListener('hidden.bs.modal', onHidden);
             } catch(e){ console.warn('safeModal.show error', e); forceCleanup(); }
@@ -737,7 +740,7 @@
     // Global event listener for modal dismiss buttons to ensure cleanup
     document.addEventListener('click', function(e) {
         if (e.target.matches('[data-bs-dismiss="modal"]') || e.target.closest('[data-bs-dismiss="modal"]')) {
-            console.log('Modal dismiss button clicked, scheduling cleanup');
+            // Schedule cleanup after dismiss to avoid orphaned backdrops
             setTimeout(window.cleanupModalBackdrops, 150);
         }
     });
@@ -747,14 +750,14 @@
         setTimeout(window.cleanupModalBackdrops, 60);
     });
     
-    // Periodic orphan backdrop cleanup (gentle)
+    // Periodic orphan backdrop cleanup (gentle) - reduced frequency to avoid overlap with observers
     setInterval(function() {
         const backdrops = document.querySelectorAll('.modal-backdrop');
         const visibleModals = document.querySelectorAll('.modal.show');
         if (backdrops.length && visibleModals.length === 0) {
             window.cleanupModalBackdrops();
         }
-    }, 5000);
+    }, 15000);
 
     // Basic ensure correct stacking on show
     document.addEventListener('show.bs.modal', function(){
@@ -765,34 +768,28 @@
         }, 25);
     });
 
-    // Mutation observer refined: only run cleanup if no modal is visible shortly after insertion
+    // Consolidated mutation observer: detect backdrop insertions and auto-clean if orphaned
     try {
-        const observer = new MutationObserver(muts => {
-            let inserted = false;
-            muts.forEach(m => m.addedNodes && m.addedNodes.forEach(n => { if (n.nodeType===1 && n.classList && n.classList.contains('modal-backdrop')) inserted = true; }));
-            if (inserted) {
-                setTimeout(() => {
-                    const visible = document.querySelectorAll('.modal.show');
-                    if (!visible.length) window.cleanupModalBackdrops();
-                }, 250);
-            }
-        });
-        observer.observe(document.body, {childList:true});
-    } catch(e){ console.warn('Observer setup failed', e); }
-
-    // Mutation observer to detect backdrop insertions and auto-clean if orphaned
-    try {
-        const observer = new MutationObserver(muts => {
+        const modalObserver = new MutationObserver(muts => {
             let addedBackdrop = false;
-            muts.forEach(m=> m.addedNodes && m.addedNodes.forEach(n=>{
-                if (n.nodeType===1 && n.classList && n.classList.contains('modal-backdrop')) addedBackdrop = true;
+            muts.forEach(m => m.addedNodes && m.addedNodes.forEach(n => {
+                if (n.nodeType === 1 && n.classList && n.classList.contains('modal-backdrop')) addedBackdrop = true;
             }));
             if (addedBackdrop) {
-                setTimeout(()=>{ window.cleanupModalBackdrops(); }, 150);
+                // Small delay to allow Bootstrap to complete show/hide lifecycle; then ensure there is a visible modal
+                setTimeout(() => {
+                    const visible = document.querySelectorAll('.modal.show');
+                    if (!visible.length) {
+                        window.cleanupModalBackdrops();
+                    } else {
+                        // Ensure only the latest backdrop remains and is tagged
+                        window.safeModal && typeof window.safeModal.forceCleanup === 'function' && window.safeModal.forceCleanup();
+                    }
+                }, 180);
             }
         });
-        observer.observe(document.body, {childList:true});
-    } catch(e){ console.warn('Backdrop observer failed', e); }
+        modalObserver.observe(document.body, { childList: true });
+    } catch (e) { console.warn('Backdrop observer failed', e); }
 
     // Expose hard nuke helper
     window.nukeBackdrops = function(){
@@ -901,7 +898,7 @@
                 notificationsList.querySelectorAll('.mark-read').forEach(btn=> btn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); markRead(this.dataset.id); }));
 
                 // Wire up delete buttons
-                notificationsList.querySelectorAll('.delete-notif').forEach(btn=> btn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); if(confirm('Delete this notification?')) deleteNotif(this.dataset.id); }));
+                notificationsList.querySelectorAll('.delete-notif').forEach(btn=> btn.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); SimpleModal.confirm('Delete this notification?', 'Confirm Delete', 'warning').then(function(ok){ if(ok) deleteNotif(btn.dataset.id); }); }));
             }
 
             function fetchUnread(){

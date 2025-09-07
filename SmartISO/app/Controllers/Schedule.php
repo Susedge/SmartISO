@@ -37,6 +37,34 @@ class Schedule extends BaseController
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
                 $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
+                // If no schedules exist for the requestor's submissions, include the submissions themselves
+                // as temporary calendar events (so users see their submitted items on the calendar).
+                if (empty($schedules)) {
+                    // Get submissions that are submitted or approved (pending service)
+                    $pendingSubs = $this->submissionModel->whereIn('id', $submissionIds)
+                        ->whereIn('status', ['submitted', 'approved'])
+                        ->orderBy('created_at', 'ASC')
+                        ->findAll();
+
+                    if (!empty($pendingSubs)) {
+                        $formModel = new \App\Models\FormModel();
+                        $schedules = [];
+                        foreach ($pendingSubs as $ps) {
+                            $form = $formModel->find($ps['form_id']);
+                            $schedules[] = [
+                                'id' => 'sub-' . $ps['id'],
+                                'priority' => 0,
+                                'form_code' => $form['code'] ?? null,
+                                'panel_name' => $ps['panel_name'] ?? null,
+                                // Use submission created date as the event date; default time to 09:00
+                                'scheduled_date' => isset($ps['created_at']) ? substr($ps['created_at'], 0, 10) : date('Y-m-d'),
+                                'scheduled_time' => '09:00:00',
+                                'notes' => null,
+                                'status' => $ps['status'] ?? 'submitted'
+                            ];
+                        }
+                    }
+                }
             } else {
                 $schedules = [];
             }
@@ -143,14 +171,27 @@ class Schedule extends BaseController
             'status'            => 'confirmed'
         ];
 
-    // Compute ETA from priority_level if provided
-    if ($priorityLevel) {
-            $map = ['high' => 3, 'medium' => 4, 'low' => 5];
-            $etaDays = $map[$priorityLevel] ?? null;
-            if ($etaDays) {
+        // Compute ETA from priority_level if provided
+        if ($priorityLevel) {
+            // New mapping per request:
+            // low  => today + 1 week (7 calendar days)
+            // medium => within 5 working days (business days)
+            // high => within 2 business days
+            $etaDays = null; $estimatedDate = null;
+            if ($priorityLevel === 'low') {
+                $etaDays = 7;
+                $estimatedDate = date('Y-m-d', strtotime($data['scheduled_date'] . ' +7 days'));
+            } elseif ($priorityLevel === 'medium') {
+                $etaDays = 5;
+                $estimatedDate = $this->addBusinessDays($data['scheduled_date'], 5);
+            } elseif ($priorityLevel === 'high') {
+                $etaDays = 3;
+                $estimatedDate = $this->addBusinessDays($data['scheduled_date'], 3);
+            }
+            if ($etaDays && $estimatedDate) {
                 $data['eta_days'] = $etaDays;
                 $data['priority_level'] = $priorityLevel;
-                $data['estimated_date'] = date('Y-m-d', strtotime($data['scheduled_date'] . " +{$etaDays} days"));
+                $data['estimated_date'] = $estimatedDate;
             }
         }
 
@@ -259,13 +300,22 @@ class Schedule extends BaseController
         ];
 
         if ($priorityLevel) {
-            $map = ['high' => 3, 'medium' => 4, 'low' => 5];
-            $etaDays = $map[$priorityLevel] ?? null;
-            if ($etaDays) {
+            $scheduledDateForEta = $data['scheduled_date'] ?: $schedule['scheduled_date'];
+            $etaDays = null; $estimatedDate = null;
+            if ($priorityLevel === 'low') {
+                $etaDays = 7;
+                $estimatedDate = date('Y-m-d', strtotime($scheduledDateForEta . ' +7 days'));
+            } elseif ($priorityLevel === 'medium') {
+                $etaDays = 5;
+                $estimatedDate = $this->addBusinessDays($scheduledDateForEta, 5);
+            } elseif ($priorityLevel === 'high') {
+                $etaDays = 3;
+                $estimatedDate = $this->addBusinessDays($scheduledDateForEta, 3);
+            }
+            if ($etaDays && $estimatedDate) {
                 $data['eta_days'] = $etaDays;
                 $data['priority_level'] = $priorityLevel;
-                $scheduledDateForEta = $data['scheduled_date'] ?: $schedule['scheduled_date'];
-                $data['estimated_date'] = date('Y-m-d', strtotime($scheduledDateForEta . " +{$etaDays} days"));
+                $data['estimated_date'] = $estimatedDate;
             }
         }
 
@@ -357,6 +407,24 @@ class Schedule extends BaseController
     $data['events_count'] = count($calendarEvents);
         
         return view('schedule/calendar', $data);
+    }
+
+    /**
+     * Add N business days to a date (skip Saturday/Sunday)
+     * @param string $date YYYY-MM-DD
+     * @param int $days
+     * @return string YYYY-MM-DD
+     */
+    private function addBusinessDays(string $date, int $days): string
+    {
+        $ts = strtotime($date);
+        $added = 0;
+        while ($added < $days) {
+            $ts = strtotime('+1 day', $ts);
+            $dow = (int)date('N', $ts); // 1 (Mon) - 7 (Sun)
+            if ($dow <= 5) { $added++; }
+        }
+        return date('Y-m-d', $ts);
     }
 
     /**
@@ -480,12 +548,22 @@ class Schedule extends BaseController
 
         $data = [];
         if ($priorityLevel) {
-            $map = ['high' => 3, 'medium' => 4, 'low' => 5];
-            $etaDays = $map[$priorityLevel] ?? null;
-            if ($etaDays) {
+            $scheduledDateForEta = ($scheduledDate ?: $schedule['scheduled_date']);
+            $etaDays = null; $estimatedDate = null;
+            if ($priorityLevel === 'low') {
+                $etaDays = 7;
+                $estimatedDate = date('Y-m-d', strtotime($scheduledDateForEta . ' +7 days'));
+            } elseif ($priorityLevel === 'medium') {
+                $etaDays = 5;
+                $estimatedDate = $this->addBusinessDays($scheduledDateForEta, 5);
+            } elseif ($priorityLevel === 'high') {
+                $etaDays = 3;
+                $estimatedDate = $this->addBusinessDays($scheduledDateForEta, 3);
+            }
+            if ($etaDays && $estimatedDate) {
                 $data['eta_days'] = $etaDays;
                 $data['priority_level'] = $priorityLevel;
-                $data['estimated_date'] = date('Y-m-d', strtotime(($scheduledDate ?: $schedule['scheduled_date']) . " +{$etaDays} days"));
+                $data['estimated_date'] = $estimatedDate;
             }
         } else {
             // Clear priority
@@ -500,5 +578,60 @@ class Schedule extends BaseController
         }
 
         return $this->response->setJSON(['success' => false, 'message' => 'Failed to update priority', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+    }
+
+    /**
+     * AJAX: Update priority_level field stored in submission data (not schedule) and compute estimated completion date for calendar event.
+     * This provides an alternative when a schedule row doesn't yet exist or user wants submission-centric ETA.
+     */
+    public function updateSubmissionPriority($submissionId)
+    {
+        if (!$this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+        }
+
+        $submission = $this->submissionModel->find($submissionId);
+        if (!$submission) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Submission not found', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+        }
+
+        $priorityLevel = $this->request->getPost('priority_level');
+        $allowed = ['high','medium','low'];
+        if ($priorityLevel && !in_array($priorityLevel, $allowed, true)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid priority level', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+        }
+
+        // Upsert field in submission data
+        $submissionDataModel = new \App\Models\FormSubmissionDataModel();
+        if ($priorityLevel) {
+            $submissionDataModel->setFieldValue($submissionId, 'priority_level', $priorityLevel);
+        } else {
+            // Clear priority by setting empty value
+            $submissionDataModel->setFieldValue($submissionId, 'priority_level', '');
+        }
+
+        // Compute ETA off submission created_at using new mapping
+        $etaDays = null; $estimatedDate = null;
+        if ($priorityLevel) {
+            if ($priorityLevel === 'low') {
+                $etaDays = 7;
+                $estimatedDate = date('Y-m-d', strtotime($submission['created_at'] . ' +7 days'));
+            } elseif ($priorityLevel === 'medium') {
+                $etaDays = 5;
+                $estimatedDate = $this->addBusinessDays(substr($submission['created_at'],0,10), 5);
+            } elseif ($priorityLevel === 'high') {
+                $etaDays = 3;
+                $estimatedDate = $this->addBusinessDays(substr($submission['created_at'],0,10), 3);
+            }
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'priority_level' => $priorityLevel,
+            'estimated_date' => $estimatedDate,
+            'eta_days' => $etaDays,
+            'csrf_name' => csrf_token(),
+            'csrf_hash' => csrf_hash()
+        ]);
     }
 }

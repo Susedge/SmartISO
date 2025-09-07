@@ -189,19 +189,79 @@ class FormBuilder {
                 return;
             }
             const mapped = data.mapped || {};
-            this.renderImportList(mapped);
-            // Show modal using safeModal helper for consistent cleanup
-            const modalEl = document.getElementById('docxImportModal');
-            if (modalEl) {
-                // Promote modal to body to avoid ancestor stacking contexts interfering
-                if (modalEl.parentNode !== document.body) {
-                    document.body.appendChild(modalEl);
+            // Build SimpleModal import UI dynamically
+            const containerId = 'sm_docx_import_container_' + Date.now();
+            const html = `<div id="${containerId}" class="docx-import-wrapper small">
+                <p class="text-muted mb-2">Select tags to add to the panel. You can edit them after importing.</p>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" id="sm_docx_select_all">
+                            <label class="form-check-label" for="sm_docx_select_all">Select All</label>
+                        </div>
+                        <span id="sm_docx_selected_count" class="text-muted">0 selected</span>
+                    </div>
+                    <div style="min-width:200px;max-width:260px" class="flex-grow-1">
+                        <input type="text" id="sm_docx_filter" class="form-control form-control-sm" placeholder="Filter tags...">
+                    </div>
+                </div>
+                <div id="sm_docx_list" style="max-height:420px;overflow:auto;border:1px solid #e3e6eb;border-radius:4px;padding:4px;background:#fff"></div>
+            </div>`;
+            SimpleModal.show({ title:'Import DOCX Tags', variant:'info', wide:true, message: html, buttons:[{text:'Cancel', value:'x'},{text:'Add Selected', primary:true, value:'add'}] }).then(val=>{
+                if(val==='add'){
+                    // Simulate clicking original add selected logic
+                    const listWrap = document.getElementById('sm_docx_list');
+                    const checks = listWrap.querySelectorAll('.import-field-checkbox:checked');
+                    checks.forEach(chk => {
+                        const kind = chk.dataset.kind;
+                        if(kind==='checkboxGroup'){
+                            const base = chk.dataset.base;
+                            let options=[]; try{ options = JSON.parse(chk.dataset.options||'[]'); }catch(e){}
+                            const exists = this.fields.some(f => (f.name||'').toLowerCase() === base.toLowerCase());
+                            if(exists) return;
+                            const fieldData={ id:this.generateFieldId(), type:'checkboxes', label:this.humanizeTag(base), name:base.toLowerCase(), width:12, required:false, bump_next_field:false, options: options.map(o=>({label:o.label, sub_field:o.sub_field||o.label})) };
+                            this.addFieldWithData(fieldData);
+                        } else if(kind==='single') {
+                            const rawName = chk.dataset.name||'field';
+                            const name = this.suggestFieldName(rawName);
+                            const label = this.humanizeTag(rawName);
+                            const exists = this.fields.some(f => (f.name||'').toLowerCase()===name.toLowerCase());
+                            if(exists) return;
+                            const type = /DATE|_DATE|DATE_OF/i.test(rawName)?'datepicker':'input';
+                            const fieldData={ id:this.generateFieldId(), type, label, name, width:12, required:false, bump_next_field:false };
+                            this.addFieldWithData(fieldData);
+                        }
+                    });
                 }
-                try {
-                    const inst = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true });
-                    inst.show();
-                } catch(e) { console.warn('DOCX modal show failed', e); }
-            }
+            });
+            // After modal injected, render list into SimpleModal container (reuse existing logic with slight adaptation)
+            setTimeout(()=>{
+                // Map structure expected by renderImportList; reuse by temporarily mapping element IDs
+                const origList = document.getElementById('docxImportList');
+                // Provide stub elements expected by renderImportList by creating them inside the new container
+                const cont = document.getElementById(containerId);
+                if(!cont) return;
+                cont.insertAdjacentHTML('beforeend','<div id="docxImportList" style="display:none"></div><input type="hidden" id="docxSelectAllTemp">');
+                // Temporarily map required IDs to newly created structure for reuse
+                cont.querySelector('#docxImportList').id='docxImportList';
+                // Create helper elements mimicking original structure
+                const selectAll=document.getElementById('sm_docx_select_all');
+                selectAll.id='docxSelectAll';
+                const countEl=document.getElementById('sm_docx_selected_count'); countEl.id='docxSelectedCount';
+                const filterEl=document.getElementById('sm_docx_filter'); filterEl.id='docxFilterInput';
+                // Now call existing renderImportList to populate hidden element then move nodes
+                this.renderImportList(mapped);
+                const hiddenList = document.getElementById('docxImportList');
+                const displayList = document.getElementById('sm_docx_list');
+                if(hiddenList && displayList){
+                    displayList.innerHTML='';
+                    Array.from(hiddenList.children).forEach(ch=>{ displayList.appendChild(ch); });
+                }
+                // Restore IDs to avoid side effects
+                selectAll.id='sm_docx_select_all';
+                countEl.id='sm_docx_selected_count';
+                filterEl.id='sm_docx_filter';
+            },60);
         })
         .catch(err => {
             console.error('DOCX import error', err);
@@ -1590,60 +1650,69 @@ class FormBuilder {
     }
 
     showEditModal(field) {
-        // Store the current editing field ID
+        // Build SimpleModal form content
+        const fieldTypeVal = field.type || field.field_type || 'input';
+        const optsCount = (field.options && field.options.length) ? field.options.length : 0;
         window.currentEditingFieldId = field.id;
-
-        // Populate the modal form
-        document.getElementById('editFieldType').value = field.type || field.field_type || 'input';
-        document.getElementById('editFieldLabel').value = field.label || field.field_label || '';
-        document.getElementById('editFieldName').value = field.name || field.field_name || '';
-        document.getElementById('editFieldWidth').value = field.width || 12;
-        // Populate edit role if present
-        if (document.getElementById('editFieldRole')) {
-            document.getElementById('editFieldRole').value = field.field_role || 'requestor';
-        }
-        // Populate default value if control exists
-        if (document.getElementById('editFieldDefault')) {
-            document.getElementById('editFieldDefault').value = field.default_value || '';
-        }
-        document.getElementById('editFieldRequired').checked = field.required || false;
-        document.getElementById('editFieldBumpNext').checked = field.bump_next_field || false;
-        
-        // Handle options via separate Options Manager modal
-        const optionsBtnContainer = document.getElementById('editOptionsButtonContainer');
-        const optionsCountEl = document.getElementById('editOptionsCount');
-    // support either the inline button (old) or the footer button (new)
-    const manageBtn = document.getElementById('manageOptionsBtn') || document.getElementById('manageOptionsBtnFooter');
-        const fieldType = field.type || field.field_type;
-        // Only show Manage Options for radio fields (per requirement)
-        if (fieldType === 'radio') {
-            optionsBtnContainer.style.display = 'block';
-            // compute current options count
-            let opts = [];
-            if (field.options && Array.isArray(field.options)) opts = field.options;
-            else if (field.default_value) {
-                try { const parsed = JSON.parse(field.default_value); if (Array.isArray(parsed)) opts = parsed; } catch(e) { opts = String(field.default_value).split('\n').map(o=>o.trim()).filter(o=>o.length>0); }
-            }
-            optionsCountEl.textContent = `${opts.length} option${opts.length !== 1 ? 's' : ''}`;
-
-            // Wire manage button to open the options manager modal
-            if (manageBtn) manageBtn.onclick = () => { this.openOptionsManager(field); };
-        } else {
-            optionsBtnContainer.style.display = 'none';
-        }
-        
-    // Pre-show cleanup
-    try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){}
-    // Show the modal using safeModal helper
-    const modalEl = document.getElementById('fieldEditModal');
-    if (window.safeModal && typeof window.safeModal.show === 'function') {
-        window.safeModal.show(modalEl, { backdrop: true });
-    } else {
-        const modal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true });
-        modal.show();
-        // Cleanup any leftover backdrops when modal is hidden
-        modalEl.addEventListener('hidden.bs.modal', () => { try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){} });
+        const optionsButton = (fieldTypeVal === 'radio') ? '<button type="button" class="btn btn-sm btn-outline-secondary" id="sm_manage_options">Manage Options ('+optsCount+')</button>' : '';
+        const html = `
+            <form id="sm_edit_field_form" class="text-start">
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label small mb-1">Field Type</label>
+                        <select class="form-select form-select-sm" id="sm_edit_type">
+                            <option value="input" ${fieldTypeVal==='input'?'selected':''}>Input</option>
+                            <option value="textarea" ${fieldTypeVal==='textarea'?'selected':''}>Textarea</option>
+                            <option value="dropdown" ${fieldTypeVal==='dropdown'?'selected':''}>Dropdown</option>
+                            <option value="radio" ${fieldTypeVal==='radio'?'selected':''}>Checkboxes</option>
+                            <option value="list" ${fieldTypeVal==='list'?'selected':''}>List</option>
+                            <option value="datepicker" ${fieldTypeVal==='datepicker'?'selected':''}>Date Picker</option>
+                        </select>
+                    </div>
+                    <div class="col-6"><label class="form-label small mb-1">Width</label>
+                        <select class="form-select form-select-sm" id="sm_edit_width">
+                            ${[3,4,6,8,9,12].map(v=>`<option value="${v}" ${Number(field.width||12)===v?'selected':''}>${v}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-2"><label class="form-label small mb-1">Label</label><input type="text" class="form-control form-control-sm" id="sm_edit_label" value="${(field.label||field.field_label||'').replace(/"/g,'&quot;')}"></div>
+                <div class="mb-2"><label class="form-label small mb-1">Name</label><input type="text" class="form-control form-control-sm" id="sm_edit_name" value="${(field.name||field.field_name||'').replace(/"/g,'&quot;')}"></div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label small mb-1">Role</label>
+                        <select class="form-select form-select-sm" id="sm_edit_role">
+                            ${['requestor','service_staff','both','readonly'].map(r=>`<option value="${r}" ${(field.field_role||'requestor')===r?'selected':''}>${r.replace('_',' ')}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-6"><label class="form-label small mb-1">Default</label><input type="text" class="form-control form-control-sm" id="sm_edit_default" value="${(field.default_value||'').replace(/"/g,'&quot;')}"></div>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+                    <div class="form-check m-0"><input class="form-check-input" type="checkbox" id="sm_edit_required" ${(field.required)?'checked':''}><label class="form-check-label small" for="sm_edit_required">Required</label></div>
+                    <div class="form-check m-0"><input class="form-check-input" type="checkbox" id="sm_edit_bump" ${(field.bump_next_field)?'checked':''}><label class="form-check-label small" for="sm_edit_bump">Bump Next</label></div>
+                    ${optionsButton}
+                </div>
+                <small class="text-muted d-block mb-1">Use CURRENTDATE for date pickers.</small>
+            </form>`;
+        SimpleModal.show({ title:'Edit Field', variant:'info', message: html, wide:true, buttons:[{text:'Cancel',value:'x'},{text:'Save',primary:true,value:'save'}] }).then(val=>{
+            if(val==='save'){ this.saveEditedFieldFromSimple(); }
+        });
+        setTimeout(()=>{
+            document.getElementById('sm_manage_options')?.addEventListener('click', ()=> this.openOptionsManager(field));
+        },60);
     }
+
+    saveEditedFieldFromSimple(){
+        const id = window.currentEditingFieldId; if(!id) return;
+        const field = this.fields.find(f=>f.id===id); if(!field) return;
+        field.type = document.getElementById('sm_edit_type').value;
+        field.field_type = field.type;
+        field.label = document.getElementById('sm_edit_label').value; field.field_label = field.label;
+        field.name = document.getElementById('sm_edit_name').value; field.field_name = field.name;
+        field.width = parseInt(document.getElementById('sm_edit_width').value)||12;
+        field.field_role = document.getElementById('sm_edit_role').value || 'requestor';
+        field.default_value = document.getElementById('sm_edit_default').value || '';
+        field.required = document.getElementById('sm_edit_required').checked;
+        field.bump_next_field = document.getElementById('sm_edit_bump').checked;
+        this.updateFieldInDOM(field);
+        window.currentEditingFieldId = null;
     }
 
     saveEditedField() {
@@ -1727,28 +1796,9 @@ class FormBuilder {
         this.validateRowWidths();
     }
 
-    showFieldConfigModal(fieldData) {
-        // Create or update field configuration modal
-        let modal = document.getElementById('fieldConfigModal');
-        if (!modal) {
-            modal = this.createFieldConfigModal();
-            document.body.appendChild(modal);
-        }
-        
-        // Populate modal with field data
-        this.populateFieldConfigModal(modal, fieldData);
-        
-    // Pre-show cleanup
-    try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){}
-    // Show modal using safeModal helper
-    if (window.safeModal && typeof window.safeModal.show === 'function') {
-        window.safeModal.show(modal, { backdrop: true });
-    } else {
-        const bsModal = bootstrap.Modal.getOrCreateInstance(modal, { backdrop: true });
-        bsModal.show();
-        // Cleanup on hide
-        modal.addEventListener('hidden.bs.modal', () => { try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); document.body.classList.remove('modal-open'); } catch(e){} });
-    }
+    showFieldConfigModal(fieldData){
+        // For now reuse edit field modal logic for new field configuration
+        this.showEditModal(fieldData);
     }
 
     createFieldConfigModal() {
@@ -1946,99 +1996,40 @@ class FormBuilder {
     }
 
     // Options Manager modal functions
-    openOptionsManager(field) {
-        // store current field being edited
+    openOptionsManager(field){
         this._optionsManagerFieldId = field.id;
-        const list = document.getElementById('optionsManagerList');
-        const newInput = document.getElementById('optionsManagerNewInput');
-        const addBtn = document.getElementById('optionsManagerAddBtn');
-        const saveBtn = document.getElementById('saveOptionsManagerBtn');
-
-        // Clear list
-        list.innerHTML = '';
-        // Populate existing options
-        let opts = [];
-        if (field.options && Array.isArray(field.options)) opts = field.options.slice();
-        else if (field.default_value) {
-            try { const parsed = JSON.parse(field.default_value); if (Array.isArray(parsed)) opts = parsed; } catch(e) { opts = String(field.default_value).split('\n').map(o=>o.trim()).filter(o=>o.length>0); }
-        }
-        opts.forEach(o => this._appendOptionsManagerRow(list, o));
-
-            // Wire add with simple validation (no empty or duplicate options)
-        addBtn.onclick = () => {
-            const v = newInput.value.trim();
-            const sf = document.getElementById('optionsManagerNewSubfield').value.trim();
-            if (!v) {
-                notify('Option label cannot be empty', 'warning');
-                newInput.focus();
-                return;
+        let opts=[];
+        if(field.options && Array.isArray(field.options)) opts=field.options.slice();
+        else if(field.default_value){ try{ const parsed=JSON.parse(field.default_value); if(Array.isArray(parsed)) opts=parsed; }catch(e){ opts=String(field.default_value).split('\n').map(o=>o.trim()).filter(o=>o.length>0);} }
+        const rowsHtml = opts.map(o=>`<div class='d-flex align-items-center mb-2 option-row'><input type='text' class='form-control form-control-sm option-value' value='${(o.label||o).toString().replace(/'/g,"&#39;")}'><input type='text' class='form-control form-control-sm option-sub-field ms-2' placeholder='Option field name' value='${(o.sub_field||'').replace(/'/g,"&#39;")}'><div class='ms-2 d-flex gap-1'><button type='button' class='btn btn-outline-secondary btn-sm opt-edit' title='Focus'><i class='fas fa-pen'></i></button><button type='button' class='btn btn-outline-danger btn-sm opt-del'><i class='fas fa-trash'></i></button></div></div>`).join('');
+        const html = `<div id='sm_options_manager' class='small text-start'>
+            <div id='optionsManagerList'>${rowsHtml||'<div class="text-muted">No options yet</div>'}</div>
+            <div class='row g-2 align-items-center mt-2'>
+                <div class='col-5'><input type='text' id='optionsManagerNewInput' class='form-control form-control-sm' placeholder='Option label'></div>
+                <div class='col-4'><input type='text' id='optionsManagerNewSubfield' class='form-control form-control-sm' placeholder='Field name (opt)'></div>
+                <div class='col-3 d-grid'><button type='button' id='optionsManagerAddBtn' class='btn btn-outline-primary btn-sm'>Add</button></div>
+            </div>
+            <small class='text-muted d-block mt-2'>Use Add to append options. Save to persist changes.</small>
+        </div>`;
+        SimpleModal.show({ title:'Manage Field Options', variant:'info', wide:true, message: html, buttons:[{text:'Cancel', value:'x'},{text:'Save', primary:true, value:'save'}] }).then(val=>{
+            if(val==='save'){
+                const list=document.getElementById('optionsManagerList');
+                const rows=Array.from(list.querySelectorAll('.option-row'));
+                const values=rows.map(r=>({ label:(r.querySelector('input.option-value')||{value:''}).value.trim(), sub_field:(r.querySelector('input.option-sub-field')||{value:''}).value.trim() }));
+                if(values.some(v=>!v.label)){ notify('Please remove empty options','warning'); return; }
+                const lower=values.map(v=>v.label.toLowerCase());
+                const dup=lower.find((v,i)=>lower.indexOf(v)!==i); if(dup){ notify('Duplicate option: '+dup,'warning'); return; }
+                const fieldObj=this.fields.find(f=>f.id===this._optionsManagerFieldId); if(fieldObj){ fieldObj.options=values; this.updateFieldInDOM(fieldObj); }
             }
-            // Check duplicates (case-insensitive) on label
-            const existing = Array.from(list.querySelectorAll('.option-row input.option-value')).map(i => i.value.trim().toLowerCase());
-            if (existing.includes(v.toLowerCase())) {
-                notify('Option already exists', 'warning');
-                newInput.focus();
-                return;
-            }
-            this._appendOptionsManagerRow(list, { label: v, sub_field: sf });
-            newInput.value = '';
-            document.getElementById('optionsManagerNewSubfield').value = '';
-            newInput.focus();
-        };
-        newInput.onkeypress = (e) => { if (e.key==='Enter') { e.preventDefault(); addBtn.click(); } };
-
-        // Save handler with validation (no empty, no duplicates)
-        saveBtn.onclick = () => {
-            const rows = Array.from(list.querySelectorAll('.option-row'));
-            const values = rows.map(row => {
-                const label = (row.querySelector('input.option-value') || { value: '' }).value.trim();
-                const sub_field = (row.querySelector('input.option-sub-field') || { value: '' }).value.trim();
-                return { label, sub_field };
-            });
-            // Validate empties
-            const hasEmpty = values.some(v => v.label.length === 0);
-            if (hasEmpty) {
-                notify('Please remove empty options before saving', 'warning');
-                return;
-            }
-            // Validate duplicates (case-insensitive) on labels
-            const lower = values.map(v => v.label.toLowerCase());
-            const dup = lower.find((v, i) => lower.indexOf(v) !== i);
-            if (dup) {
-                notify('Duplicate options are not allowed: "' + dup + '"', 'warning');
-                return;
-            }
-
-            // Persist to field
-            const fieldObj = this.fields.find(f => f.id === this._optionsManagerFieldId);
-            if (fieldObj) {
-                // Persist array of option objects
-                fieldObj.options = values;
-                // Update options count in edit modal if open
-                const countEl = document.getElementById('editOptionsCount');
-                if (countEl) countEl.textContent = `${values.length} option${values.length!==1?'s':''}`;
-                // Update preview in DOM
-                this.updateFieldInDOM(fieldObj);
-            }
-            // Hide modal (use global helper if available)
-            try {
-                const modalEl = document.getElementById('optionsManagerModal');
-                if (window.safeModal && typeof window.safeModal.hide === 'function') {
-                    window.safeModal.hide(modalEl);
-                } else {
-                    const bs = bootstrap.Modal.getInstance(modalEl) || bootstrap.Modal.getOrCreateInstance(modalEl);
-                    bs.hide();
-                }
-            } catch (e) { console.warn('Failed to hide options manager modal', e); }
-        };
-
-        // Open modal
-        let modalEl = document.getElementById('optionsManagerModal');
-        if (!modalEl) {
-            console.error('Options manager modal not found');
-            return;
-        }
-    if (window.safeModal && typeof window.safeModal.show === 'function') window.safeModal.show(modalEl); else bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        });
+        setTimeout(()=>{
+            const list=document.getElementById('optionsManagerList');
+            const addBtn=document.getElementById('optionsManagerAddBtn');
+            const newInput=document.getElementById('optionsManagerNewInput');
+            addBtn.onclick=()=>{ const v=newInput.value.trim(); const sf=document.getElementById('optionsManagerNewSubfield').value.trim(); if(!v){ notify('Option label cannot be empty','warning'); return; } const existing=Array.from(list.querySelectorAll('.option-row input.option-value')).map(i=>i.value.trim().toLowerCase()); if(existing.includes(v.toLowerCase())){ notify('Option already exists','warning'); return; } const row=document.createElement('div'); row.className='d-flex align-items-center mb-2 option-row'; row.innerHTML=`<input type='text' class='form-control form-control-sm option-value' value='${v.replace(/'/g,"&#39;")}'><input type='text' class='form-control form-control-sm option-sub-field ms-2' placeholder='Option field name' value='${sf.replace(/'/g,"&#39;")}'><div class='ms-2 d-flex gap-1'><button type='button' class='btn btn-outline-secondary btn-sm opt-edit'><i class='fas fa-pen'></i></button><button type='button' class='btn btn-outline-danger btn-sm opt-del'><i class='fas fa-trash'></i></button></div>`; list.appendChild(row); newInput.value=''; document.getElementById('optionsManagerNewSubfield').value=''; newInput.focus(); };
+            list.addEventListener('click',e=>{ if(e.target.closest('.opt-del')){ e.target.closest('.option-row').remove(); } if(e.target.closest('.opt-edit')){ const inp=e.target.closest('.option-row').querySelector('input.option-value'); inp && inp.focus(); } });
+            newInput.addEventListener('keypress',e=>{ if(e.key==='Enter'){ e.preventDefault(); addBtn.click(); }});
+        },60);
     }
 
     _appendOptionsManagerRow(container, value) {
@@ -2715,62 +2706,73 @@ class FormBuilder {
     }
 }
 
-// Initialize when DOM is loaded
+// Initialize when DOM is loaded (with explicit isolation / guard)
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.querySelector('.form-builder-container')) {
-        // Add a small delay to ensure all elements are rendered
-        setTimeout(() => {
-            window.formBuilder = new FormBuilder();
-            // Check for pending DOCX imports from panel creation flow
-            try {
-                const key = 'pending_docx_import_' + (window.panelName || 'new');
-                const raw = localStorage.getItem(key);
-                if (raw) {
-                    const pending = JSON.parse(raw);
-                    if (Array.isArray(pending) && pending.length > 0) {
-                        // Render into existing import modal list and show modal
-                        const container = document.getElementById('docxImportList');
-                        if (container) {
-                            container.innerHTML = '';
-                            pending.forEach((item, idx) => {
-                                const tag = item.tag || '';
-                                const val = item.preview || '';
-                                const row = document.createElement('div');
-                                row.className = 'd-flex align-items-center gap-2 p-2 border-bottom';
-                                row.innerHTML = `
-                                    <div class="form-check">
-                                        <input class="form-check-input import-field-checkbox" type="checkbox" id="import_pending_${idx}" data-tag="${window.formBuilder ? window.formBuilder.escapeHtml(tag) : tag}" checked>
-                                    </div>
-                                    <div style="flex:1">
-                                        <div class="small text-muted">TAG: <strong>${window.formBuilder ? window.formBuilder.escapeHtml(tag) : tag}</strong></div>
-                                        <div><input class="form-control form-control-sm import-field-label" value="${window.formBuilder ? window.formBuilder.humanizeTag(tag) : (item.label||'')}"></div>
-                                    </div>
-                                    <div style="width:220px">
-                                        <input class="form-control form-control-sm import-field-name" value="${window.formBuilder ? window.formBuilder.suggestFieldName(tag) : (item.name||'')}">
-                                        <div class="small text-muted">Preview: ${window.formBuilder ? window.formBuilder.escapeHtml(String(val)) : ''}</div>
-                                    </div>
-                                `;
-                                container.appendChild(row);
-                            });
-                            // Remove the pending key so it's not re-used
-                            try { localStorage.removeItem(key); } catch(e){}
-                            // Show modal via safeModal helper when available
-                            const modalEl = document.getElementById('docxImportModal');
-                            if (modalEl) {
-                                if (window.safeModal && typeof window.safeModal.show === 'function') {
-                                    window.safeModal.show(modalEl);
-                                } else {
-                                    try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); } catch(e){}
-                                    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-                                    try { modal.show(); } catch(e){}
-                                }
+    const isBuilderContext = !!document.querySelector('.form-builder-container');
+    if (!isBuilderContext) {
+        // Mark that the legacy script intentionally skipped heavy init when accidentally loaded.
+        window.__LEGACY_FORM_BUILDER_SKIPPED__ = true;
+        return; // Hard abort: do not instantiate or touch DOM further.
+    }
+
+    // Prevent duplicate instantiation (e.g., if script included twice or hot reloaded)
+    if (window.formBuilder instanceof FormBuilder) {
+        console.warn('[LegacyFormBuilder] Instance already exists; skipping re-init');
+        return;
+    }
+
+    // Small delay to allow view to finish rendering injected server-side variables / partials
+    setTimeout(() => {
+        window.formBuilder = new FormBuilder();
+        // Check for pending DOCX imports from panel creation flow
+        try {
+            const key = 'pending_docx_import_' + (window.panelName || 'new');
+            const raw = localStorage.getItem(key);
+            if (raw) {
+                const pending = JSON.parse(raw);
+                if (Array.isArray(pending) && pending.length > 0) {
+                    // Render into existing import modal list and show modal
+                    const container = document.getElementById('docxImportList');
+                    if (container) {
+                        container.innerHTML = '';
+                        pending.forEach((item, idx) => {
+                            const tag = item.tag || '';
+                            const val = item.preview || '';
+                            const row = document.createElement('div');
+                            row.className = 'd-flex align-items-center gap-2 p-2 border-bottom';
+                            row.innerHTML = `
+                                <div class="form-check">
+                                    <input class="form-check-input import-field-checkbox" type="checkbox" id="import_pending_${idx}" data-tag="${window.formBuilder ? window.formBuilder.escapeHtml(tag) : tag}" checked>
+                                </div>
+                                <div style="flex:1">
+                                    <div class="small text-muted">TAG: <strong>${window.formBuilder ? window.formBuilder.escapeHtml(tag) : tag}</strong></div>
+                                    <div><input class="form-control form-control-sm import-field-label" value="${window.formBuilder ? window.formBuilder.humanizeTag(tag) : (item.label||'')}"></div>
+                                </div>
+                                <div style="width:220px">
+                                    <input class="form-control form-control-sm import-field-name" value="${window.formBuilder ? window.formBuilder.suggestFieldName(tag) : (item.name||'')}">
+                                    <div class="small text-muted">Preview: ${window.formBuilder ? window.formBuilder.escapeHtml(String(val)) : ''}</div>
+                                </div>
+                            `;
+                            container.appendChild(row);
+                        });
+                        // Remove the pending key so it's not re-used
+                        try { localStorage.removeItem(key); } catch(e){}
+                        // Show modal via safeModal helper when available
+                        const modalEl = document.getElementById('docxImportModal');
+                        if (modalEl) {
+                            if (window.safeModal && typeof window.safeModal.show === 'function') {
+                                window.safeModal.show(modalEl);
+                            } else {
+                                try { document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove()); } catch(e){}
+                                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                                try { modal.show(); } catch(e){}
                             }
                         }
                     }
                 }
-            } catch(e) { console.warn('Pending DOCX import check failed', e); }
-        }, 100);
-    }
+            }
+        } catch(e) { console.warn('Pending DOCX import check failed', e); }
+    }, 100);
 });
 
 // Global sanitizer helper added after class definition

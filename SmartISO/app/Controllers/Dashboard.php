@@ -2,7 +2,7 @@
 
 namespace App\Controllers;
 
-use App\Models\OfficeModel;
+use App\Models\DepartmentModel;
 use App\Models\FormSubmissionModel;
 
 class Dashboard extends BaseController
@@ -12,12 +12,12 @@ class Dashboard extends BaseController
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
         
-        // Get office info if available
-        $officeId = session()->get('office_id');
-        $office = null;
-        if ($officeId) {
-            $officeModel = new \App\Models\OfficeModel();
-            $office = $officeModel->find($officeId);
+        // Get department info if available (legacy office removed)
+        $departmentId = session()->get('department_id');
+        $department = null;
+        if ($departmentId) {
+            $departmentModel = new DepartmentModel();
+            $department = $departmentModel->find($departmentId);
         }
         
         // Get form status summary based on user type
@@ -38,8 +38,8 @@ class Dashboard extends BaseController
                                                         ->where('status', 'rejected')
                                                         ->countAllResults();
                                                         
-            // Count completed using completion flag where possible for consistency
-+            $statusSummary['completed'] = $formSubmissionModel->where('submitted_by', $userId)
+            // Count completed using completion flag for consistency
+            $statusSummary['completed'] = $formSubmissionModel->where('submitted_by', $userId)
                                                          ->where('completed', 1)
                                                          ->countAllResults();
         } 
@@ -81,7 +81,7 @@ class Dashboard extends BaseController
         
         $data = [
             'title' => 'Dashboard',
-            'office' => $office,
+            'department' => $department,
             'statusSummary' => $statusSummary
         ];
         
@@ -119,45 +119,6 @@ class Dashboard extends BaseController
             'approved' => $approved,
             'rejected' => $rejected,
             'completed' => $completed
-        ];
-    }
-    
-    private function getApproverStatusSummary($formSubmissionModel, $userId)
-    {
-        // Count forms pending approval (all submitted forms)
-        $pendingApproval = $formSubmissionModel->where('status', 'submitted')->countAllResults();
-        
-        // Count forms approved by this user
-        $approvedByMe = $formSubmissionModel->where('approver_id', $userId)
-                                          ->where('status', 'approved')
-                                          ->countAllResults();
-        
-        // Count forms rejected by this user
-        $rejectedByMe = $formSubmissionModel->where('approver_id', $userId)
-                                          ->where('status', 'rejected')
-                                          ->countAllResults();
-        
-        return [
-            'pending_approval' => $pendingApproval,
-            'approved_by_me' => $approvedByMe,
-            'rejected_by_me' => $rejectedByMe
-        ];
-    }
-    
-    private function getServiceStaffStatusSummary($formSubmissionModel, $userId)
-    {
-        // Count forms pending service
-        $pendingService = $formSubmissionModel->where('status', 'approved')
-                                            ->where('service_staff_id IS NULL')
-                                            ->countAllResults();
-        
-        // Count forms serviced by this user
-        $servicedByMe = $formSubmissionModel->where('service_staff_id', $userId)
-                                          ->countAllResults();
-        
-        return [
-            'pending_service' => $pendingService,
-            'serviced_by_me' => $servicedByMe
         ];
     }
 }

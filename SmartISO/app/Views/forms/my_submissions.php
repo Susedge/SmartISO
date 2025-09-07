@@ -60,7 +60,7 @@
                                         $canDelete = ($isOwner && in_array($status, ['completed','rejected','cancelled'])) || in_array($userType, ['admin','superuser']);
                                     ?>
                                     <?php if ($canCancel): ?>
-                                        <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline" onsubmit="return confirm('Cancel this submission? This will mark it as cancelled.')">
+                                        <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline" onsubmit="return confirmAndSubmit(event, 'Cancel this submission? This will mark it as cancelled.', 'Confirm Cancel')">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
                                             <button type="submit" class="btn btn-sm btn-outline-warning">
@@ -69,7 +69,7 @@
                                         </form>
                                     <?php endif; ?>
                                     <?php if ($canDelete): ?>
-                                        <form action="<?= base_url('forms/delete-submission') ?>" method="post" class="d-inline" onsubmit="return confirm('Delete this submission and ALL related data? This cannot be undone.')">
+                                        <form action="<?= base_url('forms/delete-submission') ?>" method="post" class="d-inline" onsubmit="return confirmAndSubmit(event, 'Delete this submission and ALL related data? This cannot be undone.', 'Confirm Delete')">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
                                             <button type="submit" class="btn btn-sm btn-outline-danger">

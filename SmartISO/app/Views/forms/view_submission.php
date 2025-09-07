@@ -1,12 +1,12 @@
 <?= $this->extend('layouts/default') ?>
 
 <?= $this->section('content') ?>
-<div class="container-fluid">
-    <div class="card">
-    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+<div class="container-fluid compact-page">
+    <div class="card shadow-sm mb-3">
+    <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center small">
             <div>
-                <h3><?= $title ?></h3>
-                <p class="text-muted mb-0">Form: <?= esc($form['code']) ?> - <?= esc($form['description']) ?></p>
+                <h3 class="h5 mb-1 fw-semibold"><?= $title ?></h3>
+                <p class="text-muted mb-0 small">Form: <?= esc($form['code']) ?> - <?= esc($form['description']) ?></p>
             </div>
             <div class="d-flex align-items-center">
                 <?php if (session()->get('user_type') === 'requestor'): ?>
@@ -39,11 +39,11 @@
                 <?php endif; ?>
             </div>
         </div>
-        <div class="card-body">
+    <div class="card-body py-3 px-3 small">
             <?php /* helper functions autoloaded via app/Helpers/form_helper.php */ ?>
 
             <!-- Status Badge -->
-            <div class="mb-4">
+            <div class="mb-3">
                 <span class="badge 
                     <?php 
                     switch($submission['status']) {
@@ -59,26 +59,26 @@
                     Status: <?= ucfirst(str_replace('_', ' ', $submission['status'])) ?>
                 </span>
                 
-                <div class="row">
+                <div class="row g-2">
                     <div class="col-md-6">
-                        <p><strong>Submitted By:</strong> <?= esc($submitter['full_name'] ?? 'Unknown') ?></p>
-                        <p><strong>Submission Date:</strong> <?= date('M d, Y h:i A', strtotime($submission['created_at'])) ?></p>
+                        <p class="mb-1"><strong>Submitted By:</strong> <?= esc($submitter['full_name'] ?? 'Unknown') ?></p>
+                        <p class="mb-1"><strong>Submission Date:</strong> <?= date('M d, Y h:i A', strtotime($submission['created_at'])) ?></p>
                         
                         <?php if (!empty($submission['approver_id']) && !empty($approver)): ?>
-                            <p><strong>Approved By:</strong> <?= esc($approver['full_name']) ?></p>
-                            <p><strong>Approved Date:</strong> <?= date('M d, Y h:i A', strtotime($submission['approved_at'])) ?></p>
+                            <p class="mb-1"><strong>Approved By:</strong> <?= esc($approver['full_name']) ?></p>
+                            <p class="mb-1"><strong>Approved Date:</strong> <?= date('M d, Y h:i A', strtotime($submission['approved_at'])) ?></p>
                         <?php endif; ?>
                         
                         <?php if (!empty($submission['service_staff_id']) && !empty($service_staff)): ?>
-                            <p><strong>Service Staff:</strong> <?= esc($service_staff['full_name']) ?></p>
+                            <p class="mb-1"><strong>Service Staff:</strong> <?= esc($service_staff['full_name']) ?></p>
                         <?php endif; ?>
                         
                         <?php if (!empty($submission['service_staff_signature_date'])): ?>
-                            <p><strong>Service Completed:</strong> <?= date('M d, Y h:i A', strtotime($submission['service_staff_signature_date'])) ?></p>
+                            <p class="mb-1"><strong>Service Completed:</strong> <?= date('M d, Y h:i A', strtotime($submission['service_staff_signature_date'])) ?></p>
                         <?php endif; ?>
                         
                         <?php if (!empty($submission['requestor_signature_date'])): ?>
-                            <p><strong>Requestor Confirmed:</strong> <?= date('M d, Y h:i A', strtotime($submission['requestor_signature_date'])) ?></p>
+                            <p class="mb-1"><strong>Requestor Confirmed:</strong> <?= date('M d, Y h:i A', strtotime($submission['requestor_signature_date'])) ?></p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -118,7 +118,7 @@
                         
                         <div class="col-md-4 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary" 
-                                    onclick="return confirm('Are you sure you want to assign this service staff member?')">
+                                    onclick="return confirmAndSubmit(event, 'Are you sure you want to assign this service staff member?', 'Confirm Assignment')">
                                 <i class="bi bi-check-circle"></i> Assign Service Staff
                             </button>
                         </div>
@@ -173,12 +173,12 @@
             <?php endif; ?>
             
             <!-- Form Data -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Form Data</h5>
+            <div class="card mb-3 border-0 shadow-sm">
+                <div class="card-header py-2 px-3 bg-light">
+                    <h5 class="mb-0 small text-uppercase text-muted">Form Data</h5>
                 </div>
-                <div class="card-body">
-                    <div class="row">
+                <div class="card-body py-3 px-3 small">
+                    <div class="row g-2">
                         <?php 
                         // Group fields by role for better organization
                         $requestorFields = [];
@@ -212,8 +212,8 @@
                             foreach (array_merge($requestorFields, $bothFields, $readonlyFields) as $field): 
                             ?>
                                 <div class="col-md-<?= $field['width'] ?? 6 ?>">
-                                    <div class="mb-3">
-                                        <label class="form-label"><?= $field['field_label'] ?></label>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold mb-1"><?= $field['field_label'] ?></label>
                                         <?php
                                         $ft = $field['field_type'];
                                         $name = $field['field_name'];
@@ -242,21 +242,21 @@
                                         $mapOption = function($opt){ if (is_array($opt)) { $label = $opt['label'] ?? ($opt['sub_field'] ?? ''); $value = $opt['sub_field'] ?? ($opt['label'] ?? ''); } else { $label = $opt; $value = $opt; } return [$label,$value]; };
                                         switch ($ft) {
                                             case 'textarea':
-                                                echo '<textarea class="form-control" readonly rows="3">'.render_field_display($field,$submission_data).'</textarea>'; break;
+                                                echo '<textarea class="form-control form-control-sm" readonly rows="2">'.render_field_display($field,$submission_data).'</textarea>'; break;
                                             case 'radio':
-                                                echo '<div class="d-flex flex-wrap gap-3">';
+                                                echo '<div class="d-flex flex-wrap gap-2">';
                                                 foreach ($opts as $oi=>$opt){ list($lbl,$val)=$mapOption($opt); $chk=in_array((string)$val, array_map('strval',$selectedVals))?'checked':''; echo '<div class="form-check">'; echo '<input class="form-check-input" type="radio" disabled id="'.$name.'_v_'.$oi.'" '.$chk.'>'; echo '<label class="form-check-label" for="'.$name.'_v_'.$oi.'">'.esc($lbl).'</label>'; echo '</div>'; }
                                                 echo '</div>'; break;
                                             case 'checkbox':
                                             case 'checkboxes':
-                                                echo '<div class="d-flex flex-wrap gap-3">';
+                                                echo '<div class="d-flex flex-wrap gap-2">';
                                                 foreach ($opts as $oi=>$opt){ list($lbl,$val)=$mapOption($opt); $chk=in_array((string)$val, array_map('strval',$selectedVals))?'checked':''; echo '<div class="form-check">'; echo '<input class="form-check-input" type="checkbox" disabled id="'.$name.'_v_'.$oi.'" '.$chk.'>'; echo '<label class="form-check-label" for="'.$name.'_v_'.$oi.'">'.esc($lbl).'</label>'; echo '</div>'; }
                                                 echo '</div>'; break;
                                             case 'dropdown':
                                             case 'select':
-                                                echo '<select class="form-select" disabled>'; echo '<option value="">Select...</option>'; foreach ($opts as $opt){ list($lbl,$val)=$mapOption($opt); $sel=in_array((string)$val, array_map('strval',$selectedVals))?'selected':''; echo '<option '.$sel.' value="'.esc($val).'">'.esc($lbl).'</option>'; } echo '</select>'; break;
+                                                echo '<select class="form-select form-select-sm" disabled>'; echo '<option value="">Select...</option>'; foreach ($opts as $opt){ list($lbl,$val)=$mapOption($opt); $sel=in_array((string)$val, array_map('strval',$selectedVals))?'selected':''; echo '<option '.$sel.' value="'.esc($val).'">'.esc($lbl).'</option>'; } echo '</select>'; break;
                                             default:
-                                                echo '<input type="text" class="form-control" value="'.render_field_display($field,$submission_data).'" readonly>';
+                                                echo '<input type="text" class="form-control form-control-sm" value="'.render_field_display($field,$submission_data).'" readonly>';
                                         }
                                         ?>
                                     </div>
@@ -281,12 +281,12 @@
                             foreach (array_merge($serviceFields, $bothFields) as $field): 
                             ?>
                                 <div class="col-md-<?= $field['width'] ?? 6 ?>">
-                                    <div class="mb-3">
-                                        <label class="form-label"><?= $field['field_label'] ?></label>
+                                    <div class="mb-2">
+                                        <label class="form-label small fw-semibold mb-1"><?= $field['field_label'] ?></label>
                                         <?php if ($field['field_type'] === 'textarea'): ?>
-                                            <textarea class="form-control" readonly rows="3"><?= render_submission_value($submission_data[$field['field_name']] ?? null) ?></textarea>
+                                            <textarea class="form-control form-control-sm" readonly rows="2"><?= render_submission_value($submission_data[$field['field_name']] ?? null) ?></textarea>
                                         <?php else: ?>
-                                            <input type="text" class="form-control" value="<?= render_submission_value($submission_data[$field['field_name']] ?? null) ?>" readonly>
+                                            <input type="text" class="form-control form-control-sm" value="<?= render_submission_value($submission_data[$field['field_name']] ?? null) ?>" readonly>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -309,44 +309,58 @@
             
             <!-- Signatures Section -->
             <?php if (!empty($submission['approver_id']) || !empty($submission['service_staff_signature_date']) || !empty($submission['requestor_signature_date'])): ?>
-            <div class="card mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Signatures</h5>
+            <?php
+                // Helper inline: build full URL for signature supporting legacy stored values
+                $sigUrl = function($raw) {
+                    if (empty($raw)) return '';
+                    $raw = ltrim($raw, '/');
+                    if (strpos($raw, 'uploads/signatures/') === 0) {
+                        return base_url($raw);
+                    }
+                    return base_url('uploads/signatures/' . $raw);
+                };
+                $approverSigUrl = !empty($approver['signature']) ? $sigUrl($approver['signature']) : '';
+                $serviceStaffSigUrl = !empty($service_staff['signature']) ? $sigUrl($service_staff['signature']) : '';
+                $requestorSigUrl = !empty($submitter['signature']) ? $sigUrl($submitter['signature']) : '';
+            ?>
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header bg-info text-white py-2 px-3">
+                    <h5 class="mb-0 small text-uppercase">Signatures</h5>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <?php if (!empty($approver) && !empty($approver['signature'])): ?>
-                        <div class="col-md-4 text-center mb-3">
-                            <p><strong>Approver Signature</strong></p>
-                            <img src="<?= base_url($approver['signature']) ?>" 
+                <div class="card-body py-3 px-3 small">
+                    <div class="row g-2">
+                        <?php if (!empty($approver) && $approverSigUrl): ?>
+                        <div class="col-md-4 text-center mb-2">
+                            <p class="mb-1 small fw-semibold">Approver</p>
+                            <img src="<?= $approverSigUrl ?>" 
                                  alt="Approver signature" 
                                  class="img-fluid mb-2" 
                                  style="max-height: 100px; border: 1px dashed #ccc; padding: 10px;">
-                            <p class="small text-muted"><?= esc($approver['full_name']) ?><br>
+                            <p class="small text-muted mb-0"><?= esc($approver['full_name']) ?><br>
                                <?= date('M d, Y h:i A', strtotime($submission['approved_at'])) ?></p>
                         </div>
                         <?php endif; ?>
                         
-                        <?php if (!empty($service_staff) && !empty($service_staff['signature']) && !empty($submission['service_staff_signature_date'])): ?>
-                        <div class="col-md-4 text-center mb-3">
-                            <p><strong>Service Staff Signature</strong></p>
-                            <img src="<?= base_url($service_staff['signature']) ?>" 
+                        <?php if (!empty($service_staff) && $serviceStaffSigUrl && !empty($submission['service_staff_signature_date'])): ?>
+                        <div class="col-md-4 text-center mb-2">
+                            <p class="mb-1 small fw-semibold">Service Staff</p>
+                            <img src="<?= $serviceStaffSigUrl ?>" 
                                  alt="Service staff signature" 
                                  class="img-fluid mb-2" 
                                  style="max-height: 100px; border: 1px dashed #ccc; padding: 10px;">
-                            <p class="small text-muted"><?= esc($service_staff['full_name']) ?><br>
+                            <p class="small text-muted mb-0"><?= esc($service_staff['full_name']) ?><br>
                                <?= date('M d, Y h:i A', strtotime($submission['service_staff_signature_date'])) ?></p>
                         </div>
                         <?php endif; ?>
                         
-                        <?php if (!empty($submitter) && !empty($submitter['signature']) && !empty($submission['requestor_signature_date'])): ?>
-                        <div class="col-md-4 text-center mb-3">
-                            <p><strong>Requestor Confirmation</strong></p>
-                            <img src="<?= base_url('uploads/signatures/' . $submitter['signature']) ?>" 
+                        <?php if (!empty($submitter) && $requestorSigUrl && !empty($submission['requestor_signature_date'])): ?>
+                        <div class="col-md-4 text-center mb-2">
+                            <p class="mb-1 small fw-semibold">Requestor</p>
+                            <img src="<?= $requestorSigUrl ?>" 
                                  alt="Requestor signature" 
                                  class="img-fluid mb-2" 
                                  style="max-height: 100px; border: 1px dashed #ccc; padding: 10px;">
-                            <p class="small text-muted"><?= esc($submitter['full_name']) ?><br>
+                            <p class="small text-muted mb-0"><?= esc($submitter['full_name']) ?><br>
                                <?= date('M d, Y h:i A', strtotime($submission['requestor_signature_date'])) ?></p>
                         </div>
                         <?php endif; ?>
@@ -356,7 +370,7 @@
             <?php endif; ?>
             
             <!-- Action Buttons -->
-            <div class="d-flex justify-content-between">
+            <div class="d-flex justify-content-between mt-2">
                 <?php if ($canApprove): ?>
                     <a href="<?= base_url('forms/approve/' . $submission['id']) ?>" class="btn btn-success">
                         <i class="bi bi-check-circle"></i> Approve Form
@@ -394,7 +408,7 @@
                 $hasFeedback = $feedbackModel->hasFeedback($submission['id'], $userId);
                 if (!$hasFeedback) {
             ?>
-                <a href="<?= base_url('feedback/create/' . $submission['id']) ?>" class="btn btn-outline-primary mt-3">
+                <a href="<?= base_url('feedback/create/' . $submission['id']) ?>" class="btn btn-outline-primary btn-sm mt-2">
                     <i class="fas fa-comment-dots me-1"></i> Submit Feedback
                 </a>
             <?php
@@ -406,7 +420,7 @@
                     $existingFb = $feedbackModel->getFeedbackBySubmissionAndUser($submission['id'], $userId);
                     $fbId = $existingFb['id'] ?? null;
             ?>
-                <a href="<?= $fbId ? base_url('feedback/view/' . $fbId) : base_url('feedback') ?>" class="btn btn-sm btn-success mt-3">
+                <a href="<?= $fbId ? base_url('feedback/view/' . $fbId) : base_url('feedback') ?>" class="btn btn-success btn-sm mt-2">
                     <i class="fas fa-check-circle me-1"></i> Feedback submitted
                 </a>
             <?php
@@ -417,10 +431,10 @@
             $cancellableStatuses = ['submitted', 'approved', 'pending_service'];
             if ($userType === 'requestor' && in_array($submission['status'] ?? '', $cancellableStatuses) && empty($submission['service_staff_signature_date']) && empty($submission['requestor_signature_date'])):
             ?>
-                <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline-block ms-2 mt-3">
+                <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline-block ms-2 mt-2">
                     <?= csrf_field() ?>
                     <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
-                    <button type="submit" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to cancel this request?')">
+                    <button type="submit" class="btn btn-outline-danger" onclick="return confirmAndSubmit(event, 'Are you sure you want to cancel this request?', 'Confirm Cancel')">
                         <i class="bi bi-x-circle"></i> Cancel Request
                     </button>
                 </form>
@@ -458,4 +472,20 @@
 </div>
 <?php endif; ?>
 
+<?= $this->endSection() ?>
+
+<?= $this->section('styles') ?>
+<style>
+    .compact-page .card{border-radius:6px;}
+    .compact-page .form-control,.compact-page .form-select{padding:.25rem .5rem;font-size:.75rem;}
+    .compact-page textarea.form-control{min-height:48px;}
+    .compact-page label.form-label{font-size:.65rem;letter-spacing:.3px;}
+    .compact-page h5,.compact-page h6{font-size:.8rem;}
+    .compact-page .badge{font-size:.6rem;padding:.35em .5em;}
+    .compact-page .card-header{border-bottom:1px solid #e5e7eb;}
+    .compact-page .table-sm td,.compact-page .table-sm th{padding:.25rem .4rem;}
+    .compact-page .btn,.compact-page a.btn{padding:.25rem .55rem;font-size:.65rem;}
+    .compact-page .img-fluid{max-width:100%;height:auto;}
+    @media (min-width:992px){.compact-page .container-fluid{max-width:1350px;}}
+</style>
 <?= $this->endSection() ?>

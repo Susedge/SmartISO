@@ -419,7 +419,8 @@ document.addEventListener('change', function(e) {
                                 </div>
                                 <div class="col-md-6 text-center">
                                     <p><strong>Your Signature:</strong></p>
-                                    <img src="<?= base_url($current_user['signature']) ?>" 
+                                    <?php $__sig = $current_user['signature'] ?? ''; if ($__sig && strpos($__sig,'uploads/signatures/') !== 0) { $__sig = 'uploads/signatures/' . ltrim($__sig,'/'); } ?>
+                                    <img src="<?= base_url($__sig) ?>" 
                                          alt="Your signature" 
                                          class="img-fluid mb-2" 
                                          style="max-height: 100px; border: 1px dashed #ccc; padding: 10px;">

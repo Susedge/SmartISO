@@ -29,11 +29,11 @@
                 <input type="text" class="form-control" id="description" name="description" value="<?= old('description') ?>" required>
             </div>
             <div class="mb-3">
-                <label for="office_id" class="form-label">Office</label>
-                <select id="office_id" name="office_id" class="form-select" required>
-                    <option value="">-- Select Office --</option>
-                    <?php foreach (($offices ?? []) as $office): ?>
-                        <option value="<?= esc($office['id']) ?>" <?= old('office_id') == $office['id'] ? 'selected' : '' ?>><?= esc($office['description']) ?></option>
+                <label for="department_id" class="form-label">Department</label>
+                <select id="department_id" name="department_id" class="form-select" required>
+                    <option value="">-- Select Department --</option>
+                    <?php foreach (($departments ?? []) as $dept): ?>
+                        <option value="<?= esc($dept['id']) ?>" <?= old('department_id') == $dept['id'] ? 'selected' : '' ?>><?= esc($dept['description']) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>

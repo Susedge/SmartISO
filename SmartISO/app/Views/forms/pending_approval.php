@@ -11,13 +11,13 @@
             <div class="col-md-6">
                 <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
                     <div class="col-md-5">
-                        <label for="office_filter" class="form-label">Filter by Office</label>
-                        <select name="office" id="office_filter" class="form-select">
-                            <option value="">All Offices</option>
-                            <?php if (isset($offices) && is_array($offices)): ?>
-                                <?php foreach ($offices as $office): ?>
-                                    <option value="<?= esc($office) ?>" <?= (($selectedOffice ?? '') === $office) ? 'selected' : '' ?>>
-                                        <?= esc($office) ?>
+                        <label for="department_filter" class="form-label">Filter by Department</label>
+                        <select name="department" id="department_filter" class="form-select">
+                            <option value="">All Departments</option>
+                            <?php if (isset($departments) && is_array($departments)): ?>
+                                <?php foreach ($departments as $dept): ?>
+                                    <option value="<?= esc($dept) ?>" <?= (($selectedDepartment ?? '') === $dept) ? 'selected' : '' ?>>
+                                        <?= esc($dept) ?>
                                     </option>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -56,7 +56,7 @@
                                         <form method="post" action="<?= base_url('forms/approve-all') ?>" style="display: inline;" 
                                                     onsubmit="return confirm('Are you sure you want to approve all filtered forms? This action cannot be undone.')">
                                                 <?= csrf_field() ?>
-                                                <input type="hidden" name="office_filter" value="<?= esc($selectedOffice ?? '') ?>">
+                                                <input type="hidden" name="department_filter" value="<?= esc($selectedDepartment ?? '') ?>">
                                                 <input type="hidden" name="priority_filter" value="<?= esc($selectedPriority) ?>">
                         <button type="submit" class="btn btn-success">
                             <i class="fas fa-check-double me-1"></i> Approve All Filtered
@@ -79,7 +79,7 @@
                             <th>ID</th>
                             <th>Form</th>
                             <th>Submitted By</th>
-                            <th>Office</th>
+                            <th>Department</th>
                             <th>Priority</th>
                             <th>Submission Date</th>
                             <th>Reference File</th>
@@ -92,7 +92,7 @@
                             <td><?= $submission['id'] ?></td>
                             <td><?= esc($submission['form_code']) ?> - <?= esc($submission['form_description']) ?></td>
                             <td><?= esc($submission['submitted_by_name']) ?></td>
-                            <td><?= esc($submission['office_name'] ?? 'N/A') ?></td>
+                            <td><?= esc($submission['department_name'] ?? 'N/A') ?></td>
                             <td>
                                 <?php if (!empty($submission['priority'])): ?>
                                     <span class="badge bg-secondary">

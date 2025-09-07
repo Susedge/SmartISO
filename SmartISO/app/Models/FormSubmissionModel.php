@@ -17,7 +17,11 @@ class FormSubmissionModel extends Model
         'approver_id', 'approved_at', 'approval_comments',
         'rejected_reason', 'signature_applied', 'service_staff_id',
         'service_staff_signature_date', 'service_notes',
-        'requestor_signature_date', 'completed', 'completion_date'
+    'requestor_signature_date', 'approver_signature_date', 'completed', 'completion_date',
+        // File attachment support
+        'reference_file', 'reference_file_original',
+        // Optional cancellation timestamp if present
+        'cancelled_at'
     ];
     
     protected $useTimestamps = true;
@@ -98,19 +102,20 @@ class FormSubmissionModel extends Model
     /**
      * Get submissions pending approval with optional filters
      */
-    public function getPendingApprovalsWithFilters($officeFilter = null, $priorityFilter = null)
+    // NOTE: parameter originally named $officeFilter; repurposed as department filter after org refactor
+    public function getPendingApprovalsWithFilters($departmentFilter = null, $priorityFilter = null)
     {
         $builder = $this->db->table('form_submissions fs');
         $builder->select('fs.*, f.code as form_code, f.description as form_description, 
-                          u.full_name as submitted_by_name, o.description as office_name')
+                          u.full_name as submitted_by_name, d.description as department_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
-            ->join('offices o', 'o.id = u.office_id', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
             ->where('fs.status', 'submitted');
         
-        // Apply office filter
-        if (!empty($officeFilter)) {
-            $builder->where('o.description', $officeFilter);
+        // Apply department filter (legacy: previously office filter)
+        if (!empty($departmentFilter)) {
+            $builder->where('d.description', $departmentFilter);
         }
         
         // Apply priority filter
@@ -130,10 +135,11 @@ class FormSubmissionModel extends Model
     {
         $builder = $this->db->table('form_submissions fs');
         $builder->select('fs.*, f.code as form_code, f.description as form_description, 
-                          u.full_name as submitted_by_name, approver.full_name as approver_name')
+                          u.full_name as submitted_by_name, approver.full_name as approver_name, d.description as department_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('users approver', 'approver.id = fs.approver_id', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
             ->where('fs.status', 'approved')
             ->where('fs.service_staff_id IS NULL')
             ->orderBy('fs.approved_at', 'ASC');
@@ -181,6 +187,8 @@ class FormSubmissionModel extends Model
             'status' => 'approved',
             'approver_id' => $approverId,
             'approved_at' => date('Y-m-d H:i:s'),
+            // persist explicit approver signature timestamp for downstream templating
+            'approver_signature_date' => date('Y-m-d H:i:s'),
             'approval_comments' => $comments,
             'signature_applied' => 1
         ]);
