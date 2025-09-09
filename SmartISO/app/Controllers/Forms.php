@@ -62,6 +62,39 @@ class Forms extends BaseController
         } catch (\Throwable $e) {
             $allOffices = [];
         }
+
+        // If both department and office were provided, ensure the selected office actually
+        // belongs to the selected department. If it doesn't, clear the selected office so
+        // we don't accidentally show forms for an unrelated office.
+        if (!empty($selectedDepartment) && !empty($selectedOffice)) {
+            $officeOk = false;
+            // Quick check against offices.department_id
+            foreach ($allOffices as $o) {
+                if ((int)($o['id'] ?? 0) === $selectedOffice) {
+                    if (!empty($o['department_id']) && (int)$o['department_id'] === $selectedDepartment) {
+                        $officeOk = true;
+                    }
+                    break;
+                }
+            }
+            // If still not matched, consult legacy pivot table department_office
+            if (!$officeOk) {
+                $db = \Config\Database::connect();
+                if ($db->tableExists('department_office')) {
+                    $row = $db->table('department_office')
+                              ->select('1')
+                              ->where('department_id', $selectedDepartment)
+                              ->where('office_id', $selectedOffice)
+                              ->get()
+                              ->getRowArray();
+                    if (!empty($row)) { $officeOk = true; }
+                }
+            }
+            if (!$officeOk) {
+                // clear the selected office to avoid showing unrelated forms
+                $selectedOffice = null;
+            }
+        }
         // Keep both the full office list and a department-filtered list. The view
         // prefers the full list and lets JS hide/show options, but we keep the
         // filtered list for backward compatibility.

@@ -159,29 +159,30 @@ class Configurations extends BaseController
         }
         $search = trim($this->request->getGet('q') ?? '');
 
-        // Base queries
-        $departmentsQ = $this->departmentModel;
-        $officesQ = $this->officeModel;
-        $formsQ = $this->formModel;
+        // Use fresh model instances for query building to avoid mutating controller properties
+        $departmentsQ = new DepartmentModel();
+        $officesQ = new OfficeModel();
+        $formsQ = new FormModel();
+        $configQ = new ConfigurationModel();
 
         if ($search !== '') {
             if ($tableType === 'departments') {
-                $departmentsQ = $departmentsQ->groupStart()->like('code',$search)->orLike('description',$search)->groupEnd();
+                $departmentsQ = $departmentsQ->groupStart()->like('code', $search)->orLike('description', $search)->groupEnd();
             } elseif ($tableType === 'offices') {
-                $officesQ = $officesQ->groupStart()->like('code',$search)->orLike('description',$search)->groupEnd();
+                $officesQ = $officesQ->groupStart()->like('code', $search)->orLike('description', $search)->groupEnd();
             } elseif ($tableType === 'forms') {
-                $formsQ = $formsQ->groupStart()->like('code',$search)->orLike('description',$search)->groupEnd();
+                $formsQ = $formsQ->groupStart()->like('code', $search)->orLike('description', $search)->groupEnd();
             } elseif ($tableType === 'system') {
                 // optional search across configuration key/description
-                $this->configurationModel = $this->configurationModel->groupStart()->like('config_key',$search)->orLike('config_description',$search)->groupEnd();
+                $configQ = $configQ->groupStart()->like('config_key', $search)->orLike('config_description', $search)->groupEnd();
             }
         }
 
-    $departments = $departmentsQ->findAll();
-    // Data for currently selected table display
-    $offices = ($tableType === 'offices' || $tableType === 'departments') ? $officesQ->findAll() : [];
-    $forms = ($tableType === 'forms' || $tableType === 'offices') ? $formsQ->findAll() : [];
-    $configurations = ($tableType === 'system') ? $this->configurationModel->orderBy('config_key','ASC')->findAll() : [];
+        // Fetch lists (order consistently)
+        $departments = $departmentsQ->orderBy('code','ASC')->findAll();
+        $offices = ($tableType === 'offices' || $tableType === 'departments') ? $officesQ->orderBy('code','ASC')->findAll() : [];
+        $forms = ($tableType === 'forms' || $tableType === 'offices') ? $formsQ->orderBy('code','ASC')->findAll() : [];
+        $configurations = ($tableType === 'system') ? $configQ->orderBy('config_key','ASC')->findAll() : [];
     // panels list for Panels tab
     $panels = (new \App\Models\DbpanelModel())->getPanels();
     // Always provide complete lists for assignment modals (independent of selected tab)

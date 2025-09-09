@@ -44,64 +44,50 @@
             </div>
         </form>
 
-        <div class="row g-3" id="formsGrid">
-            <?php
-                // Build lookup maps for fallbacks when the query doesn't return names
-                $deptMap = [];
-                if (!empty($departments) && is_array($departments)) {
-                    foreach ($departments as $d) { $deptMap[$d['id']] = $d['description']; }
-                }
-                $officeMap = [];
-                if (!empty($allOffices) && is_array($allOffices)) {
-                    foreach ($allOffices as $o) { $officeMap[$o['id']] = $o['description']; }
-                }
-            ?>
-            <?php foreach ($forms as $form): ?>
-                <div class="col-12 col-sm-6 col-lg-4">
-                    <div class="form-card h-100 d-flex flex-column">
-                        <div class="flex-grow-1">
-                            <div class="d-flex align-items-start justify-content-between mb-1">
-                                <h6 class="fw-semibold mb-1 form-title" title="<?= esc($form['description']) ?>"><?= esc($form['description']) ?></h6>
-                                <span class="badge rounded-pill bg-light text-dark border fw-normal"><?= esc($form['code']) ?></span>
-                            </div>
-                            <div class="small text-muted mb-1">
-                                <?php
-                                    // Prefer department_name/office_name from query, fall back to ids using maps
-                                    $dept = !empty($form['department_name']) ? esc($form['department_name']) : null;
-                                    if (empty($dept) && !empty($form['department_id']) && isset($deptMap[$form['department_id']])) {
-                                        $dept = esc($deptMap[$form['department_id']]);
-                                    }
-                                    $office = !empty($form['office_name']) ? esc($form['office_name']) : null;
-                                    if (empty($office) && !empty($form['office_id']) && isset($officeMap[$form['office_id']])) {
-                                        $office = esc($officeMap[$form['office_id']]);
-                                    }
-                                    // Debug: show raw values
-                                    // echo '<small>DEBUG: dept=[' . ($form['department_name'] ?? 'NULL') . '] office=[' . ($form['office_name'] ?? 'NULL') . ']</small><br>';
-                                    if ($dept || $office):
-                                        $parts = [];
-                                        if ($dept) $parts[] = '<i class="bi bi-diagram-3"></i> ' . $dept;
-                                        if ($office) $parts[] = '<i class="bi bi-building"></i> ' . $office;
-                                        echo implode(' <span class="mx-2">•</span> ', $parts);
-                                    else:
-                                        echo '<span class="text-muted">Unassigned</span>';
-                                    endif;
-                                ?>
-                            </div>
-                            
-                        </div>
-                        <div class="mt-2 d-flex align-items-center gap-2">
-                            <a href="<?= base_url('forms/view/' . esc($form['code'])) ?>" class="btn btn-primary btn-sm flex-grow-1">Fill Out</a>
-                            <?php if (session()->get('user_type') === 'requestor'): ?>
-                                <a href="<?= base_url('forms/download/uploaded/' . esc($form['code'])) ?>" class="btn btn-outline-secondary btn-sm" title="Download Template"><i class="fas fa-file-download"></i></a>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
+        <div class="table-responsive">
+            <table id="formsTable" class="table table-striped table-hover table-sm w-100">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Description</th>
+                        <th>Department</th>
+                        <th>Office</th>
+                        <th style="display:none">dept_id</th>
+                        <th style="display:none">office_id</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($forms as $form):
+                        // Resolve names like before
+                        $dept = !empty($form['department_name']) ? $form['department_name'] : null;
+                        if (empty($dept) && !empty($form['department_id'])) {
+                            foreach ($departments as $d) { if ($d['id']==$form['department_id']) { $dept = $d['description']; break; } }
+                        }
+                        $office = !empty($form['office_name']) ? $form['office_name'] : null;
+                        if (empty($office) && !empty($form['office_id'])) {
+                            foreach ($allOffices as $o) { if ($o['id']==$form['office_id']) { $office = $o['description']; break; } }
+                        }
+                    ?>
+                        <tr>
+                            <td><?= esc($form['code']) ?></td>
+                            <td><?= esc($form['description']) ?></td>
+                            <td><?= esc($dept ?? '') ?></td>
+                            <td><?= esc($office ?? '') ?></td>
+                            <td style="display:none"><?= esc($form['department_id'] ?? '') ?></td>
+                            <td style="display:none"><?= esc($form['office_id'] ?? '') ?></td>
+                            <td>
+                                <a href="<?= base_url('forms/view/' . esc($form['code'])) ?>" class="btn btn-primary btn-sm">Fill Out</a>
+                                <?php if (session()->get('user_type') === 'requestor'): ?>
+                                    <a href="<?= base_url('forms/download/uploaded/' . esc($form['code'])) ?>" class="btn btn-outline-secondary btn-sm ms-1" title="Download Template"><i class="fas fa-file-download"></i></a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
             <?php if (empty($forms)): ?>
-                <div class="col-12">
-                    <div class="alert alert-info mb-0 small">No forms match the current filters.</div>
-                </div>
+                <div class="alert alert-info small">No forms available.</div>
             <?php endif; ?>
         </div>
     </div>
@@ -158,4 +144,89 @@ document.addEventListener('DOMContentLoaded', () => {
     .available-forms .btn-sm{font-size:.65rem;padding:.35rem .55rem;}
     @media (min-width:1400px){ .available-forms .form-title{font-size:.95rem;} }
 </style>
+<!-- DataTables CSS (CDN) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
 <?= $this->endSection() ?>
+<?= $this->section('scripts') ?>
+<!-- DataTables JS (CDN) -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize DataTable
+    const tableEl = document.getElementById('formsTable');
+    if (!tableEl) return;
+    // Ensure jQuery is available for DataTables (CI apps often include it); if not, inject minimal wrapper
+    if (typeof jQuery === 'undefined') {
+        console.warn('jQuery not found — DataTables requires jQuery. Please include jQuery in layout.');
+        return;
+    }
+    const dt = jQuery(tableEl).DataTable({
+        "pageLength": 25,
+        "lengthChange": true,
+        "columns": [null, null, null, null, {"visible": false}, {"visible": false}, null],
+        // Place length select and filter nicely using Bootstrap utilities
+        "dom": '<"d-flex justify-content-between align-items-center mb-2"<"dt-length"l><"dt-filter"f>>t<"d-flex justify-content-between align-items-center mt-2"ip>',
+        "language": {
+            // Short, clear label
+            "lengthMenu": "Show _MENU_ entries"
+        },
+        "initComplete": function(settings, json) {
+            try {
+                const wrapper = jQuery(tableEl).closest('.dataTables_wrapper');
+                // Style the length select and the global search input to match site Bootstrap classes
+                wrapper.find('.dt-length select, .dataTables_length select').addClass('form-select form-select-sm');
+                wrapper.find('.dt-filter input, .dataTables_filter input').addClass('form-control form-control-sm');
+                // Reduce default width so it doesn't look oversized
+                wrapper.find('.dt-length select').css({ 'width': 'auto', 'min-width': '110px' });
+                // Give the filter input a compact width on small screens
+                wrapper.find('.dt-filter').addClass('ms-2');
+            } catch (e) { console.warn('DataTables initComplete styling failed', e); }
+        }
+    });
+
+    const deptSel = document.getElementById('departmentSelect');
+    const officeSel = document.getElementById('officeSelect');
+
+    function applyFilters() {
+        const deptVal = deptSel.value || '';
+        const officeVal = officeSel.value || '';
+        // dept_id is column index 4 (hidden), office_id is index 5
+        if (deptVal) {
+            dt.column(4).search('^' + deptVal + '$', true, false).draw();
+        } else {
+            dt.column(4).search('').draw();
+        }
+        if (officeVal) {
+            dt.column(5).search('^' + officeVal + '$', true, false).draw();
+        } else {
+            dt.column(5).search('').draw();
+        }
+        // Update results meta
+        const info = dt.page.info();
+        const meta = document.getElementById('resultsMeta');
+        if (meta) { meta.textContent = (info.recordsDisplay || 0) + ' form' + ((info.recordsDisplay||0)===1?'':'s') + ' found'; }
+    }
+
+    deptSel.addEventListener('change', () => {
+        // filter offices shown to user
+        const d = deptSel.value;
+        Array.from(officeSel.options).forEach(opt => {
+            if (!opt.value) { opt.hidden = false; return; }
+            const oDept = opt.getAttribute('data-dept') || '';
+            opt.hidden = d && (d !== oDept);
+        });
+        // clear office if currently hidden
+        const cur = officeSel.options[officeSel.selectedIndex];
+        if (cur && cur.hidden) officeSel.value = '';
+        applyFilters();
+    });
+    officeSel.addEventListener('change', applyFilters);
+
+    // Apply initial filters using server-provided selected values
+    applyFilters();
+});
+</script>
+<?= $this->endSection() ?>
+
+<!-- Reverted page-bottom custom card-like CSS overrides -->

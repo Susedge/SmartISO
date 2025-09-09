@@ -135,4 +135,25 @@
   window.SimpleModal = window.SimpleModal || SimpleModal;
     // expose helper globally
     window.confirmAndSubmit = window.confirmAndSubmit || confirmAndSubmit;
+    // Auto-bind any forms with data-confirm attributes to use SimpleModal
+    function autoBindConfirmForms(scope){
+      const ctx = scope || document;
+      Array.from(ctx.querySelectorAll('form[data-confirm]')).forEach(form => {
+        // avoid double-binding
+        if (form.__confirmBound) return; form.__confirmBound = true;
+        form.addEventListener('submit', function(e){
+          e.preventDefault();
+          const msg = form.getAttribute('data-confirm') || 'Are you sure?';
+          const title = form.getAttribute('data-confirm-title') || 'Confirm';
+          const variant = form.getAttribute('data-confirm-variant') || 'warning';
+          if (window.SimpleModal) {
+            window.SimpleModal.confirm(msg, title, variant).then(ok => { if (ok) form.submit(); });
+          } else {
+            if (window.confirm(msg)) form.submit();
+          }
+        });
+      });
+    }
+    // Run at load time
+    if (document.readyState !== 'loading') { autoBindConfirmForms(); } else { document.addEventListener('DOMContentLoaded', ()=> autoBindConfirmForms()); }
 })();

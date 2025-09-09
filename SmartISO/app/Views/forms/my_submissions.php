@@ -16,7 +16,7 @@
         <a href="<?= base_url('forms') ?>" class="btn btn-primary">Submit New Form</a>
     </div>
         <div class="card-body">        <div class="table-responsive">
-            <table class="table table-striped">
+            <table id="submissionsTable" class="table table-striped">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -60,7 +60,7 @@
                                         $canDelete = ($isOwner && in_array($status, ['completed','rejected','cancelled'])) || in_array($userType, ['admin','superuser']);
                                     ?>
                                     <?php if ($canCancel): ?>
-                                        <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline" onsubmit="return confirmAndSubmit(event, 'Cancel this submission? This will mark it as cancelled.', 'Confirm Cancel')">
+                                        <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline" data-confirm="Cancel this submission? This will mark it as cancelled." data-confirm-title="Confirm Cancel" data-confirm-variant="warning">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
                                             <button type="submit" class="btn btn-sm btn-outline-warning">
@@ -69,7 +69,7 @@
                                         </form>
                                     <?php endif; ?>
                                     <?php if ($canDelete): ?>
-                                        <form action="<?= base_url('forms/delete-submission') ?>" method="post" class="d-inline" onsubmit="return confirmAndSubmit(event, 'Delete this submission and ALL related data? This cannot be undone.', 'Confirm Delete')">
+                                        <form action="<?= base_url('forms/delete-submission') ?>" method="post" class="d-inline" data-confirm="Delete this submission and ALL related data? This cannot be undone." data-confirm-title="Confirm Delete" data-confirm-variant="warning">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
                                             <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -107,4 +107,36 @@
         </div>
     </div>
 </div>
+<?= $this->endSection() ?>
+<?= $this->section('styles') ?>
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<?= $this->endSection() ?>
+<?= $this->section('scripts') ?>
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    const table = document.getElementById('submissionsTable');
+    if(table && typeof jQuery !== 'undefined'){
+        jQuery(table).DataTable({ pageLength: 10, lengthChange: true });
+    }
+
+    // Bind forms with data-confirm attributes to SimpleModal
+    document.querySelectorAll('form[data-confirm]').forEach(form => {
+        form.addEventListener('submit', function(e){
+            e.preventDefault();
+            const msg = form.getAttribute('data-confirm') || 'Are you sure?';
+            const title = form.getAttribute('data-confirm-title') || 'Confirm';
+            const variant = form.getAttribute('data-confirm-variant') || 'warning';
+            if (window.SimpleModal) {
+                window.SimpleModal.confirm(msg, title, variant).then(ok => { if (ok) form.submit(); });
+            } else {
+                if (confirm(msg)) form.submit();
+            }
+        });
+    });
+});
+</script>
 <?= $this->endSection() ?>
