@@ -266,15 +266,41 @@ window.CONFIG_EDIT_DATA = {
     var officeSelect = document.getElementById('office_id');
     var deptSelect = document.getElementById('department_id');
     if (officeSelect && deptSelect) {
+        // Track previous office value so we can revert when user cancels
+        var prevOfficeVal = officeSelect.value || '';
         officeSelect.addEventListener('change', function(e){
             var val = officeSelect.value || '';
-            if (!val) return; // if none selected, do nothing
+            // If no office selected, do nothing (department may remain)
+            if (!val) { prevOfficeVal = ''; return; }
             var opt = officeSelect.querySelector('option[value="' + CSS.escape(val) + '"]');
-            if (opt && opt.dataset && opt.dataset.dept) {
-                var did = opt.dataset.dept || '';
-                if (did) {
-                    deptSelect.value = did;
+            var officeDept = (opt && opt.dataset) ? (opt.dataset.dept || '') : '';
+            var selectedDept = deptSelect.value || '';
+            // If a department is already set and differs from the office's department,
+            // ask for confirmation before overwriting.
+            if (selectedDept && officeDept && selectedDept !== officeDept) {
+                if (window.SimpleModal) {
+                    window.SimpleModal.confirm('Selecting this office will overwrite the currently selected department. Continue?', 'Confirm', 'warning').then(function(ok){
+                        if (ok) {
+                            deptSelect.value = officeDept;
+                            prevOfficeVal = val;
+                        } else {
+                            // revert office selection
+                            officeSelect.value = prevOfficeVal;
+                        }
+                    });
+                } else {
+                    // fallback to native confirm
+                    if (confirm('Selecting this office will overwrite the currently selected department. Continue?')) {
+                        deptSelect.value = officeDept;
+                        prevOfficeVal = val;
+                    } else {
+                        officeSelect.value = prevOfficeVal;
+                    }
                 }
+            } else {
+                // No conflict: inherit department from office
+                if (officeDept) { deptSelect.value = officeDept; }
+                prevOfficeVal = val;
             }
         });
     }

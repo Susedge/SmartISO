@@ -361,15 +361,18 @@ class Configurations extends BaseController
         $rules = [
             'code' => 'required|alpha_numeric|min_length[2]|max_length[20]|is_unique[forms.code]',
             'description' => 'required|min_length[3]|max_length[255]',
-            'office_id' => 'permit_empty|integer'
+            'office_id' => 'permit_empty|integer',
+            'department_id' => 'permit_empty|integer'
         ];
         if ($this->validate($rules)) {
             // Optionally accept office selection and derive department
             $officeId = $this->request->getPost('office_id') ?: null;
-            $departmentId = null;
+            // Allow saving department-only when no office selected
+            $departmentId = $this->request->getPost('department_id') ?: null;
             if (!empty($officeId)) {
                 $office = (new \App\Models\OfficeModel())->find((int)$officeId);
                 if ($office) {
+                    // office selection takes precedence and inherits its department
                     $departmentId = $office['department_id'] ?? null;
                 }
             }
@@ -842,7 +845,8 @@ class Configurations extends BaseController
         $rules = [
             'code' => $codeRule,
             'description' => 'required|min_length[3]|max_length[255]',
-            'office_id' => 'permit_empty|integer'
+            'office_id' => 'permit_empty|integer',
+            'department_id' => 'permit_empty|integer'
         ];
         if ($this->validate($rules)) {
             $updatePayload = [
@@ -852,13 +856,21 @@ class Configurations extends BaseController
             // Accept optional panel_name assignment
             $panelName = $this->request->getPost('panel_name') ?: null;
             if (($existing['panel_name'] ?? null) !== $panelName) { $updatePayload['panel_name'] = $panelName; }
-            // Accept optional office assignment and derive department
+            // Accept optional office assignment and/or department assignment.
+            // Office selection takes precedence: it will inherit its office's department.
             $officeId = $this->request->getPost('office_id') ?: null;
-            if ($officeId !== null) {
+            $incomingDept = $this->request->getPost('department_id') ?: null;
+            if ($officeId !== null && $officeId !== '') {
                 $office = (new \App\Models\OfficeModel())->find((int)$officeId);
                 $deptId = $office['department_id'] ?? null;
                 $updatePayload['office_id'] = $officeId;
                 $updatePayload['department_id'] = $deptId;
+            } else {
+                // No office selected — allow department-only save
+                if ($incomingDept !== null) {
+                    $updatePayload['office_id'] = null;
+                    $updatePayload['department_id'] = $incomingDept ?: null;
+                }
             }
             $this->formModel->update($id, $updatePayload);
             if ($this->request->isAJAX()) {
