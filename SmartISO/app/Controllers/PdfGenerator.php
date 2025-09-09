@@ -846,24 +846,79 @@ class PdfGenerator extends BaseController
             $mediaName = 'signature_' . strtolower($tag) . '.' . $ext;
             $zip->addFromString('word/media/' . $mediaName, $imgData);
 
-            // Determine size (px) using getimagesize, but force a small display size for signatures
-            $cx = 120; $cy = 40; // default px
-            if ($info = @getimagesize($imgPath)) {
-                $origW = $info[0];
-                $origH = $info[1];
-                // Target width for signatures in px (small for docx)
-                $targetW = 200;
-                if ($origW > 0) {
-                    $scale = $targetW / $origW;
-                    $cx = (int)round($origW * $scale);
-                    $cy = (int)round($origH * $scale);
+            // Determine original control drawing size (in EMU) and try to respect it.
+            // We'll inspect the existing content control for wp:inline/wp:anchor and any extent values.
+            $xpath->registerNamespace('wp','http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing');
+            $xpath->registerNamespace('a','http://schemas.openxmlformats.org/drawingml/2006/main');
+            $xpath->registerNamespace('pic','http://schemas.openxmlformats.org/drawingml/2006/picture');
+
+            $controlEmuW = null; $controlEmuH = null;
+            $useAnchor = false;
+            $existingDocPr = ['id' => null, 'name' => null];
+            $existingDist = ['distT' => '0','distB' => '0','distL' => '0','distR' => '0'];
+
+            // Look for inline or anchor drawing inside this sdt (before we clear it)
+            $foundInline = $xpath->query('.//wp:inline', $sdt)->item(0);
+            $foundAnchor = $xpath->query('.//wp:anchor', $sdt)->item(0);
+            $drawingNode = $foundInline ?: $foundAnchor;
+            if ($foundAnchor) { $useAnchor = true; }
+
+            if ($drawingNode) {
+                // Try to find a wp:extent child (cx/cy in EMU)
+                $extentNode = $xpath->query('.//wp:extent', $drawingNode)->item(0);
+                if ($extentNode && $extentNode->hasAttribute('cx') && $extentNode->hasAttribute('cy')) {
+                    $controlEmuW = (int)$extentNode->getAttribute('cx');
+                    $controlEmuH = (int)$extentNode->getAttribute('cy');
                 } else {
-                    $cx = $info[0];
-                    $cy = $info[1];
+                    // Fallback: check nested a:ext (sometimes drawing stores extents here)
+                    $aExt = $xpath->query('.//a:ext', $drawingNode)->item(0);
+                    if ($aExt && $aExt->hasAttribute('cx') && $aExt->hasAttribute('cy')) {
+                        $controlEmuW = (int)$aExt->getAttribute('cx');
+                        $controlEmuH = (int)$aExt->getAttribute('cy');
+                    }
+                }
+
+                // Capture existing docPr id/name if present so we can reuse them
+                $docPrNode = $xpath->query('.//wp:docPr', $drawingNode)->item(0);
+                if ($docPrNode) {
+                    if ($docPrNode->hasAttribute('id')) { $existingDocPr['id'] = $docPrNode->getAttribute('id'); }
+                    if ($docPrNode->hasAttribute('name')) { $existingDocPr['name'] = $docPrNode->getAttribute('name'); }
+                }
+                // Capture any dist* attributes present on inline/anchor
+                foreach (['distT','distB','distL','distR'] as $dAttr) {
+                    if ($drawingNode->hasAttribute($dAttr)) { $existingDist[$dAttr] = $drawingNode->getAttribute($dAttr); }
                 }
             }
-            // Convert px -> EMU (assuming 96 DPI): px * 9525
-            $emuX = (int)($cx * 9525); $emuY = (int)($cy * 9525);
+
+            // Determine image original size in px and compute target EMU using control extents when available
+            $emuX = 0; $emuY = 0;
+            if ($info = @getimagesize($imgPath)) {
+                $origW = max(1, (int)$info[0]);
+                $origH = max(1, (int)$info[1]);
+                $imageEmuW = (int)round($origW * 9525);
+                $imageEmuH = (int)round($origH * 9525);
+
+                if ($controlEmuW && $controlEmuH) {
+                    // Fit image into control extents preserving aspect ratio
+                    $scale = min($controlEmuW / $imageEmuW, $controlEmuH / $imageEmuH);
+                    // Avoid division by zero; ensure scale is sensible
+                    if ($scale <= 0) { $scale = 1.0; }
+                    $emuX = (int)round($imageEmuW * $scale);
+                    $emuY = (int)round($imageEmuH * $scale);
+                } else {
+                    // No control dims available; fallback to small target width (px) like before
+                    $targetW = 200; // px
+                    $scale = $targetW / $origW;
+                    $pxW = (int)round($origW * $scale);
+                    $pxH = (int)round($origH * $scale);
+                    $emuX = (int)round($pxW * 9525);
+                    $emuY = (int)round($pxH * 9525);
+                }
+            } else {
+                // No image info; use tiny default in EMU
+                $emuX = (int)(120 * 9525);
+                $emuY = (int)(40 * 9525);
+            }
 
             // Create relationship
             $relsRoot = $relsDoc->documentElement;
@@ -881,22 +936,24 @@ class PdfGenerator extends BaseController
             $picNs = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
             $rNs = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
-            // Clear existing content inside sdtContent
+            // Prefer to replace an existing w:drawing inside the content control so the
+            // original paragraph/run location is preserved. If no drawing exists, fall
+            // back to appending a new paragraph containing the image.
             $contentNode = $xpath->query('.//w:sdtContent', $sdt)->item(0);
             if (!$contentNode) continue;
-            while ($contentNode->firstChild) { $contentNode->removeChild($contentNode->firstChild); }
 
-            $p = $doc->createElementNS($wNs, 'w:p');
-            $r = $doc->createElementNS($wNs, 'w:r');
-            $drawing = $doc->createElementNS($wNs, 'w:drawing');
-            $inline = $doc->createElementNS($wpNs, 'wp:inline');
-            $inline->setAttribute('distT','0');$inline->setAttribute('distB','0');$inline->setAttribute('distL','0');$inline->setAttribute('distR','0');
+            $existingDrawingNode = $xpath->query('.//w:drawing', $contentNode)->item(0);
+
+            // Build the new drawing node (same as before)
+            $newDrawing = $doc->createElementNS($wNs, 'w:drawing');
+            $inline = $doc->createElementNS($wpNs, $useAnchor ? 'wp:anchor' : 'wp:inline');
+            foreach ($existingDist as $k=>$v) { $inline->setAttribute($k, (string)$v); }
             $extent = $doc->createElementNS($wpNs, 'wp:extent');
             $extent->setAttribute('cx', (string)$emuX); $extent->setAttribute('cy', (string)$emuY);
             $effect = $doc->createElementNS($wpNs, 'wp:effectExtent');
             $effect->setAttribute('l','0');$effect->setAttribute('t','0');$effect->setAttribute('r','0');$effect->setAttribute('b','0');
             $docPr = $doc->createElementNS($wpNs, 'wp:docPr');
-            $docPr->setAttribute('id','1'); $docPr->setAttribute('name', $tag);
+            $docPr->setAttribute('id', $existingDocPr['id'] ?? '1'); $docPr->setAttribute('name', $existingDocPr['name'] ?? $tag);
             $cNv = $doc->createElementNS($wpNs, 'wp:cNvGraphicFramePr');
             $graphic = $doc->createElementNS($aNs, 'a:graphic');
             $graphicData = $doc->createElementNS($aNs, 'a:graphicData');
@@ -926,7 +983,20 @@ class PdfGenerator extends BaseController
             $pic->appendChild($nvPicPr); $pic->appendChild($blipFill); $pic->appendChild($spPr);
             $graphicData->appendChild($pic); $graphic->appendChild($graphicData);
             $inline->appendChild($extent); $inline->appendChild($effect); $inline->appendChild($docPr); $inline->appendChild($cNv); $inline->appendChild($graphic);
-            $drawing->appendChild($inline); $r->appendChild($drawing); $p->appendChild($r); $contentNode->appendChild($p);
+            $newDrawing->appendChild($inline);
+
+            if ($existingDrawingNode && $existingDrawingNode->parentNode) {
+                // Replace the existing drawing node so paragraph/run and overall position are preserved
+                $existingDrawingNode->parentNode->replaceChild($newDrawing, $existingDrawingNode);
+            } else {
+                // No drawing present: remove existing children and append a new paragraph with the image
+                while ($contentNode->firstChild) { $contentNode->removeChild($contentNode->firstChild); }
+                $p = $doc->createElementNS($wNs, 'w:p');
+                $r = $doc->createElementNS($wNs, 'w:r');
+                $r->appendChild($newDrawing);
+                $p->appendChild($r);
+                $contentNode->appendChild($p);
+            }
             $modified = true;
         }
 
