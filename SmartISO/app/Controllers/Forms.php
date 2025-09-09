@@ -85,19 +85,17 @@ class Forms extends BaseController
             // or rely on the office -> department relationship. Join departments
             // from both the form (d1) and the office (d2) and use COALESCE so
             // we display a department name when available via either path.
+            // Use form.department_id OR office.department_id (no pivot) to determine a form's department
             $builder = $this->db->table('forms f')
-                // d1 = department from form.department_id
-                // do = pivot mapping department_office for office -> department many-to-many
-                ->select('f.*, COALESCE(d1.description, d3.description) AS department_name, o.description AS office_name')
+                ->select('f.*, COALESCE(d1.description, d2.description) AS department_name, o.description AS office_name')
                 ->join('departments d1', 'd1.id = f.department_id', 'left')
                 ->join('offices o', 'o.id = f.office_id', 'left')
-                ->join('department_office do', 'do.office_id = o.id', 'left')
-                ->join('departments d3', 'd3.id = do.department_id', 'left');
+                ->join('departments d2', 'd2.id = o.department_id', 'left');
             if (!empty($selectedDepartment)) {
-                // Match forms where department is set on the form OR inherited via the pivot mapping
+                // Match forms where department is set on the form OR inherited via the office.department_id
                 $builder->groupStart()
                         ->where('f.department_id', $selectedDepartment)
-                        ->orWhere('do.department_id', $selectedDepartment)
+                        ->orWhere('o.department_id', $selectedDepartment)
                     ->groupEnd();
             }
             if (!empty($selectedOffice)) { $builder->where('f.office_id', $selectedOffice); }
