@@ -648,7 +648,7 @@ class Configurations extends BaseController
     $incomingCode = trim((string)$this->request->getPost('code'));
         $codeRule = 'required|alpha_numeric|min_length[2]|max_length[20]';
         if(strcasecmp($existing['code'],$incomingCode)!==0){ $codeRule .= '|is_unique[forms.code]'; }
-    $rules = [ 'code'=>$codeRule, 'description'=>'required|min_length[3]|max_length[255]', 'panel_name'=>'permit_empty|max_length[255]' ];
+    $rules = [ 'code'=>$codeRule, 'description'=>'required|min_length[3]|max_length[255]', 'panel_name'=>'permit_empty|max_length[255]', 'office_id' => 'permit_empty|integer', 'department_id' => 'permit_empty|integer' ];
         if(!$this->validate($rules)){
             return $this->response->setJSON(['success'=>false,'message'=>'Validation failed','errors'=>$this->validator->getErrors(),'csrf'=>['name'=>csrf_token(),'hash'=>csrf_hash()]]);
         }
@@ -660,6 +660,25 @@ class Configurations extends BaseController
         // Panel assignment handling: include panel_name even if only that changed
         $incomingPanel = $this->request->getPost('panel_name') ?: null;
         if (($existing['panel_name'] ?? null) !== $incomingPanel) { $payload['panel_name'] = $incomingPanel; }
+
+        // Handle office/department assignment: office selection takes precedence
+        $officeId = $this->request->getPost('office_id') ?: null;
+        $incomingDept = $this->request->getPost('department_id') ?: null;
+        if ($officeId !== null && $officeId !== '') {
+            $office = (new \App\Models\OfficeModel())->find((int)$officeId);
+            $deptId = $office['department_id'] ?? null;
+            if (($existing['office_id'] ?? null) != $officeId) { $payload['office_id'] = $officeId; }
+            if (($existing['department_id'] ?? null) != $deptId) { $payload['department_id'] = $deptId; }
+        } else {
+            // No office selected — allow department-only save
+            if (($existing['department_id'] ?? null) != ($incomingDept !== null ? $incomingDept : null)) {
+                $payload['department_id'] = $incomingDept ?: null;
+            }
+            if (!empty($incomingDept) && ($existing['office_id'] ?? null) !== null && ($existing['department_id'] ?? null) != ($incomingDept ?: null)) {
+                // If changing department-only, clear office association to avoid mismatch
+                $payload['office_id'] = null;
+            }
+        }
 
         if (empty($payload)) {
             $templatePath = FCPATH.'templates/docx/'.$existing['code'].'_template.docx';
