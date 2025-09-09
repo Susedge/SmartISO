@@ -97,22 +97,49 @@
                                             <?php if (empty($offices)): ?><tr><td colspan="5" class="text-center">No offices found</td></tr><?php endif; ?>
                         </tbody>
                 </table>
-        <?php elseif ($tableType === 'forms'): ?>
-                                <table class="table table-sm table-striped table-hover align-middle" id="table-forms" data-type="forms">
-                                        <thead><tr><th style="display:none">ID</th><th>Code</th><th>Description</th><th>Template</th><th>Created</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($forms as $f): $templatePath = FCPATH.'templates/docx/'.$f['code'].'_template.docx'; $hasTemplate=file_exists($templatePath); ?>
-                                <tr data-id="<?= $f['id'] ?>" data-code="<?= esc($f['code']) ?>" data-description="<?= esc($f['description']) ?>" data-template="<?= $hasTemplate?1:0 ?>">
-                                        <td style="display:none"><?= $f['id'] ?></td>
-                                        <td><?= esc($f['code']) ?></td>
-                                        <td><?= esc($f['description']) ?></td>
-                                        <td><?= $hasTemplate?'<span class="badge bg-success">Yes</span>':'<span class="badge bg-secondary">No</span>' ?></td>
-                                                    <td><?= date('Y-m-d', strtotime($f['created_at'])) ?></td>
-                                </tr>
-                        <?php endforeach; ?>
-                                            <?php if (empty($forms)): ?><tr><td colspan="5" class="text-center">No forms found</td></tr><?php endif; ?>
-                        </tbody>
-                </table>
+                <?php elseif ($tableType === 'forms'): ?>
+                                                                <table class="table table-sm table-striped table-hover align-middle" id="table-forms" data-type="forms">
+                                                                                <thead><tr><th style="display:none">ID</th><th>Description</th><th>Department</th><th>Office</th><th>Template</th></tr></thead>
+                                                <tbody>
+                                                <?php
+                                                        // Build lookup maps for department/office names when the forms rows
+                                                        // do not include those values directly (controller may provide only ids)
+                                                        $deptMap = [];
+                                                        if (!empty($departments) && is_array($departments)) {
+                                                                foreach ($departments as $d) { $deptMap[$d['id']] = $d['description']; }
+                                                        }
+                                                        $officeMap = [];
+                                                        $allOfficesLocal = $allOffices ?? [];
+                                                        if (!empty($allOfficesLocal) && is_array($allOfficesLocal)) {
+                                                                foreach ($allOfficesLocal as $o) { $officeMap[$o['id']] = $o['description']; }
+                                                        }
+                                                ?>
+                                                <?php foreach ($forms as $f): $templatePath = FCPATH.'templates/docx/'.($f['code'] ?? 'unknown').'_template.docx'; $hasTemplate=file_exists($templatePath); ?>
+                                                                <tr data-id="<?= $f['id'] ?>" data-code="<?= esc($f['code'] ?? '') ?>" data-description="<?= esc($f['description'] ?? '') ?>" data-template="<?= $hasTemplate?1:0 ?>">
+                                                                                <td style="display:none"><?= $f['id'] ?></td>
+                                                                                <td><?= esc($f['description'] ?? '') ?></td>
+                                                                                <td>
+                                                                                        <?php
+                                                                                                $deptName = null;
+                                                                                                if (!empty($f['department_name'])) { $deptName = $f['department_name']; }
+                                                                                                elseif (!empty($f['department_id']) && isset($deptMap[$f['department_id']])) { $deptName = $deptMap[$f['department_id']]; }
+                                                                                                echo $deptName ? esc($deptName) : '<small class="text-muted">&mdash;</small>';
+                                                                                        ?>
+                                                                                </td>
+                                                                                <td>
+                                                                                        <?php
+                                                                                                $officeName = null;
+                                                                                                if (!empty($f['office_name'])) { $officeName = $f['office_name']; }
+                                                                                                elseif (!empty($f['office_id']) && isset($officeMap[$f['office_id']])) { $officeName = $officeMap[$f['office_id']]; }
+                                                                                                echo $officeName ? esc($officeName) : '<small class="text-muted">&mdash;</small>';
+                                                                                        ?>
+                                                                                </td>
+                                                                                <td><?= $hasTemplate?'<span class="badge bg-success">Yes</span>':'<span class="badge bg-secondary">No</span>' ?></td>
+                                                                </tr>
+                                                <?php endforeach; ?>
+                                                                                        <?php if (empty($forms)): ?><tr><td colspan="5" class="text-center">No forms found</td></tr><?php endif; ?>
+                                                </tbody>
+                                </table>
         <?php elseif ($tableType === 'panels'): ?>
                         <table class="table table-sm table-striped table-hover align-middle" id="table-panels" data-type="panels">
                                 <thead><tr><th style="display:none">ID</th><th>Panel Name</th></tr></thead>

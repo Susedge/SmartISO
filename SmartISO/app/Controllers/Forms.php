@@ -91,14 +91,29 @@ class Forms extends BaseController
                 ->join('departments d1', 'd1.id = f.department_id', 'left')
                 ->join('offices o', 'o.id = f.office_id', 'left')
                 ->join('departments d2', 'd2.id = o.department_id', 'left');
-            if (!empty($selectedDepartment)) {
-                // Match forms where department is set on the form OR inherited via the office.department_id
+            if (!empty($selectedDepartment) && !empty($selectedOffice)) {
+                // Both department and office selected: intersection semantics.
+                // Ensure the form belongs to the selected office AND that the
+                // department matches either the form.department_id or the office's department_id.
                 $builder->groupStart()
-                        ->where('f.department_id', $selectedDepartment)
-                        ->orWhere('o.department_id', $selectedDepartment)
+                        ->where('f.office_id', $selectedOffice)
+                        ->groupEnd()
+                    ->groupStart()
+                        ->groupStart()
+                            ->where('f.department_id', $selectedDepartment)
+                            ->orWhere('o.department_id', $selectedDepartment)
+                        ->groupEnd()
                     ->groupEnd();
+            } else {
+                if (!empty($selectedDepartment)) {
+                    // Match forms where department is set on the form OR inherited via the office.department_id
+                    $builder->groupStart()
+                            ->where('f.department_id', $selectedDepartment)
+                            ->orWhere('o.department_id', $selectedDepartment)
+                        ->groupEnd();
+                }
+                if (!empty($selectedOffice)) { $builder->where('f.office_id', $selectedOffice); }
             }
-            if (!empty($selectedOffice)) { $builder->where('f.office_id', $selectedOffice); }
             // Capture compiled SQL for quick debugging in the view
             try {
                 $compiled = $builder->getCompiledSelect();

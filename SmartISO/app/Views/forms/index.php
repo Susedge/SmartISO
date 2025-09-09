@@ -38,7 +38,7 @@
                 </select>
             </div>
             <div class="col-sm-4 col-md-3 d-flex gap-2">
-                <button type="submit" id="applyFilters" class="btn btn-primary btn-sm mt-auto">Filter</button>
+                <button type="submit" id="applyFilters" class="btn btn-primary btn-sm mt-auto d-none">Filter</button>
                 <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm mt-auto flex-shrink-0 <?= empty($selectedDepartment) && empty($selectedOffice) ? 'd-none':'' ?>">Reset</button>
                 <div id="filterStatus" class="small text-muted ms-auto d-none align-self-center">Filtering...</div>
             </div>
@@ -131,15 +131,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function toggleReset(){ (deptSel.value||officeSel.value)?resetBtn.classList.remove('d-none'):resetBtn.classList.add('d-none'); }
 
-        deptSel.addEventListener('change', ()=>{ 
-            filterOffices(); 
-            toggleReset(); 
-        });
-        officeSel.addEventListener('change', ()=>{ 
-            toggleReset(); 
-        });
-        resetBtn.addEventListener('click', ()=>{ deptSel.value=''; officeSel.value=''; filterOffices(); toggleReset(); });
-        filterOffices(); toggleReset();
+            deptSel.addEventListener('change', ()=>{ 
+                filterOffices(); 
+                toggleReset(); 
+                // Auto-submit on change
+                form.submit();
+            });
+            officeSel.addEventListener('change', ()=>{ 
+                toggleReset(); 
+                // Auto-submit on change
+                form.submit();
+            });
+            resetBtn.addEventListener('click', ()=>{ deptSel.value=''; officeSel.value=''; filterOffices(); toggleReset(); form.submit(); });
+            filterOffices(); toggleReset();
 });
 </script>
 
