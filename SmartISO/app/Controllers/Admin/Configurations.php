@@ -188,22 +188,64 @@ class Configurations extends BaseController
     $allOfficesList = $this->officeModel->orderBy('code','ASC')->findAll();
     $allFormsList = $this->formModel->orderBy('code','ASC')->findAll();
 
-        // Build mapping of offices per department using the department_office pivot
+        // Build mapping of offices per department. Prefer the old pivot when present,
+        // otherwise fall back to the canonical offices.department_id column.
         $departmentOffices = [];
         if ($tableType === 'departments') {
             $db = \Config\Database::connect();
             $allOffices = $this->officeModel->orderBy('code','ASC')->findAll();
             $officeById = [];
             foreach ($allOffices as $o) { $officeById[(int)$o['id']] = $o; }
-            $rows = $db->table('department_office')->select('department_id, office_id')->get()->getResultArray();
-            foreach ($rows as $r) {
-                $did = isset($r['department_id']) ? (int)$r['department_id'] : null;
-                $oid = isset($r['office_id']) ? (int)$r['office_id'] : null;
-                if ($did && $oid && isset($officeById[$oid])) {
-                    $departmentOffices[$did][] = $officeById[$oid];
+            if ($db->tableExists('department_office')) {
+                $rows = $db->table('department_office')->select('department_id, office_id')->get()->getResultArray();
+                foreach ($rows as $r) {
+                    $did = isset($r['department_id']) ? (int)$r['department_id'] : null;
+                    $oid = isset($r['office_id']) ? (int)$r['office_id'] : null;
+                    if ($did && $oid && isset($officeById[$oid])) {
+                        $departmentOffices[$did][] = $officeById[$oid];
+                    }
+                }
+            } else {
+                // fallback: use offices.department_id
+                foreach ($allOffices as $o) {
+                    if (!empty($o['department_id'])) {
+                        $departmentOffices[(int)$o['department_id']][] = $o;
+                    }
                 }
             }
         }
+        // When rendering the Offices tab, attach a human-readable department description
+        // derived from the department_office pivot (many-to-many). Fall back to the
+        // offices.department_id single-column if no pivot rows exist for an office.
+        if ($tableType === 'offices' && !empty($offices)) {
+            $db = \Config\Database::connect();
+            // Build department lookup
+            $allDepts = $this->departmentModel->findAll();
+            $deptById = [];
+            foreach ($allDepts as $d) { $deptById[(int)$d['id']] = $d; }
+            // Collect pivot rows by office if the pivot table still exists
+            $officeDeptMap = [];
+            if ($db->tableExists('department_office')) {
+                $rows = $db->table('department_office')->select('office_id, department_id')->get()->getResultArray();
+                foreach ($rows as $r) {
+                    $oid = isset($r['office_id']) ? (int)$r['office_id'] : null;
+                    $did = isset($r['department_id']) ? (int)$r['department_id'] : null;
+                    if ($oid && $did && isset($deptById[$did])) {
+                        $officeDeptMap[$oid][] = $deptById[$did]['description'] ?? $deptById[$did]['code'] ?? null;
+                    }
+                }
+            }
+            // Attach comma-separated department description (or null)
+            foreach ($offices as $k => $o) {
+                $names = $officeDeptMap[$o['id']] ?? [];
+                if (empty($names) && !empty($o['department_id']) && isset($deptById[(int)$o['department_id']])) {
+                    $names[] = $deptById[(int)$o['department_id']]['description'] ?? $deptById[(int)$o['department_id']]['code'] ?? null;
+                }
+                $offices[$k]['department_descriptions'] = array_values(array_filter($names));
+                $offices[$k]['department_description'] = empty($offices[$k]['department_descriptions']) ? null : implode(', ', $offices[$k]['department_descriptions']);
+            }
+        }
+
         $data = [
             'title' => 'System Configurations',
             'tableType' => $tableType,
@@ -380,10 +422,15 @@ class Configurations extends BaseController
             if (!$item) return redirect()->to('/admin/configurations?type=departments')->with('error','Department not found');
             // Offices assigned via pivot
             $db = \Config\Database::connect();
-            $rows = $db->table('department_office')->select('office_id')->where('department_id',$id)->get()->getResultArray();
-            $officeIds = array_map(fn($r)=>(int)$r['office_id'], $rows);
             $officesForDepartment = [];
-            if (!empty($officeIds)) { $officesForDepartment = $this->officeModel->whereIn('id',$officeIds)->findAll(); }
+            if ($db->tableExists('department_office')) {
+                $rows = $db->table('department_office')->select('office_id')->where('department_id',$id)->get()->getResultArray();
+                $officeIds = array_map(fn($r)=>(int)$r['office_id'], $rows);
+                if (!empty($officeIds)) { $officesForDepartment = $this->officeModel->whereIn('id',$officeIds)->findAll(); }
+            } else {
+                // Fallback: use offices.department_id
+                $officesForDepartment = $this->officeModel->where('department_id', $id)->findAll();
+            }
             $data = [
                 'title' => 'Edit Department',
                 'tableType' => 'departments',
@@ -448,7 +495,7 @@ class Configurations extends BaseController
             return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Invalid request']);
         }
 
-        // If assignment-only, update pivot table department_office
+        // If assignment-only, update pivot table department_office (or fall back to offices.department_id)
         $assignedRaw = $this->request->getPost('assign_offices');
     if ($assignedRaw !== null) {
             $assigned = $assignedRaw ?? [];
@@ -456,18 +503,31 @@ class Configurations extends BaseController
             $assignedIds = array_map('intval', $assigned);
 
             $db = \Config\Database::connect();
-            // Remove pivot rows for this department that are not in assigned list
-            if (empty($assignedIds)) {
-                $db->table('department_office')->where('department_id', $id)->delete();
+            if ($db->tableExists('department_office')) {
+                // Use legacy pivot
+                if (empty($assignedIds)) {
+                    $db->table('department_office')->where('department_id', $id)->delete();
+                } else {
+                    $db->table('department_office')->where('department_id', $id)->whereNotIn('office_id', $assignedIds)->delete();
+                }
+                foreach ($assignedIds as $oid) {
+                    try {
+                        $db->query('INSERT IGNORE INTO department_office (department_id, office_id) VALUES (?, ?)', [$id, $oid]);
+                    } catch (\Exception $e) {
+                        // ignore individual insert errors
+                    }
+                }
             } else {
-                $db->table('department_office')->where('department_id', $id)->whereNotIn('office_id', $assignedIds)->delete();
-            }
-            // Insert assigned pairs (ignore duplicates)
-            foreach ($assignedIds as $oid) {
-                try {
-                    $db->query('INSERT IGNORE INTO department_office (department_id, office_id) VALUES (?, ?)', [$id, $oid]);
-                } catch (\Exception $e) {
-                    // ignore individual insert errors
+                // Fall back to single-column canonical mapping on offices.department_id
+                $officeModel = new \App\Models\OfficeModel();
+                if (empty($assignedIds)) {
+                    // clear any offices currently assigned to this dept
+                    $officeModel->where('department_id', $id)->set(['department_id' => null])->update();
+                } else {
+                    // Unassign offices previously linked but not in assignedIds
+                    $officeModel->where('department_id', $id)->whereNotIn('id', $assignedIds)->set(['department_id' => null])->update();
+                    // Assign selected offices to this department
+                    $officeModel->whereIn('id', $assignedIds)->set(['department_id' => $id])->update();
                 }
             }
 
@@ -627,22 +687,40 @@ class Configurations extends BaseController
         // If this request is only assigning offices (the assign_offices[] control),
         // process assignments without validating code/description. This allows the
         // separate assignments form to submit without needing those fields.
-        $assignedRaw = $this->request->getPost('assign_offices');
+            $assignedRaw = $this->request->getPost('assign_offices');
         if ($assignedRaw !== null) {
             $assigned = $assignedRaw ?? [];
             if (!is_array($assigned)) { $assigned = [$assigned]; }
             $assignedIds = array_map('intval', $assigned);
 
             $db = \Config\Database::connect();
-            if (empty($assignedIds)) {
-                $db->table('department_office')->where('department_id', $id)->delete();
+            if ($db->tableExists('department_office')) {
+                if (empty($assignedIds)) {
+                    $db->table('department_office')->where('department_id', $id)->delete();
+                } else {
+                    $db->table('department_office')->where('department_id', $id)->whereNotIn('office_id', $assignedIds)->delete();
+                }
+                foreach ($assignedIds as $oid) {
+                    try { $db->query('INSERT IGNORE INTO department_office (department_id, office_id) VALUES (?, ?)', [$id, $oid]); } catch (\Exception $e) {}
+                }
+                $officesForDepartment = (function() use ($db, $id) {
+                    $rows = $db->table('department_office')->select('office_id')->where('department_id', $id)->get()->getResultArray();
+                    $ids = array_map(function($r){ return isset($r['office_id']) ? (int)$r['office_id'] : null; }, $rows);
+                    $ids = array_filter($ids);
+                    if (empty($ids)) { return []; }
+                    return (new \App\Models\OfficeModel())->whereIn('id', $ids)->findAll();
+                })();
             } else {
-                $db->table('department_office')->where('department_id', $id)->whereNotIn('office_id', $assignedIds)->delete();
-            }
-            foreach ($assignedIds as $oid) {
-                try {
-                    $db->query('INSERT IGNORE INTO department_office (department_id, office_id) VALUES (?, ?)', [$id, $oid]);
-                } catch (\Exception $e) {}
+                // Update offices.department_id instead
+                $officeModel = new \App\Models\OfficeModel();
+                if (empty($assignedIds)) {
+                    $officeModel->where('department_id', $id)->set(['department_id' => null])->update();
+                    $officesForDepartment = [];
+                } else {
+                    $officeModel->where('department_id', $id)->whereNotIn('id', $assignedIds)->set(['department_id' => null])->update();
+                    $officeModel->whereIn('id', $assignedIds)->set(['department_id' => $id])->update();
+                    $officesForDepartment = $officeModel->where('department_id', $id)->findAll();
+                }
             }
 
             // Set a flash message and re-render the edit page (no redirect)
@@ -654,16 +732,8 @@ class Configurations extends BaseController
                 'item' => $item,
                 'departments' => $this->departmentModel->findAll(),
                 'allOffices' => $this->officeModel->orderBy('description','ASC')->findAll(),
-                // For department edit view, fetch offices via pivot mapping
-                // return full office rows for compatibility with the edit view
-                'officesForDepartment' => (function() use ($db) {
-                    $rows = $db->table('department_office')->select('office_id')->where('department_id', func_get_arg(0) ?? 0)->get()->getResultArray();
-                    // extract ids
-                    $ids = array_map(function($r){ return isset($r['office_id']) ? (int)$r['office_id'] : null; }, $rows);
-                    $ids = array_filter($ids);
-                    if (empty($ids)) { return []; }
-                    return (new \App\Models\OfficeModel())->whereIn('id', $ids)->findAll();
-                })($id),
+                'officesForDepartment' => $officesForDepartment,
+                'allForms' => $this->formModel->orderBy('description','ASC')->findAll(),
             ];
             return view('admin/configurations/edit', $data);
         }
@@ -842,7 +912,12 @@ class Configurations extends BaseController
                             $this->formModel->where('office_id',$id)->set(['office_id'=>null])->update();
                         }
                     // Remove any pivot entries (department_office) referencing this office (safety if FKs added)
-                    try { $db = \Config\Database::connect(); $db->table('department_office')->where('office_id',$id)->delete(); } catch(\Exception $e) { /* ignore */ }
+                    try {
+                        $db = \Config\Database::connect();
+                        if ($db->tableExists('department_office')) {
+                            $db->table('department_office')->where('office_id',$id)->delete();
+                        }
+                    } catch(\Exception $e) { /* ignore */ }
                     $userModel = new \App\Models\UserModel();
                     $usersCount = $userModel->where('office_id',$id)->countAllResults();
                     if ($usersCount > 0) {
@@ -1121,10 +1196,15 @@ public function updateSystemConfig()
         if ($tableType === 'departments') {
             $item = $this->departmentModel->find($id);
             if (!$item) { return $this->response->setStatusCode(404)->setJSON(['success'=>false,'message'=>'Department not found']); }
-            // Collect assigned office ids via pivot
+            // Collect assigned office ids via pivot (if available) otherwise via offices.department_id
             $db = \Config\Database::connect();
-            $rows = $db->table('department_office')->select('office_id')->where('department_id',$id)->get()->getResultArray();
-            $assigned = array_map(function($r){return (int)$r['office_id'];}, $rows);
+            $assigned = [];
+            if ($db->tableExists('department_office')) {
+                $rows = $db->table('department_office')->select('office_id')->where('department_id',$id)->get()->getResultArray();
+                $assigned = array_map(function($r){return (int)$r['office_id'];}, $rows);
+            } else {
+                $assigned = array_map(function($o){ return (int)$o['id']; }, $this->officeModel->where('department_id', $id)->findAll());
+            }
             $item['assigned_office_ids'] = $assigned;
             return $this->response->setJSON(['success'=>true,'data'=>$item]);
         }

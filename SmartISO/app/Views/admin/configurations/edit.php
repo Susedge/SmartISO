@@ -81,16 +81,35 @@
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <?php endif; ?>
-                        <?php if ($tableType === 'offices'): ?>
                         <div class="mb-2">
                             <label class="form-label mb-1 mini-muted">Department</label>
                             <select class="form-select form-select-sm" id="department_id" name="department_id">
+                                <option value="">-- None --</option>
+                                <?php foreach (($departments ?? []) as $dept): ?>
+                                    <option value="<?= esc($dept['id']) ?>" <?= old('department_id', $item['department_id'] ?? '') == $dept['id'] ? 'selected' : '' ?>><?= esc($dept['description']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label mb-1 mini-muted">Office</label>
+                            <select class="form-select form-select-sm" id="office_id" name="office_id">
+                                <option value="">-- None --</option>
+                                <?php foreach (($allOffices ?? []) as $ao): ?>
+                                    <option value="<?= esc($ao['id']) ?>" data-dept="<?= esc($ao['department_id'] ?? '') ?>" <?= old('office_id', $item['office_id'] ?? '') == $ao['id'] ? 'selected' : '' ?>><?= esc($ao['description']) ?> (<?= esc($ao['code']) ?>)</option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endif; ?>
+                        <?php if ($tableType === 'offices'): ?>
+                        <div class="mb-2">
+                            <label class="form-label mb-1 mini-muted">Department <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" id="department_id" name="department_id" aria-describedby="departmentHelp">
                                 <option value="">-- Unassigned --</option>
                                 <?php foreach (($departments ?? []) as $dept): ?>
                                     <option value="<?= esc($dept['id']) ?>" <?= old('department_id', $item['department_id'] ?? '') == $dept['id'] ? 'selected' : '' ?>><?= esc($dept['description']) ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <div id="department_client_error" class="invalid-feedback" style="display:none">Please select a department.</div>
                         </div>
                         <?php endif; ?>
                         <div class="d-flex gap-2 mt-3">
@@ -223,5 +242,70 @@ window.CONFIG_EDIT_DATA = {
     }
 };
 </script>
+<script>
+// Small helpers for this edit page: select-all/clear for checkbox lists and office->department inheritance
+;(function(){
+    function toggleCheckboxes(containerId, checked) {
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        var inputs = container.querySelectorAll('input[type="checkbox"][name$="[]"]');
+        inputs.forEach(function(i){ i.checked = checked; });
+    }
+
+    var btnAllOff = document.getElementById('selectAllOffices');
+    var btnClearOff = document.getElementById('clearAllOffices');
+    if (btnAllOff) btnAllOff.addEventListener('click', function(){ toggleCheckboxes('officesList', true); });
+    if (btnClearOff) btnClearOff.addEventListener('click', function(){ toggleCheckboxes('officesList', false); });
+
+    var btnAllForms = document.getElementById('selectAllForms');
+    var btnClearForms = document.getElementById('clearAllForms');
+    if (btnAllForms) btnAllForms.addEventListener('click', function(){ toggleCheckboxes('formsList', true); });
+    if (btnClearForms) btnClearForms.addEventListener('click', function(){ toggleCheckboxes('formsList', false); });
+
+    // Inherit department when office is selected on Forms meta
+    var officeSelect = document.getElementById('office_id');
+    var deptSelect = document.getElementById('department_id');
+    if (officeSelect && deptSelect) {
+        officeSelect.addEventListener('change', function(e){
+            var val = officeSelect.value || '';
+            if (!val) return; // if none selected, do nothing
+            var opt = officeSelect.querySelector('option[value="' + CSS.escape(val) + '"]');
+            if (opt && opt.dataset && opt.dataset.dept) {
+                var did = opt.dataset.dept || '';
+                if (did) {
+                    deptSelect.value = did;
+                }
+            }
+        });
+    }
+})();
+</script>
 <script src="<?= base_url('assets/js/config-edit.js') ?>"></script>
+<script>
+// Client-side validation: require department on Offices meta
+;(function(){
+    try {
+        var cfg = window.CONFIG_EDIT_DATA || {};
+        if (cfg.type === 'offices') {
+            var metaForm = document.getElementById('deptMetaForm');
+            var deptSel = document.getElementById('department_id');
+            var errEl = document.getElementById('department_client_error');
+            if (metaForm && deptSel) {
+                metaForm.addEventListener('submit', function(e){
+                    if (!deptSel.value) {
+                        e.preventDefault();
+                        if (errEl) { errEl.style.display = 'block'; }
+                        deptSel.classList.add('is-invalid');
+                        deptSel.focus();
+                        return false;
+                    }
+                    if (errEl) { errEl.style.display = 'none'; }
+                    deptSel.classList.remove('is-invalid');
+                });
+                deptSel.addEventListener('change', function(){ if (errEl) errEl.style.display = deptSel.value ? 'none' : 'block'; deptSel.classList.toggle('is-invalid', !deptSel.value); });
+            }
+        }
+    } catch (ex) { /* ignore */ }
+})();
+</script>
 <?= $this->endSection() ?>

@@ -47,7 +47,8 @@ class Office extends BaseController
         $validation = $this->validate([
             'code'        => 'required|alpha_numeric|min_length[2]|max_length[20]|is_unique[offices.code]',
             'description' => 'required|min_length[3]|max_length[255]',
-            'active'      => 'permit_empty|in_list[0,1]'
+            'active'      => 'permit_empty|in_list[0,1]',
+            'department_id' => 'required|integer'
         ]);
 
         if (!$validation) {
@@ -59,7 +60,8 @@ class Office extends BaseController
         $data = [
             'code'        => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
-            'active'      => $this->request->getPost('active') ? 1 : 0
+            'active'      => $this->request->getPost('active') ? 1 : 0,
+            'department_id' => $this->request->getPost('department_id') ?: null
         ];
 
         if ($this->officeModel->insert($data)) {
@@ -103,7 +105,8 @@ class Office extends BaseController
         $validation = $this->validate([
             'code'        => "required|alpha_numeric|min_length[2]|max_length[20]|is_unique[offices.code,id,{$id}]",
             'description' => 'required|min_length[3]|max_length[255]',
-            'active'      => 'permit_empty|in_list[0,1]'
+            'active'      => 'permit_empty|in_list[0,1]',
+            'department_id' => 'required|integer'
         ]);
 
         if (!$validation) {
@@ -115,7 +118,8 @@ class Office extends BaseController
         $data = [
             'code'        => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
-            'active'      => $this->request->getPost('active') ? 1 : 0
+            'active'      => $this->request->getPost('active') ? 1 : 0,
+            'department_id' => $this->request->getPost('department_id') ?: null
         ];
 
         if ($this->officeModel->update($id, $data)) {

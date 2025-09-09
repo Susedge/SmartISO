@@ -55,12 +55,18 @@
                                 <table class="table table-sm table-striped table-hover align-middle" id="table-departments" data-type="departments">
                                         <thead><tr><th style="display:none">ID</th><th>Code</th><th>Description</th><th>Offices</th><th>Created</th></tr></thead>
                         <tbody>
-                        <?php foreach ($departments as $d): $officeList = $departmentOffices[$d['id']] ?? []; ?>
+                                                <?php foreach ($departments as $d): $officeList = $departmentOffices[$d['id']] ?? []; ?>
                                 <tr data-id="<?= $d['id'] ?>" data-code="<?= esc($d['code']) ?>" data-description="<?= esc($d['description']) ?>">
                                         <td style="display:none"><?= $d['id'] ?></td>
                                         <td><?= esc($d['code']) ?></td>
                                         <td><?= esc($d['description']) ?></td>
-                                        <td><small><?= empty($officeList)?'—':esc(implode(', ', array_map(fn($o)=>$o['code'],$officeList))) ?></small></td>
+                                                                                <td>
+                                                                                        <?php if (empty($officeList)): ?>
+                                                                                                <small>&mdash;</small>
+                                                                                        <?php else: ?>
+                                                                                                <button type="button" class="btn btn-sm btn-outline-primary btn-view-offices" data-offices="<?= rawurlencode(json_encode($officeList)) ?>">View (<?= count($officeList) ?>)</button>
+                                                                                        <?php endif; ?>
+                                                                                </td>
                                             <td><?= date('Y-m-d', strtotime($d['created_at'])) ?></td>
                                 </tr>
                         <?php endforeach; ?>
@@ -76,7 +82,15 @@
                                         <td style="display:none"><?= $o['id'] ?></td>
                                         <td><?= esc($o['code']) ?></td>
                                         <td><?= esc($o['description']) ?></td>
-                                        <td><?= esc($o['department_description'] ?? $o['department_name'] ?? 'Unassigned') ?></td>
+                                                                                <td>
+                                                                                        <?php if (!empty($o['department_descriptions']) && is_array($o['department_descriptions'])): ?>
+                                                                                                <?php foreach ($o['department_descriptions'] as $dname): ?>
+                                                                                                        <span class="badge bg-secondary me-1"><?= esc($dname) ?></span>
+                                                                                                <?php endforeach; ?>
+                                                                                        <?php else: ?>
+                                                                                                <?= esc($o['department_description'] ?? $o['department_name'] ?? 'Unassigned') ?>
+                                                                                        <?php endif; ?>
+                                                                                </td>
                                                     <td><?= date('Y-m-d', strtotime($o['created_at'])) ?></td>
                                 </tr>
                         <?php endforeach; ?>
@@ -157,5 +171,33 @@
 <?= $this->endSection() ?>
 
 <?php $this->section('scripts') ?>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+        var buttons = document.querySelectorAll('.btn-view-offices');
+        buttons.forEach(function(btn){
+                btn.addEventListener('click', function(){
+                        try{
+                                var raw = btn.getAttribute('data-offices') || '[]';
+                                var offices = JSON.parse(decodeURIComponent(raw));
+                                if(!offices || offices.length === 0){
+                                        window.SimpleModal.alert('No offices assigned to this department','Offices');
+                                        return;
+                                }
+                                                        var editBase = '<?= rtrim(base_url('admin/configurations/edit'), '/') ?>';
+                                                        var html = '<div style="display:flex;flex-direction:column;gap:.5rem;max-height:60vh;overflow:auto;padding-right:.25rem;">';
+                                                        offices.forEach(function(o){
+                                                                var editUrl = editBase + '/' + encodeURIComponent(o.id) + '?type=offices';
+                                                                html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.35rem .5rem;border-radius:6px;background:#fbfcfd;border:1px solid #eef2f7;">'
+                                                                                         + '<div><strong>'+ Utils.escapeHtml(o.code) +'</strong> <small class="text-muted">'+ Utils.escapeHtml(o.description || '') +'</small></div>'
+                                                                                         + '<div><a class="btn btn-sm btn-outline-secondary" href="'+ editUrl +'">Edit</a></div>'
+                                                                                         + '</div>';
+                                                        });
+                                html += '</div>';
+                                window.SimpleModal.show({ title: 'Offices for Department', message: html, variant: 'info', backdropClose: true, buttons: [{text:'Close', primary:true, value:'close'}] });
+                        }catch(e){ console.error(e); window.SimpleModal.alert('Unable to show offices'); }
+                });
+        });
+});
+</script>
 <script src="<?= base_url('assets/js/admin-configurations.js') ?>"></script>
 <?php $this->endSection() ?>
