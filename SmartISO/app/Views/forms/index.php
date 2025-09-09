@@ -45,6 +45,17 @@
         </form>
 
         <div class="row g-3" id="formsGrid">
+            <?php
+                // Build lookup maps for fallbacks when the query doesn't return names
+                $deptMap = [];
+                if (!empty($departments) && is_array($departments)) {
+                    foreach ($departments as $d) { $deptMap[$d['id']] = $d['description']; }
+                }
+                $officeMap = [];
+                if (!empty($allOffices) && is_array($allOffices)) {
+                    foreach ($allOffices as $o) { $officeMap[$o['id']] = $o['description']; }
+                }
+            ?>
             <?php foreach ($forms as $form): ?>
                 <div class="col-12 col-sm-6 col-lg-4">
                     <div class="form-card h-100 d-flex flex-column">
@@ -55,8 +66,15 @@
                             </div>
                             <div class="small text-muted mb-1">
                                 <?php
+                                    // Prefer department_name/office_name from query, fall back to ids using maps
                                     $dept = !empty($form['department_name']) ? esc($form['department_name']) : null;
+                                    if (empty($dept) && !empty($form['department_id']) && isset($deptMap[$form['department_id']])) {
+                                        $dept = esc($deptMap[$form['department_id']]);
+                                    }
                                     $office = !empty($form['office_name']) ? esc($form['office_name']) : null;
+                                    if (empty($office) && !empty($form['office_id']) && isset($officeMap[$form['office_id']])) {
+                                        $office = esc($officeMap[$form['office_id']]);
+                                    }
                                     // Debug: show raw values
                                     // echo '<small>DEBUG: dept=[' . ($form['department_name'] ?? 'NULL') . '] office=[' . ($form['office_name'] ?? 'NULL') . ']</small><br>';
                                     if ($dept || $office):
