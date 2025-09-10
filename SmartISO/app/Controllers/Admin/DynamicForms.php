@@ -899,7 +899,8 @@ class DynamicForms extends BaseController
         $file->move($tempPath, $tempName);
         $fullPath = $tempPath . DIRECTORY_SEPARATOR . $tempName;
 
-        $fieldValues = [];
+    $fieldValues = [];
+    $rawFieldValues = []; // preserve original keys -> values for post-processing
         try {
             $zip = new \ZipArchive();
             if ($zip->open($fullPath) === true) {
@@ -933,9 +934,9 @@ class DynamicForms extends BaseController
                                 $textParts[] = $tn->textContent;
                             }
                             $value = trim(implode('', $textParts));
-                            if ($value !== '') {
-                                $fieldValues[$tagName] = $value;
-                            }
+                            // Always preserve the original tag -> value mapping even if empty.
+                            $rawFieldValues[$tagName] = $value;
+                            $fieldValues[$tagName] = $value;
                         }
                     }
                 }

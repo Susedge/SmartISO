@@ -15,7 +15,46 @@
         this.bindGlobalClickClear();
     this._ensureSelectionStyle();
     this.autoSelectFirst();
+        // ensure action buttons reflect current data state (disable edit/delete when no rows)
+        try{ this.updateActionButtonsState(); }catch(e){}
         global.adminConfigInstance = this; // expose if needed elsewhere
+    };
+
+    // Disable or enable action buttons based on whether the table has any real data rows
+    AdminConfigurations.prototype.updateActionButtonsState = function(){
+        var self = this;
+        if(!this.table) return;
+        // consider rows with a data-id attribute as 'real' selectable rows
+        var hasRows = !!this.table.querySelector('tbody tr[data-id]');
+
+        function setDisabled(el, disable){
+            if(!el) return;
+            var tag = (el.tagName || '').toLowerCase();
+            if(tag === 'a'){
+                if(disable){ el.classList.add('disabled'); el.setAttribute('aria-disabled','true'); el.setAttribute('tabindex','-1'); }
+                else { el.classList.remove('disabled'); el.removeAttribute('aria-disabled'); el.removeAttribute('tabindex'); }
+            } else {
+                try{ el.disabled = !!disable; }catch(e){}
+            }
+        }
+
+        if(this.type === 'panels'){
+            var panelBtns = document.querySelectorAll('#panelSelectionActions a,#panelSelectionActions button');
+            Array.prototype.forEach.call(panelBtns, function(b){ setDisabled(b, !hasRows); });
+            // Add Panel button should remain enabled
+            setDisabled(document.getElementById('btnAddPanelModal'), false);
+        } else {
+            var selBtns = document.querySelectorAll('#selectionActions a,#selectionActions button');
+            Array.prototype.forEach.call(selBtns, function(b){ setDisabled(b, !hasRows); });
+            // template group buttons (forms) should be disabled when there's no rows
+            var tmplGroupBtns = document.querySelectorAll('#templateGroup a,#templateGroup button');
+            Array.prototype.forEach.call(tmplGroupBtns, function(b){ setDisabled(b, !hasRows); });
+            // Ensure Add (outside selectionActions) remains enabled
+            setDisabled(document.getElementById('btnAdd'), false);
+        }
+
+        // If no rows, clear selection so UI doesn't show a selected placeholder
+        if(!hasRows) this.clearSelection();
     };
 
     AdminConfigurations.prototype._ensureSelectionStyle = function(){
@@ -26,7 +65,32 @@
 
     AdminConfigurations.prototype.initDataTable = function(){
         if(!this.table || !global.jQuery || !jQuery.fn.dataTable) return;
-    this.dataTable = jQuery('#'+this.table.id).DataTable({
+
+        // Ensure the table has an id (DataTables requires a selector); generate one if missing
+        if(!this.table.id){
+            this.table.id = 'admin-config-' + (this.type || 'table') + '-' + Math.floor(Math.random()*100000);
+        }
+
+        // Defensive fix: make sure each tbody row has the same number of TDs as there are THs.
+        // DataTables throws internal errors when rows have fewer cells than headers (
+        // _DT_CellIndex assignment fails). If a row is short, append empty TDs so indexing is stable.
+        try{
+            var headerCount = (this.table.querySelectorAll && this.table.querySelectorAll('thead th').length) || 0;
+            if(headerCount){
+                var rows = this.table.querySelectorAll('tbody tr');
+                Array.prototype.forEach.call(rows, function(r){
+                    var tdCount = r.querySelectorAll('td').length || 0;
+                    for(var i = tdCount; i < headerCount; i++){
+                        var td = document.createElement('td');
+                        // keep markup visually consistent when empty
+                        td.innerHTML = '&nbsp;';
+                        r.appendChild(td);
+                    }
+                });
+            }
+        }catch(e){ /* defensive: if DOM operations fail, continue to init and let DataTables handle it */ }
+
+        this.dataTable = jQuery('#'+this.table.id).DataTable({
             paging:true,searching:true,lengthChange:false,pageLength:25,order:[],
             columnDefs:[{targets:0,visible:false,searchable:false}]
         });
@@ -68,12 +132,16 @@
     AdminConfigurations.prototype.autoSelectFirst = function(){
         if(this.selectedRow) return; // already selected
         if(!this.table) return;
-        var first = this.table.querySelector('tbody tr');
-        if(first){ this.setSelection(first); }
-        else {
-            // no rows: ensure actions reflect no selection
-            this.clearSelection();
-        }
+        // pick the first row that has a data-id attribute; skip placeholder rows which often
+        // contain a single td with colspan
+        var rows = this.table.querySelectorAll('tbody tr');
+        var found = null;
+        Array.prototype.forEach.call(rows, function(r){
+            if(found) return;
+            if(r.getAttribute && r.getAttribute('data-id')){ found = r; }
+        });
+        if(found){ this.setSelection(found); }
+        else { this.clearSelection(); }
     };
 
 
@@ -169,6 +237,7 @@
             if(j && j.success){
                 try{ rowEl.remove(); }catch(e){}
                 self.clearSelection();
+                try{ self.updateActionButtonsState(); }catch(e){}
                 SimpleModal.alert((j && j.message) || 'Deleted.','Success','success');
                 return;
             }

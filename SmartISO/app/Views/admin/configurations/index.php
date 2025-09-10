@@ -48,7 +48,7 @@
                                         </td>
                                 </tr>
                         <?php endforeach; ?>
-                        <?php if (empty($configurations)): ?><tr><td colspan="5" class="text-center">No configurations</td></tr><?php endif; ?>
+                        <?php // If no configurations, render an empty tbody so DataTables shows empty state ?>
                         </tbody>
                 </table>
         <?php elseif ($tableType === 'departments'): ?>
@@ -70,7 +70,7 @@
                                             <td><?= date('Y-m-d', strtotime($d['created_at'])) ?></td>
                                 </tr>
                         <?php endforeach; ?>
-                                    <?php if (empty($departments)): ?><tr><td colspan="5" class="text-center">No departments found</td></tr><?php endif; ?>
+                                    <?php // If no departments, leave tbody empty to let DataTables show the empty message ?>
                         </tbody>
                 </table>
         <?php elseif ($tableType === 'offices'): ?>
@@ -94,7 +94,7 @@
                                                     <td><?= date('Y-m-d', strtotime($o['created_at'])) ?></td>
                                 </tr>
                         <?php endforeach; ?>
-                                            <?php if (empty($offices)): ?><tr><td colspan="5" class="text-center">No offices found</td></tr><?php endif; ?>
+                                            <?php // If no offices, leave tbody empty so DataTables shows no records ?>
                         </tbody>
                 </table>
                 <?php elseif ($tableType === 'forms'): ?>
@@ -137,7 +137,7 @@
                                                                                 <td><?= $hasTemplate?'<span class="badge bg-success">Yes</span>':'<span class="badge bg-secondary">No</span>' ?></td>
                                                                 </tr>
                                                 <?php endforeach; ?>
-                                                                                        <?php if (empty($forms)): ?><tr><td colspan="5" class="text-center">No forms found</td></tr><?php endif; ?>
+                                                                                        <?php // If no forms, leave tbody empty so DataTables will display empty state ?>
                                                 </tbody>
                                 </table>
         <?php elseif ($tableType === 'panels'): ?>
@@ -150,7 +150,7 @@
                                                 <td><?= esc($panel['panel_name']) ?></td>
                                         </tr>
                                 <?php endforeach; else: ?>
-                                        <tr><td colspan="2" class="text-center">No panels configured yet</td></tr>
+                                        <?php // no panels: leave tbody empty so DataTables shows no records ?>
                                 <?php endif; ?>
                         </tbody>
                 </table>

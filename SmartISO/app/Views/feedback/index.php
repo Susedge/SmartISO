@@ -8,7 +8,7 @@
     <div class="card-body">
         <?php if (!empty($feedback) || !empty($feedbacks)): ?>
             <div class="table-responsive">
-                <table class="table table-striped">
+                <table id="feedbackTable" class="table table-striped">
                     <thead>
                         <tr>
                             <th>ID</th>
@@ -34,4 +34,20 @@
         <?php endif; ?>
     </div>
 </div>
+
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+<script>
+$(function(){
+    const $f = $('#feedbackTable');
+    if ($f.length) {
+        $f.DataTable({
+            pageLength: 25,
+            order: [[0,'desc']],
+            responsive: true
+        });
+    }
+});
+</script>
 <?= $this->endSection() ?>

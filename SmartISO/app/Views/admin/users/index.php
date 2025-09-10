@@ -12,7 +12,7 @@
     </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-striped table-hover">
+            <table id="adminUsersTable" class="table table-striped table-hover">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -80,35 +80,17 @@
                                     <?php endif; ?>
                                     
                                     <?php if (session()->get('user_type') === 'superuser'): ?>
-                                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $user['id'] ?>">
+                                    <a href="<?= base_url('admin/users/delete/' . $user['id']) ?>" class="btn btn-sm btn-danger admin-user-delete" data-user-name="<?= esc($user['full_name']) ?>">
                                         <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                    
-                                    <!-- Delete Modal -->
-                                    <div class="modal fade" id="deleteModal<?= $user['id'] ?>" tabindex="-1" aria-hidden="true">
-                                        <div class="modal-dialog">
-                                            <div class="modal-content">
-                                                <div class="modal-header">
-                                                    <h5 class="modal-title">Confirm Delete</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                </div>
-                                                <div class="modal-body">
-                                                    Are you sure you want to delete user <strong><?= esc($user['full_name']) ?></strong>?
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <a href="<?= base_url('admin/users/delete/' . $user['id']) ?>" class="btn btn-danger">Delete</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    </a>
                                     <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <tr>
+                        <!-- Let DataTables display its native empty message; still keep an accessible fallback row for non-JS users -->
+                        <tr class="js-no-data-fallback">
                             <td colspan="8" class="text-center">No users found</td>
                         </tr>
                     <?php endif; ?>
@@ -117,4 +99,78 @@
         </div>
     </div>
 </div>
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    var table = document.getElementById('adminUsersTable');
+    if (!table) return;
+
+    // Remove the non-JS fallback row so DataTables has correct column counts
+    var fallback = table.querySelector('tr.js-no-data-fallback');
+    if (fallback) fallback.parentNode.removeChild(fallback);
+
+    // Initialize DataTables with only the search box enabled
+    try {
+        if (typeof $ === 'undefined' || typeof $.fn.dataTable === 'undefined') {
+            console.warn('DataTables not loaded for admin users table');
+            return;
+        }
+
+        $('#adminUsersTable').DataTable({
+            paging: true,
+            info: false,
+            ordering: true,
+            dom: 'f', // only the filtering input
+            language: { emptyTable: 'No users found' }
+        });
+        // Ensure inline edit anchors always navigate (some global handlers can interfere)
+        table.addEventListener('click', function(e){
+            var a = e.target.closest && e.target.closest('a');
+            if(!a) return;
+            try{
+                var href = a.getAttribute('href') || a.href || '';
+                if(href.indexOf('/admin/users/edit/') !== -1){
+                    // allow normal navigation but force it to avoid prevented defaults
+                    e.preventDefault();
+                    window.location.href = href;
+                }
+            }catch(err){}
+        });
+
+        // Delegated handler for delete links using SimpleModal
+        table.addEventListener('click', function(e){
+            var del = e.target.closest && e.target.closest('.admin-user-delete');
+            if(!del) return;
+            e.preventDefault();
+            var href = del.getAttribute('href');
+            var name = del.getAttribute('data-user-name') || 'this user';
+            if(window.SimpleModal && typeof window.SimpleModal.confirm === 'function'){
+                window.SimpleModal.confirm('Delete user "' + name + '"? This cannot be undone.','Confirm Delete','warning').then(function(ok){ if(ok) window.location.href = href; });
+            } else {
+                if(window.confirm('Delete user "' + name + '"?')) window.location.href = href;
+            }
+        });
+
+        // Capturing listener to ensure edit links navigate even if other handlers stop propagation
+        document.addEventListener('click', function(e){
+            var a = e.target && e.target.closest ? e.target.closest('a') : null;
+            if(!a) return;
+            try{
+                var href = a.getAttribute('href') || a.href || '';
+                if(href.indexOf('/admin/users/edit/') !== -1){
+                    // Only handle left-clicks without modifier keys
+                    if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                        e.preventDefault();
+                        window.location.href = href;
+                    }
+                }
+            }catch(err){}
+        }, true);
+    } catch (e) {
+        console.error('Failed to initialize DataTables on admin users table', e);
+    }
+});
+</script>
 <?= $this->endSection() ?>

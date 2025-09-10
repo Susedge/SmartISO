@@ -130,12 +130,12 @@
       // Fallback to native confirm when SimpleModal unavailable
         return window.confirm(message);
     }
+    // expose helper globally from inside the closure where confirmAndSubmit is defined
+    try { window.confirmAndSubmit = window.confirmAndSubmit || confirmAndSubmit; } catch (e) { /* ignore if no window */ }
     return { show, hide, alert, confirm };
   })();
   window.SimpleModal = window.SimpleModal || SimpleModal;
-    // expose helper globally
-    window.confirmAndSubmit = window.confirmAndSubmit || confirmAndSubmit;
-    // Auto-bind any forms with data-confirm attributes to use SimpleModal
+  // Auto-bind any forms with data-confirm attributes to use SimpleModal
     function autoBindConfirmForms(scope){
       const ctx = scope || document;
       Array.from(ctx.querySelectorAll('form[data-confirm]')).forEach(form => {

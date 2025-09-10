@@ -189,6 +189,32 @@ class FormBuilder {
                 return;
             }
             const mapped = data.mapped || {};
+            try { window._lastDocxTags = mapped; console.log('[DOCX Import] Parsed tags:', mapped); } catch(e){}
+            try {
+                const keys = Object.keys(mapped);
+                const hasExplicitC = keys.some(k => /^C_/i.test(k));
+                if (!hasExplicitC) {
+                    const baseBuckets = {};
+                    keys.forEach(k => {
+                        const norm = k.toUpperCase();
+                        // Ignore already C_ and non wordish tags
+                        if (/^C_/.test(norm)) return;
+                        // Detect boolean-ish suffixes
+                        const m = norm.match(/^(.*)_(YES|NO|TRUE|FALSE|Y|N|ON|OFF)$/);
+                        if (!m) return;
+                        const base = m[1];
+                        baseBuckets[base] = baseBuckets[base] || new Set();
+                        baseBuckets[base].add(m[2]);
+                    });
+                    const probableCheckboxBases = Object.entries(baseBuckets)
+                        .filter(([b,set]) => set.size >= 2) // at least two options (e.g. YES & NO)
+                        .map(([b]) => b)
+                        .slice(0,4);
+                    if (probableCheckboxBases.length) {
+                        notify('Detected possible checkbox pairs missing C_ prefix: ' + probableCheckboxBases.join(', ') + '. Set Word Tag to C_'+probableCheckboxBases[0]+'_YES, etc.', 'warning', { duration: 6500 });
+                    }
+                }
+            } catch(detectErr){ /* non-fatal */ }
             // Build SimpleModal import UI dynamically
             const containerId = 'sm_docx_import_container_' + Date.now();
             const html = `<div id="${containerId}" class="docx-import-wrapper small">
@@ -217,6 +243,24 @@ class FormBuilder {
                         if(kind==='checkboxGroup'){
                             const base = chk.dataset.base;
                             let options=[]; try{ options = JSON.parse(chk.dataset.options||'[]'); }catch(e){}
+                            // Fallback reconstruction if options missing (e.g., dataset lost)
+                            if((!options || !options.length) && window._lastDocxTags){
+                                const baseUpper = String(base).toUpperCase();
+                                const rebuilt = [];
+                                Object.keys(window._lastDocxTags).forEach(k=>{
+                                    const ku = k.toUpperCase();
+                                    if(/^C_/.test(ku)){
+                                        const m = ku.match(/^C_([^_]+(?:_[^_]+)*)_([^_]+)$/); // C_BASE_OPTION
+                                        if(m){
+                                            const b = m[1]; const opt = m[2];
+                                            if(b === baseUpper){
+                                                rebuilt.push({label: this.humanizeTag(opt), sub_field: opt});
+                                            }
+                                        }
+                                    }
+                                });
+                                if(rebuilt.length){ options = rebuilt; }
+                            }
                             const exists = this.fields.some(f => (f.name||'').toLowerCase() === base.toLowerCase());
                             if(exists) return;
                             const fieldData={ id:this.generateFieldId(), type:'checkboxes', label:this.humanizeTag(base), name:base.toLowerCase(), width:12, required:false, bump_next_field:false, options: options.map(o=>({label:o.label, sub_field:o.sub_field||o.label})) };
@@ -283,9 +327,9 @@ class FormBuilder {
         //  - Checkbox groups (C_BASE_OPTION) appear at the first occurrence of any of their options.
         //  - Single value fields are plain TAG or F_TAG (F_ optional and ignored).
         //  - When both TAG and F_TAG exist, prefer plain label but keep earliest position.
-        const checkboxGroups = {}; // base -> { options:Set, firstIndex:number }
-        const singleFieldsMeta = {}; // normName -> { plain:string, firstIndex:number }
-        const orderedItems = []; // [{kind:'checkboxGroup', base}, {kind:'single', name:plain}]
+    const checkboxGroups = {}; // base -> { options:Set, firstIndex:number }
+    const singleFieldsMeta = {}; // normName -> { plain:string, firstIndex:number, sawPlain:boolean }
+    const orderedItems = [];
 
         const rawTags = Object.keys(map);
         rawTags.forEach((tag, idx) => {
