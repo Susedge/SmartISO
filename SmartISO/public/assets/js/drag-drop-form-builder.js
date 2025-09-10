@@ -247,16 +247,14 @@ class FormBuilder {
                             if((!options || !options.length) && window._lastDocxTags){
                                 const baseUpper = String(base).toUpperCase();
                                 const rebuilt = [];
-                                Object.keys(window._lastDocxTags).forEach(k=>{
+                                Object.keys(window._lastDocxTags).forEach(k => {
                                     const ku = k.toUpperCase();
-                                    if(/^C_/.test(ku)){
-                                        const m = ku.match(/^C_([^_]+(?:_[^_]+)*)_([^_]+)$/); // C_BASE_OPTION
-                                        if(m){
-                                            const b = m[1]; const opt = m[2];
-                                            if(b === baseUpper){
-                                                rebuilt.push({label: this.humanizeTag(opt), sub_field: opt});
-                                            }
-                                        }
+                                    if(!ku.startsWith('C_')) return;
+                                    const core = ku.slice(2); // remove C_
+                                    if(core === baseUpper) return; // no option tokens
+                                    if(core.startsWith(baseUpper + '_')){
+                                        const opt = core.slice(baseUpper.length + 1);
+                                        if(opt){ rebuilt.push({ label: this.humanizeTag(opt), sub_field: opt }); }
                                     }
                                 });
                                 if(rebuilt.length){ options = rebuilt; }
@@ -322,46 +320,112 @@ class FormBuilder {
         const countEl = document.getElementById('docxSelectedCount');
         const map = mapped || {}; // maintain previous variable name usage
 
-        // New spec (chronological rendering):
-        //  - Maintain the order (top-to-bottom) that tags appeared in the DOCX.
-        //  - Checkbox groups (C_BASE_OPTION) appear at the first occurrence of any of their options.
-        //  - Single value fields are plain TAG or F_TAG (F_ optional and ignored).
-        //  - When both TAG and F_TAG exist, prefer plain label but keep earliest position.
-    const checkboxGroups = {}; // base -> { options:Set, firstIndex:number }
-    const singleFieldsMeta = {}; // normName -> { plain:string, firstIndex:number, sawPlain:boolean }
-    const orderedItems = [];
-
+        // Grouping logic (supports multi-word bases):
+        // 1. Collect all C_ tags and build prefix -> tag index sets for every possible prefix length (excluding full tag).
+        // 2. A valid prefix must have at least 2 tags AND every tag in the set must have remaining tokens (option part).
+        // 3. Assign groups starting from the longest prefixes so UNDER_WARRANTY wins over UNDER.
+        // 4. Remaining non C_ tags become single fields (plain/F_ merged).
+        const checkboxGroups = {}; // base -> { options:Set, firstIndex:number }
+        const singleFieldsMeta = {}; // normName -> { plain, firstIndex, sawPlain }
+        const orderedItems = [];
         const rawTags = Object.keys(map);
+
+        // Pass A: capture C_ tag tokens
+        const cTags = []; // {tag, tokens, idx}
         rawTags.forEach((tag, idx) => {
-            if (/^C_/i.test(tag)) {
-                const core = tag.replace(/^C_/i, '');
-                const parts = core.split('_');
-                if (parts.length < 2) return; // need base + option
-                const option = parts.pop();
-                const base = parts.join('_');
-                if (!checkboxGroups[base]) {
-                    checkboxGroups[base] = { options: new Set(), firstIndex: idx };
-                    // Record first appearance ordering
-                    orderedItems.push({ kind: 'checkboxGroup', base });
-                }
-                checkboxGroups[base].options.add(option);
+            if(!/^C_/i.test(tag)) return;
+            const core = tag.replace(/^C_/i,'');
+            const tokens = core.split('_').filter(Boolean);
+            if(tokens.length < 2) return; // must have base + option(s)
+            cTags.push({ tag, tokens, idx });
+        });
+
+        // Pass B: build prefix map prefixKey -> set of tag indices
+        const prefixMap = {}; // prefix (UPPER underscore joined) -> Set of indices into cTags
+        cTags.forEach((ct, i) => {
+            const { tokens } = ct;
+            // Generate all prefixes excluding full-length (must leave at least 1 token for option)
+            for(let L=1; L<tokens.length; L++){
+                const pref = tokens.slice(0,L).join('_').toUpperCase();
+                if(!prefixMap[pref]) prefixMap[pref] = new Set();
+                prefixMap[pref].add(i);
+            }
+        });
+
+        // Pass C: build candidate prefixes with validity (>=2 tags & each tag has > prefixLen tokens)
+        const candidates = Object.entries(prefixMap).map(([pref, set]) => {
+            const indices = Array.from(set.values());
+            const tokenLen = pref.split('_').length;
+            // validate all tags have remaining tokens after prefix
+            const valid = indices.length >= 2 && indices.every(i => cTags[i].tokens.length > tokenLen);
+            return valid ? { prefix: pref, indices, tokenLen } : null;
+        }).filter(Boolean);
+
+        // Sort by longer prefixes first (token length desc) then earliest appearance
+        candidates.sort((a,b)=>{
+            if(b.tokenLen !== a.tokenLen) return b.tokenLen - a.tokenLen;
+            // tie-breaker: earliest firstIndex among member tags
+            const aFirst = Math.min(...a.indices.map(i=>cTags[i].idx));
+            const bFirst = Math.min(...b.indices.map(i=>cTags[i].idx));
+            return aFirst - bFirst;
+        });
+
+        const assignedCTag = new Array(cTags.length).fill(false);
+        candidates.forEach(cand => {
+            // Filter out indices already assigned to a longer prefix
+            const fresh = cand.indices.filter(i=>!assignedCTag[i]);
+            if(fresh.length < 2) return; // need at least 2 remaining tags
+            // Determine base string in original case from first fresh tag tokens
+            const baseTokens = cTags[fresh[0]].tokens.slice(0, cand.tokenLen);
+            const base = baseTokens.join('_');
+            // Create group if not existing
+            if(!checkboxGroups[base]){
+                const firstIndex = Math.min(...fresh.map(i=>cTags[i].idx));
+                checkboxGroups[base] = { options:new Set(), firstIndex };
+                orderedItems.push({ kind:'checkboxGroup', base, firstIndex });
+            }
+            // Add options
+            fresh.forEach(i => {
+                const optTokens = cTags[i].tokens.slice(cand.tokenLen);
+                const option = optTokens.join('_');
+                if(option) checkboxGroups[base].options.add(option);
+                assignedCTag[i] = true;
+            });
+        });
+
+        // Pass D: any unassigned C_ tags (no valid multi-tag prefix) fall back to simplest (base = tokens[0]) grouping
+        cTags.forEach((ct, i) => {
+            if(assignedCTag[i]) return;
+            const { tokens, idx } = ct;
+            const base = tokens[0];
+            const option = tokens.slice(1).join('_');
+            if(!option) return; // malformed single-token
+            if(!checkboxGroups[base]){
+                checkboxGroups[base] = { options:new Set(), firstIndex: idx };
+                orderedItems.push({ kind:'checkboxGroup', base, firstIndex: idx });
+            }
+            checkboxGroups[base].options.add(option);
+        });
+
+        // Pass E: plain / F_ tags (and any tags not starting with C_)
+        rawTags.forEach((tag, idx) => {
+            if(/^C_/i.test(tag)) return; // already handled
+            const plain = tag.replace(/^F_/i,'');
+            const norm = plain.toLowerCase();
+            if(!singleFieldsMeta[norm]){
+                singleFieldsMeta[norm] = { plain, firstIndex: idx, sawPlain: !/^F_/i.test(tag) };
+                orderedItems.push({ kind:'single', name: plain, norm, firstIndex: idx });
             } else {
-                const plain = tag.replace(/^F_/i, '');
-                const norm = plain.toLowerCase();
-                if (!singleFieldsMeta[norm]) {
-                    singleFieldsMeta[norm] = { plain, firstIndex: idx, sawPlain: !/^F_/i.test(tag) };
-                    orderedItems.push({ kind: 'single', name: plain, norm });
-                } else {
-                    // Update earliest index
-                    singleFieldsMeta[norm].firstIndex = Math.min(singleFieldsMeta[norm].firstIndex, idx);
-                    // If we now see a plain variant, prefer that canonical plain value
-                    if (!/^F_/i.test(tag) && !singleFieldsMeta[norm].sawPlain) {
-                        singleFieldsMeta[norm].plain = plain;
-                        singleFieldsMeta[norm].sawPlain = true;
-                    }
+                singleFieldsMeta[norm].firstIndex = Math.min(singleFieldsMeta[norm].firstIndex, idx);
+                if(!/^F_/i.test(tag) && !singleFieldsMeta[norm].sawPlain){
+                    singleFieldsMeta[norm].plain = plain;
+                    singleFieldsMeta[norm].sawPlain = true;
                 }
             }
         });
+
+        // Sort orderedItems by their first appearance index to maintain chronological order
+        orderedItems.sort((a,b)=> a.firstIndex - b.firstIndex);
 
         // Render in chronological order (orderedItems already captures first-appearance order)
         let rowIndex = 0;
