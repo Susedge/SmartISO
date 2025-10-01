@@ -179,6 +179,15 @@ $routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes)
     $routes->post('configurations/add-form-signatory', 'Admin\Configurations::addFormSignatory');
     $routes->get('configurations/remove-form-signatory/(:num)', 'Admin\Configurations::removeFormSignatory/$1');
     $routes->get('configurations/user-form-signatories/(:num)', 'Admin\Configurations::userFormSignatories/$1');
+    
+    // Forms management
+    $routes->get('forms', 'Admin\Forms::index');
+    $routes->get('forms/gallery', 'Admin\Forms::gallery');
+    $routes->get('forms/new', 'Admin\Forms::new');
+    $routes->post('forms/create', 'Admin\Forms::create');
+    $routes->get('forms/edit/(:num)', 'Admin\Forms::edit/$1');
+    $routes->post('forms/update/(:num)', 'Admin\Forms::update/$1');
+    $routes->get('forms/delete/(:num)', 'Admin\Forms::delete/$1');
 
     // Dynamic Forms routes
     $routes->get('dynamicforms', 'Admin\DynamicForms::index');

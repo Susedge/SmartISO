@@ -247,6 +247,12 @@
 
                         <!-- For admin users only -->
                         <div class="sidebar-heading">FORM TOOLS</div>
+                        
+                        <!-- Forms Gallery -->
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/forms/gallery' ? 'active' : '' ?>" href="<?= base_url('admin/forms/gallery') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-images me-2"></i></div>
+                            <span>Forms Gallery</span>
+                        </a>
 
                         <!-- Forms and Panels moved into Configurations (Panels is available as a tab there) -->
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms/submissions' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms/submissions') ?>">

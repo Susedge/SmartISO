@@ -82,6 +82,8 @@ class Users extends BaseController
             'password_hash' => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT)
         ];
         
+        // Skip model validation and insert directly
+        $this->userModel->skipValidation(true);
         if ($this->userModel->insert($data)) {
             return redirect()->to('admin/users')
                 ->with('message', 'User created successfully');
@@ -173,6 +175,8 @@ class Users extends BaseController
             $data['password_hash'] = password_hash($this->request->getPost('password'), PASSWORD_DEFAULT);
         }
         
+        // Skip model validation and update directly
+        $this->userModel->skipValidation(true);
         if ($this->userModel->update($id, $data)) {
             return redirect()->to('admin/users')
                 ->with('message', 'User updated successfully');

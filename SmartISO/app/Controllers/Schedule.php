@@ -28,26 +28,43 @@ class Schedule extends BaseController
         $userId = session()->get('user_id');
         
         $data['title'] = 'Service Schedules';
-        // Present the calendar view to all users, but scope events per role.
-        // Requestors see only their submission schedules; service_staff see assigned schedules; admins and others see full schedules.
-        if ($userType === 'service_staff') {
+        
+        // Admin and superuser can see all schedules
+        if (in_array($userType, ['admin', 'superuser'])) {
+            $schedules = $this->scheduleModel->getSchedulesWithDetails();
+        }
+        // Service staff sees schedules assigned to them
+        elseif ($userType === 'service_staff') {
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
-        } elseif ($userType === 'requestor') {
+        }
+        // Requestor sees schedules for their submissions
+        elseif ($userType === 'requestor') {
             $submissions = $this->submissionModel->where('submitted_by', $userId)->findAll();
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
                 $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
-                // If no schedules exist for the requestor's submissions, include the submissions themselves
-                // as temporary calendar events (so users see their submitted items on the calendar).
+                
+                // Enhance schedules with details
+                $formModel = new \App\Models\FormModel();
+                foreach ($schedules as &$schedule) {
+                    $submission = $this->submissionModel->find($schedule['submission_id']);
+                    if ($submission) {
+                        $form = $formModel->find($submission['form_id']);
+                        $schedule['form_code'] = $form['code'] ?? null;
+                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
+                        $schedule['submission_status'] = $submission['status'] ?? null;
+                    }
+                }
+                unset($schedule);
+                
+                // If no schedules exist, show pending submissions as placeholder events
                 if (empty($schedules)) {
-                    // Get submissions that are submitted or approved (pending service)
                     $pendingSubs = $this->submissionModel->whereIn('id', $submissionIds)
                         ->whereIn('status', ['submitted', 'approved'])
                         ->orderBy('created_at', 'ASC')
                         ->findAll();
 
                     if (!empty($pendingSubs)) {
-                        $formModel = new \App\Models\FormModel();
                         $schedules = [];
                         foreach ($pendingSubs as $ps) {
                             $form = $formModel->find($ps['form_id']);
@@ -56,7 +73,6 @@ class Schedule extends BaseController
                                 'priority' => 0,
                                 'form_code' => $form['code'] ?? null,
                                 'panel_name' => $ps['panel_name'] ?? null,
-                                // Use submission created date as the event date; default time to 09:00
                                 'scheduled_date' => isset($ps['created_at']) ? substr($ps['created_at'], 0, 10) : date('Y-m-d'),
                                 'scheduled_time' => '09:00:00',
                                 'notes' => null,
@@ -68,12 +84,36 @@ class Schedule extends BaseController
             } else {
                 $schedules = [];
             }
-        } else {
-            // admin, approving_authority, superuser, and other privileged roles
+        }
+        // Approving authority sees schedules for submissions they approved
+        elseif ($userType === 'approving_authority') {
+            // Get submissions approved by this user
+            $submissions = $this->submissionModel->where('approver_id', $userId)->findAll();
+            $submissionIds = array_column($submissions, 'id');
+            if (!empty($submissionIds)) {
+                $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
+                
+                // Enhance schedules with details
+                $formModel = new \App\Models\FormModel();
+                foreach ($schedules as &$schedule) {
+                    $submission = $this->submissionModel->find($schedule['submission_id']);
+                    if ($submission) {
+                        $form = $formModel->find($submission['form_id']);
+                        $schedule['form_code'] = $form['code'] ?? null;
+                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
+                        $schedule['submission_status'] = $submission['status'] ?? null;
+                    }
+                }
+                unset($schedule);
+            } else {
+                $schedules = [];
+            }
+        }
+        else {
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
         }
 
-        // If none found, fallback to pending schedules for next 30 days
+        // If none found, fallback to pending schedules for next 30 days (for backward compatibility)
         if (empty($schedules)) {
             $start = date('Y-m-d');
             $end = date('Y-m-d', strtotime('+30 days'));
@@ -371,9 +411,59 @@ class Schedule extends BaseController
         
         $data['title'] = 'Schedule Calendar';
         
-        if ($userType === 'service_staff') {
+        // Admin and superuser can see all schedules
+        if (in_array($userType, ['admin', 'superuser'])) {
+            $schedules = $this->scheduleModel->getSchedulesWithDetails();
+        }
+        // Service staff sees schedules assigned to them
+        elseif ($userType === 'service_staff') {
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
-        } else {
+        }
+        // Requestor sees schedules for their submissions
+        elseif ($userType === 'requestor') {
+            $submissions = $this->submissionModel->where('submitted_by', $userId)->findAll();
+            $submissionIds = array_column($submissions, 'id');
+            if (!empty($submissionIds)) {
+                $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
+                
+                // Enhance schedules with details
+                $formModel = new \App\Models\FormModel();
+                foreach ($schedules as &$schedule) {
+                    $submission = $this->submissionModel->find($schedule['submission_id']);
+                    if ($submission) {
+                        $form = $formModel->find($submission['form_id']);
+                        $schedule['form_code'] = $form['code'] ?? null;
+                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
+                    }
+                }
+                unset($schedule);
+            } else {
+                $schedules = [];
+            }
+        }
+        // Approving authority sees schedules for submissions they approved
+        elseif ($userType === 'approving_authority') {
+            $submissions = $this->submissionModel->where('approver_id', $userId)->findAll();
+            $submissionIds = array_column($submissions, 'id');
+            if (!empty($submissionIds)) {
+                $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
+                
+                // Enhance schedules with details
+                $formModel = new \App\Models\FormModel();
+                foreach ($schedules as &$schedule) {
+                    $submission = $this->submissionModel->find($schedule['submission_id']);
+                    if ($submission) {
+                        $form = $formModel->find($submission['form_id']);
+                        $schedule['form_code'] = $form['code'] ?? null;
+                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
+                    }
+                }
+                unset($schedule);
+            } else {
+                $schedules = [];
+            }
+        }
+        else {
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
         }
 

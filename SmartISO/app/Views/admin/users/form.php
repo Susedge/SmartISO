@@ -70,9 +70,10 @@
                 </div>
                 <div class="col-md-6">
                     <label for="active" class="form-label">Status</label>
-                    <select class="form-select" id="active" name="active">
-                        <option value="1" <?= old('active', isset($user) ? $user['active'] : 1) == 1 ? 'selected' : '' ?>>Active</option>
-                        <option value="0" <?= old('active', isset($user) ? $user['active'] : 1) == 0 ? 'selected' : '' ?>>Inactive</option>
+                    <select class="form-select" id="active" name="active" required>
+                        <?php $activeValue = old('active', isset($user) ? $user['active'] : '1'); ?>
+                        <option value="1" <?= $activeValue == '1' ? 'selected' : '' ?>>Active</option>
+                        <option value="0" <?= $activeValue == '0' ? 'selected' : '' ?>>Inactive</option>
                     </select>
                 </div>
             </div>

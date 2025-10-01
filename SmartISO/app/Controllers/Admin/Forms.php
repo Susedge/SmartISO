@@ -30,6 +30,24 @@ class Forms extends BaseController
         return view('admin/forms/index', $data);
     }
     
+    public function gallery()
+    {
+        $forms = $this->formModel->findAll();
+        
+        // Check which forms have templates
+        foreach ($forms as &$form) {
+            $templatePath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
+            $form['has_template'] = file_exists($templatePath);
+        }
+        
+        $data = [
+            'title' => 'Forms Gallery',
+            'forms' => $forms
+        ];
+        
+        return view('admin/forms/gallery', $data);
+    }
+    
     public function new()
     {
         $data = [
