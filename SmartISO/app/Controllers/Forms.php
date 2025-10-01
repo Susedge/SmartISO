@@ -1568,10 +1568,10 @@ class Forms extends BaseController
 
         $format = strtolower($format);
 
-        // Currently we only generate DOCX via PdfGenerator::generateFormPdf().
-        // Treat pdf/word/docx requests the same for now; future real PDF generation can branch here.
+        // PdfGenerator::generateFormPdf() handles both PDF and Word formats
+        // It will convert DOCX to PDF using iLovePDF when format=pdf
         if (in_array($format, ['pdf','word','docx'])) {
-            return redirect()->to('/pdfgenerator/generateFormPdf/' . $id);
+            return redirect()->to('/pdfgenerator/generateFormPdf/' . $id . '/' . $format);
         }
 
         return redirect()->back()->with('error', 'Invalid export format');

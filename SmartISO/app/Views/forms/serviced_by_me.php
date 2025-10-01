@@ -36,7 +36,24 @@
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <a href="<?= base_url('forms/submission/' . $item['id']) ?>" class="btn btn-sm btn-info">View</a>
+                                <a href="<?= base_url('forms/submission/' . $item['id']) ?>" class="btn btn-sm btn-info me-1">
+                                    <i class="fas fa-eye me-1"></i> View
+                                </a>
+                                <?php if ($item['status'] == 'completed'): ?>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                            <i class="fas fa-download me-1"></i> Export
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $item['id'] . '/pdf') ?>">
+                                                <i class="fas fa-file-pdf me-2 text-danger"></i> PDF
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $item['id'] . '/word') ?>">
+                                                <i class="fas fa-file-word me-2 text-primary"></i> Word
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>

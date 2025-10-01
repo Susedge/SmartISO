@@ -165,37 +165,59 @@ class PdfGenerator extends BaseController
             $this->injectSignaturePictureControls($tempDocxFile, $requestor, $approver, $serviceStaff);
 
             if ($reqFormat === 'pdf') {
-                // Placeholder: convert DOCX to PDF via iLovePDF when API keys configured
+                // Convert DOCX to PDF via iLovePDF when API keys configured
                 // If conversion fails or not configured, fallback to DOCX
-                $pdfFile = $tempDir . uniqid('form_') . '.pdf';
+                $pdfFile = $tempDir . uniqid('form_pdf_') . '.pdf';
                 $converted = false;
                 try {
                     $publicKey = getenv('ILOVEPDF_PUBLIC_KEY');
                     $secretKey = getenv('ILOVEPDF_SECRET_KEY');
                     if ($publicKey && $secretKey) {
-                        // Lazy-load library
+                        // Check if iLovePDF library is available
                         if (class_exists('Ilovepdf\Ilovepdf')) {
+                            log_message('info', 'Starting PDF conversion using iLovePDF for submission: ' . $submissionId);
                             $ilovepdf = new \Ilovepdf\Ilovepdf($publicKey, $secretKey);
                             $task = $ilovepdf->newTask('officepdf');
                             $file = $task->addFile($tempDocxFile);
                             $task->execute();
                             $task->download($tempDir);
-                            // Find newest pdf in tempDir from this task
-                            foreach (glob($tempDir . '*.pdf') as $candidate) {
-                                if (filemtime($candidate) >= filemtime($tempDocxFile)) {
-                                    @rename($candidate, $pdfFile);
-                                    $converted = true; break;
+                            
+                            // Find the converted PDF file (iLovePDF saves with a specific naming pattern)
+                            // Look for the newest PDF file created after the DOCX file
+                            $pdfFiles = glob($tempDir . '*.pdf');
+                            if (!empty($pdfFiles)) {
+                                // Sort by modification time (newest first)
+                                usort($pdfFiles, function($a, $b) {
+                                    return filemtime($b) - filemtime($a);
+                                });
+                                
+                                // Get the newest PDF file
+                                foreach ($pdfFiles as $candidate) {
+                                    if (filemtime($candidate) >= filemtime($tempDocxFile)) {
+                                        @rename($candidate, $pdfFile);
+                                        $converted = true;
+                                        log_message('info', 'PDF conversion successful for submission: ' . $submissionId);
+                                        break;
+                                    }
                                 }
                             }
+                        } else {
+                            log_message('warning', 'iLovePDF library not found. Install via: composer require ilovepdf/ilovepdf-php');
                         }
+                    } else {
+                        log_message('warning', 'iLovePDF API keys not configured in .env file');
                     }
                 } catch (\Throwable $e) {
-                    log_message('error','PDF conversion failed: '.$e->getMessage());
+                    log_message('error','PDF conversion failed for submission ' . $submissionId . ': '.$e->getMessage());
                 }
+                
                 if ($converted && file_exists($pdfFile)) {
-                    return $this->response->download($pdfFile, null)->setFileName(str_replace('.docx','.pdf',$docxFilename));
+                    $pdfFilename = str_replace('.docx','.pdf',$docxFilename);
+                    return $this->response->download($pdfFile, null)->setFileName($pdfFilename);
+                } else {
+                    // Fallback to DOCX if PDF conversion failed
+                    log_message('warning', 'PDF conversion failed, returning DOCX instead for submission: ' . $submissionId);
                 }
-                // Fallback
             }
             return $this->response->download($tempDocxFile, null)->setFileName($docxFilename);
             
