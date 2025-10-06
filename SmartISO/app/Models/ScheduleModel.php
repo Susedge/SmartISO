@@ -94,15 +94,43 @@ class ScheduleModel extends Model
     public function getStaffSchedules($staffId, $date = null)
     {
         $builder = $this->db->table('schedules s');
-        $builder->select('s.*, fs.panel_name, f.code as form_code, u.full_name as requestor_name')
+        $builder->select('s.*, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name, staff.full_name as assigned_staff_name')
             ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('users staff', 'staff.id = s.assigned_staff_id', 'left')
             ->where('s.assigned_staff_id', $staffId);
         
         if ($date) {
             $builder->where('s.scheduled_date', $date);
         }
+        
+        $builder->orderBy('s.scheduled_date', 'ASC')
+                ->orderBy('s.scheduled_time', 'ASC');
+        
+        return $builder->get()->getResultArray();
+    }
+
+    /**
+     * Get schedules with full details by submission IDs
+     */
+    public function getSchedulesBySubmissions($submissionIds)
+    {
+        if (empty($submissionIds)) {
+            return [];
+        }
+        
+        $builder = $this->db->table('schedules s');
+        $builder->select('s.*, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name, staff.full_name as assigned_staff_name')
+            ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('users staff', 'staff.id = s.assigned_staff_id', 'left')
+            ->whereIn('s.submission_id', $submissionIds);
         
         $builder->orderBy('s.scheduled_date', 'ASC')
                 ->orderBy('s.scheduled_time', 'ASC');

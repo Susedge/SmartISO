@@ -42,20 +42,8 @@ class Schedule extends BaseController
             $submissions = $this->submissionModel->where('submitted_by', $userId)->findAll();
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
-                $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
-                
-                // Enhance schedules with details
-                $formModel = new \App\Models\FormModel();
-                foreach ($schedules as &$schedule) {
-                    $submission = $this->submissionModel->find($schedule['submission_id']);
-                    if ($submission) {
-                        $form = $formModel->find($submission['form_id']);
-                        $schedule['form_code'] = $form['code'] ?? null;
-                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
-                        $schedule['submission_status'] = $submission['status'] ?? null;
-                    }
-                }
-                unset($schedule);
+                // Use the new method to get schedules with full details
+                $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
                 
                 // If no schedules exist, show pending submissions as placeholder events
                 if (empty($schedules)) {
@@ -65,6 +53,7 @@ class Schedule extends BaseController
                         ->findAll();
 
                     if (!empty($pendingSubs)) {
+                        $formModel = new \App\Models\FormModel();
                         $schedules = [];
                         foreach ($pendingSubs as $ps) {
                             $form = $formModel->find($ps['form_id']);
@@ -91,20 +80,8 @@ class Schedule extends BaseController
             $submissions = $this->submissionModel->where('approver_id', $userId)->findAll();
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
-                $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
-                
-                // Enhance schedules with details
-                $formModel = new \App\Models\FormModel();
-                foreach ($schedules as &$schedule) {
-                    $submission = $this->submissionModel->find($schedule['submission_id']);
-                    if ($submission) {
-                        $form = $formModel->find($submission['form_id']);
-                        $schedule['form_code'] = $form['code'] ?? null;
-                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
-                        $schedule['submission_status'] = $submission['status'] ?? null;
-                    }
-                }
-                unset($schedule);
+                // Use the new method to get schedules with full details
+                $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
             } else {
                 $schedules = [];
             }
@@ -424,19 +401,8 @@ class Schedule extends BaseController
             $submissions = $this->submissionModel->where('submitted_by', $userId)->findAll();
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
-                $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
-                
-                // Enhance schedules with details
-                $formModel = new \App\Models\FormModel();
-                foreach ($schedules as &$schedule) {
-                    $submission = $this->submissionModel->find($schedule['submission_id']);
-                    if ($submission) {
-                        $form = $formModel->find($submission['form_id']);
-                        $schedule['form_code'] = $form['code'] ?? null;
-                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
-                    }
-                }
-                unset($schedule);
+                // Use the new method to get schedules with full details
+                $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
             } else {
                 $schedules = [];
             }
@@ -446,19 +412,8 @@ class Schedule extends BaseController
             $submissions = $this->submissionModel->where('approver_id', $userId)->findAll();
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
-                $schedules = $this->scheduleModel->whereIn('submission_id', $submissionIds)->findAll();
-                
-                // Enhance schedules with details
-                $formModel = new \App\Models\FormModel();
-                foreach ($schedules as &$schedule) {
-                    $submission = $this->submissionModel->find($schedule['submission_id']);
-                    if ($submission) {
-                        $form = $formModel->find($submission['form_id']);
-                        $schedule['form_code'] = $form['code'] ?? null;
-                        $schedule['panel_name'] = $submission['panel_name'] ?? null;
-                    }
-                }
-                unset($schedule);
+                // Use the new method to get schedules with full details
+                $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
             } else {
                 $schedules = [];
             }
@@ -693,11 +648,32 @@ class Schedule extends BaseController
 
         // Upsert field in submission data
         $submissionDataModel = new \App\Models\FormSubmissionDataModel();
-        if ($priorityLevel) {
-            $submissionDataModel->setFieldValue($submissionId, 'priority_level', $priorityLevel);
-        } else {
-            // Clear priority by setting empty value
-            $submissionDataModel->setFieldValue($submissionId, 'priority_level', '');
+        try {
+            if ($priorityLevel) {
+                $result = $submissionDataModel->setFieldValue($submissionId, 'priority_level', $priorityLevel);
+                log_message('info', "Priority set for submission {$submissionId}: {$priorityLevel}, result: " . ($result ? 'success' : 'failed'));
+            } else {
+                // Clear priority by setting empty value
+                $result = $submissionDataModel->setFieldValue($submissionId, 'priority_level', '');
+                log_message('info', "Priority cleared for submission {$submissionId}, result: " . ($result ? 'success' : 'failed'));
+            }
+            
+            if (!$result) {
+                return $this->response->setJSON([
+                    'success' => false, 
+                    'message' => 'Failed to update priority in database',
+                    'csrf_name' => csrf_token(), 
+                    'csrf_hash' => csrf_hash()
+                ]);
+            }
+        } catch (\Exception $e) {
+            log_message('error', "Error updating priority for submission {$submissionId}: " . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false, 
+                'message' => 'Database error: ' . $e->getMessage(),
+                'csrf_name' => csrf_token(), 
+                'csrf_hash' => csrf_hash()
+            ]);
         }
 
         // Compute ETA off submission created_at using new mapping

@@ -52,14 +52,22 @@ class FormSubmissionDataModel extends Model
         $existing = $this->where('submission_id', $submissionId)
                          ->where('field_name', $fieldName)
                          ->first();
+        
+        if ($existing) {
+            // Update existing record - only update the field_value
+            $result = $this->update($existing['id'], ['field_value' => (string)$value]);
+            log_message('info', "FormSubmissionDataModel::setFieldValue - Updated existing record ID {$existing['id']} for submission {$submissionId}, field {$fieldName}: " . ($result ? 'success' : 'failed'));
+            return (bool)$result;
+        }
+        
+        // Insert new record with all fields
         $data = [
             'submission_id' => $submissionId,
             'field_name' => $fieldName,
             'field_value' => (string)$value
         ];
-        if ($existing) {
-            return (bool)$this->update($existing['id'], $data);
-        }
-        return (bool)$this->insert($data, true);
+        $result = $this->insert($data, true);
+        log_message('info', "FormSubmissionDataModel::setFieldValue - Inserted new record for submission {$submissionId}, field {$fieldName}: " . ($result ? 'success' : 'failed'));
+        return (bool)$result;
     }
 }
