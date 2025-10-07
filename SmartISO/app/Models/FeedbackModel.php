@@ -43,7 +43,7 @@ class FeedbackModel extends Model
     public function getFeedbackWithDetails($userId = null)
     {
         $builder = $this->db->table('feedback f');
-        $builder->select('f.*, fs.form_id, fs.panel_name,
+        $builder->select('f.*, fs.form_id, fs.panel_name, fs.status as submission_status,
                           form.code as form_code, form.description as form_description,
                           u.full_name as user_name')
             ->join('form_submissions fs', 'fs.id = f.submission_id', 'left')

@@ -105,6 +105,7 @@ Tag: UNDER_WARRANTY        => Yes (plain joined value)
       <li>Signatures are injected only after the corresponding workflow step: approver signs (approval date), service staff signs (service completion), requestor final confirmation.</li>
       <li>If a user has not uploaded a signature image, the control remains blank.</li>
       <li>Supported formats: PNG or JPEG; images are stored and injected at native size (scaled by Word layout).</li>
+      <li><strong class="text-warning">⚠️ Important for Template Upload:</strong> When uploading a DOCX template to auto-generate panel fields, all content controls with <code>P_</code> prefix (signature placeholders) are automatically excluded from the generated field list. They are for image injection only and should not appear as editable form fields.</li>
   </ul>
 
   <h3 id="troubleshooting" class="mt-4">4. Troubleshooting<a href="#troubleshooting" class="anchor-link">#</a></h3>

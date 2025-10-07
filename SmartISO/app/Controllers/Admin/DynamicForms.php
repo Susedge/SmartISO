@@ -597,32 +597,49 @@ class DynamicForms extends BaseController
         
         // Get submissions - use this simplified approach to avoid issues
         if ($isAdmin) {
-            // For admin, get all submissions without filtering
+            // For admin, get all submissions without filtering and include schedule priority data
             $submissions = $this->db->table('form_submissions fs')
-                ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name')
+                ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name, sch.priority_level, sch.eta_days, sch.estimated_date')
                 ->join('forms f', 'f.id = fs.form_id', 'left')
                 ->join('users u', 'u.id = fs.submitted_by', 'left')
+                ->join('schedules sch', 'sch.submission_id = fs.id', 'left')
                 ->orderBy('fs.created_at', 'DESC')
                 ->get()
                 ->getResultArray();
         } else {
             // For regular users, only show their submissions
             $submissions = $this->db->table('form_submissions fs')
-                ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name')
+                ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name, sch.priority_level, sch.eta_days, sch.estimated_date')
                 ->join('forms f', 'f.id = fs.form_id', 'left')
                 ->join('users u', 'u.id = fs.submitted_by', 'left')
+                ->join('schedules sch', 'sch.submission_id = fs.id', 'left')
                 ->where('fs.submitted_by', session()->get('user_id'))
                 ->orderBy('fs.created_at', 'DESC')
                 ->get()
                 ->getResultArray();
         }
         
-        // Handle missing data in results
+        // Handle missing data in results and load priority from submission data if not in schedule
         foreach ($submissions as &$row) {
             if (empty($row['form_code'])) $row['form_code'] = 'Unknown';
             if (empty($row['form_description'])) $row['form_description'] = 'Unknown Form';
             if (empty($row['submitted_by_name'])) $row['submitted_by_name'] = 'Unknown User';
+            
+            // If priority_level not in schedule, try to get it from form_submission_data
+            if (empty($row['priority_level'])) {
+                $priorityData = $this->db->table('form_submission_data')
+                    ->select('field_value')
+                    ->where('submission_id', $row['id'])
+                    ->where('field_name', 'priority_level')
+                    ->get()
+                    ->getRowArray();
+                
+                if ($priorityData) {
+                    $row['priority_level'] = $priorityData['field_value'];
+                }
+            }
         }
+        unset($row);
         
         // Debug: Log how many submissions we found
         log_message('info', 'DynamicForms submissions() - Found ' . count($submissions) . ' submissions');
@@ -928,6 +945,12 @@ class DynamicForms extends BaseController
                             }
                         }
                         if (!$tagName) continue;
+                        
+                        // Skip signature placeholders (P_ prefix) - these are for image injection only
+                        if (preg_match('/^P_/i', $tagName)) {
+                            continue;
+                        }
+                        
                         $contentNode = $xpath->query('.//w:sdtContent', $sdt)->item(0);
                         if ($contentNode) {
                             $textParts = [];

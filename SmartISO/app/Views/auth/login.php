@@ -8,6 +8,18 @@
                 <h3 class="card-title">Login</h3>
             </div>
             <div class="card-body">
+                <?php if (session()->getFlashdata('error')): ?>
+                    <div class="alert alert-danger">
+                        <?= esc(session()->getFlashdata('error')) ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (session()->getFlashdata('message')): ?>
+                    <div class="alert alert-success">
+                        <?= esc(session()->getFlashdata('message')) ?>
+                    </div>
+                <?php endif; ?>
+
                 <?php if (isset($validation)): ?>
                     <div class="alert alert-danger">
                         <?= $validation->listErrors() ?>
@@ -19,7 +31,7 @@
                     
                     <div class="mb-3">
                         <label for="login_identity" class="form-label">Email or Username</label>
-                        <input type="text" class="form-control" id="login_identity" name="login_identity" value="<?= old('login_identity') ?>" required>
+                        <input type="text" class="form-control" id="login_identity" name="login_identity" value="<?= old('login_identity') ?: (session()->getFlashdata('login_identity') ?? '') ?>" required>
                     </div>
                     
                     <div class="mb-3">

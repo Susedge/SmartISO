@@ -41,35 +41,41 @@
                                 <td><?= esc($submission['submitted_by_name']) ?></td>
                                 <td>
                                     <?php 
-                                    $priority = $submission['priority'] ?? 'normal';
-                                    $priorityLabel = $priorities[$priority] ?? 'Normal';
-                                    $priorityColors = [
-                                        'low' => 'success',
-                                        'normal' => 'secondary', 
-                                        'high' => 'warning',
-                                        'urgent' => 'danger',
-                                        'critical' => 'dark'
+                                    // Use calendar-based priority from schedule or form_submission_data
+                                    $priority = $submission['priority_level'] ?? '';
+                                    
+                                    // Map priority levels to labels and colors (calendar-based)
+                                    $priorityMap = [
+                                        'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
+                                        'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
+                                        'low' => ['label' => 'Low', 'color' => 'success', 'days' => 7]
                                     ];
-                                    $priorityColor = $priorityColors[$priority] ?? 'secondary';
+                                    
+                                    $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
+                                    $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
+                                    $etaDays = $submission['eta_days'] ?? ($priorityMap[$priority]['days'] ?? null);
                                     ?>
                                     
                                     <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
-                                    <div class="priority-container" data-submission-id="<?= $submission['id'] ?>">
-                                        <span class="badge bg-<?= $priorityColor ?> priority-badge" style="cursor: pointer;" onclick="editPriority(<?= $submission['id'] ?>)">
-                                            <?= esc($priorityLabel) ?>
+                                    <div class="priority-container" data-submission-id="<?= $submission['id'] ?>" data-current-priority="<?= $priority ?>" data-form-name="<?= esc($submission['form_code']) ?>">
+                                        <span class="badge bg-<?= $priorityColor ?> priority-badge">
+                                            <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
                                         </span>
-                                        <select class="form-select form-select-sm priority-select d-none" onchange="updatePriority(<?= $submission['id'] ?>, this.value)">
-                                            <?php foreach ($priorities as $priority_key => $priority_label): ?>
-                                                <option value="<?= esc($priority_key) ?>" <?= $priority == $priority_key ? 'selected' : '' ?>>
-                                                    <?= esc($priority_label) ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                        <?php if (!empty($submission['estimated_date'])): ?>
+                                        <div class="priority-meta small text-muted mt-1">
+                                            <small>ETA: <?= date('M d, Y', strtotime($submission['estimated_date'])) ?></small>
+                                        </div>
+                                        <?php endif; ?>
                                     </div>
                                     <?php else: ?>
                                     <span class="badge bg-<?= $priorityColor ?>">
-                                        <?= esc($priorityLabel) ?>
+                                        <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
                                     </span>
+                                    <?php if (!empty($submission['estimated_date'])): ?>
+                                    <div class="small text-muted mt-1">
+                                        <small>ETA: <?= date('M d, Y', strtotime($submission['estimated_date'])) ?></small>
+                                    </div>
+                                    <?php endif; ?>
                                     <?php endif; ?>
                                 </td>
                                 <td>
@@ -141,101 +147,6 @@
         }
 
     });
-
-    // Priority editing functions
-    function editPriority(submissionId) {
-        const container = document.querySelector(`[data-submission-id="${submissionId}"]`);
-        const badge = container.querySelector('.priority-badge');
-        const select = container.querySelector('.priority-select');
-    
-        badge.classList.add('d-none');
-        select.classList.remove('d-none');
-        select.focus();
-
-        // hide select and show badge if user clicks away without changing
-        const onBlur = function() {
-            select.classList.add('d-none');
-            badge.classList.remove('d-none');
-            select.removeEventListener('blur', onBlur);
-        };
-        select.addEventListener('blur', onBlur);
-    }
-
-    function updatePriority(submissionId, newPriority) {
-        const container = document.querySelector(`[data-submission-id="${submissionId}"]`);
-        const badge = container.querySelector('.priority-badge');
-        const select = container.querySelector('.priority-select');
-    
-        // Show loading
-        select.disabled = true;
-    
-        // Use Schedule controller's endpoint to keep priority semantics consistent
-        // The route expects the submission ID in the URL and a POST field named 'priority_level'
-        fetch('<?= rtrim(base_url('schedule/update-submission-priority'), '/') ?>/' + encodeURIComponent(submissionId), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `priority_level=${encodeURIComponent(newPriority)}&<?= csrf_token() ?>=<?= csrf_hash() ?>`
-        })
-        .then(response => response.json())
-        .then(data => {
-            select.disabled = false;
-        
-            if (data.success) {
-                // Update badge with new priority
-                // server returns priority details (level, label, eta_days)
-                const level = data.priority_level || newPriority;
-                const label = data.priority_label || select.options[select.selectedIndex].text;
-                const eta = data.eta_days || null;
-
-                const priorityColors = {
-                    'low': 'success',
-                    'normal': 'secondary', 
-                    'high': 'warning',
-                    'urgent': 'danger',
-                    'critical': 'dark'
-                };
-
-                const newColor = priorityColors[level] || 'secondary';
-
-                // Replace badge with small two-line layout like Schedule's view
-                badge.className = `badge bg-${newColor} priority-badge`;
-                badge.style.cursor = 'pointer';
-                badge.textContent = label;
-
-                // Add a small meta line under the badge (Marked / level + (Nd))
-                let meta = container.querySelector('.priority-meta');
-                if (!meta) {
-                    meta = document.createElement('div');
-                    meta.className = 'priority-meta small text-muted';
-                    badge.parentNode.appendChild(meta);
-                }
-                meta.innerHTML = `<small>Marked</small><div><small>${label} ${eta ? '('+eta+'d)' : ''}</small></div>`;
-
-                // Hide select and show badge
-                select.classList.add('d-none');
-                badge.classList.remove('d-none');
-
-                // Show success message
-                showAlert('success', data.message || 'Priority updated');
-            } else {
-                showAlert('danger', data.message);
-                // Hide select and show badge
-                select.classList.add('d-none');
-                badge.classList.remove('d-none');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            select.disabled = false;
-            showAlert('danger', 'An error occurred while updating priority');
-            // Hide select and show badge
-            select.classList.add('d-none');
-            badge.classList.remove('d-none');
-        });
-    }
 
     function showAlert(type, message) {
         const alertHtml = `

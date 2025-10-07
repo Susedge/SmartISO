@@ -102,12 +102,15 @@ class Schedule extends BaseController
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
             $title .= $schedule['form_code'] ?? ($schedule['panel_name'] ?? 'Service');
 
+            // Use submission_status if available, otherwise fall back to schedule status
+            $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
+
             $calendarEvents[] = [
                 'id' => $schedule['id'],
                 'title' => $title,
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'] ?? null,
-                'status' => $schedule['status'] ?? null,
+                'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
                 'estimated_date' => $schedule['estimated_date'] ?? null,
                 'eta_days' => isset($schedule['eta_days']) ? (int)$schedule['eta_days'] : null,
@@ -435,12 +438,15 @@ class Schedule extends BaseController
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
             $title .= $schedule['form_code'] ?? 'Service';
 
+            // Use submission_status if available, otherwise fall back to schedule status
+            $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
+
             $calendarEvents[] = [
                 'id' => $schedule['id'],
                 'title' => $title,
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'],
-                'status' => $schedule['status'],
+                'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
                 'estimated_date' => $schedule['estimated_date'] ?? null,
                 'eta_days' => isset($schedule['eta_days']) ? (int)$schedule['eta_days'] : null,

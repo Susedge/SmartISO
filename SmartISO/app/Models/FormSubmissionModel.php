@@ -105,13 +105,33 @@ class FormSubmissionModel extends Model
     // NOTE: parameter originally named $officeFilter; repurposed as department filter after org refactor
     public function getPendingApprovalsWithFilters($departmentFilter = null, $priorityFilter = null)
     {
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+        
         $builder = $this->db->table('form_submissions fs');
         $builder->select('fs.*, f.code as form_code, f.description as form_description, 
-                          u.full_name as submitted_by_name, d.description as department_name')
+                          u.full_name as submitted_by_name, d.description as department_name, 
+                          o.description as office_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('departments d', 'd.id = u.department_id', 'left')
+            ->join('offices o', 'o.id = u.office_id', 'left')
             ->where('fs.status', 'submitted');
+        
+        // For approving authority, filter by their department/office
+        if ($userType === 'approving_authority') {
+            $userModel = new \App\Models\UserModel();
+            $approver = $userModel->find($userId);
+            if ($approver) {
+                if (!empty($approver['office_id'])) {
+                    // Filter by approver's office
+                    $builder->where('u.office_id', $approver['office_id']);
+                } elseif (!empty($approver['department_id'])) {
+                    // Filter by approver's department
+                    $builder->where('u.department_id', $approver['department_id']);
+                }
+            }
+        }
         
         // Apply department filter (legacy: previously office filter)
         if (!empty($departmentFilter)) {

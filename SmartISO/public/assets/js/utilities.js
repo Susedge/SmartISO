@@ -63,11 +63,13 @@
     let current = null;
     function show(opts){
       ensure();
-      current = Object.assign({ title:'', message:'', buttons:[], escClose:true, backdropClose:false, variant:'info', icon:null }, opts||{});
+      current = Object.assign({ title:'', message:'', buttons:[], escClose:true, backdropClose:false, variant:'info', icon:null, wide:false }, opts||{});
       titleEl.textContent = current.title || '';
       bodyEl.innerHTML = typeof current.message==='string'? current.message: '';
       footerEl.innerHTML = '';
       if(!current.buttons.length){ current.buttons = [{ text:'OK', primary:true, value:'ok' }]; }
+      // Width styling - support wide modals
+      if(current.wide){ box.style.maxWidth = '800px'; } else { box.style.maxWidth = '480px'; }
       // Variant styling
       box.classList.remove('sm-variant-info','sm-variant-success','sm-variant-error','sm-variant-warning');
       const variants = ['info','success','error','warning'];

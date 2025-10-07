@@ -161,7 +161,11 @@
                         <div class="mb-3 d-grid">
                                 <?php if($tableType==='panels'): ?>
                                         <a href="#" id="btnAddPanelModal" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add Panel</a>
-                                <?php elseif($tableType!=='system'): ?>
+                                <?php elseif($tableType==='system'): ?>
+                                        <a href="#" id="btnBackupDatabase" data-url="<?= base_url('admin/configurations/backup-database') ?>" class="btn btn-success">
+                                                <i class="fas fa-database me-2"></i>Download Database Backup
+                                        </a>
+                                <?php else: ?>
                                         <a href="<?= base_url('admin/configurations/new?type='.$tableType) ?>" id="btnAdd" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add <?= ucfirst(rtrim($tableType,'s')) ?></a>
                                 <?php endif; ?>
                         </div>
@@ -178,15 +182,19 @@
                                         <?php else: ?>
                                                 <!-- Render the generic selection actions for non-panel types (includes system) -->
                                                 <div id="selectionActions" style="display:none" class="d-grid gap-2">
+                                                        <?php if ($tableType !== 'system'): ?>
                                                         <a href="#" class="btn btn-outline-primary btn-sm" id="btnEdit"><i class="fas fa-edit me-1"></i>Edit</a>
                                                         <button type="button" class="btn btn-outline-danger btn-sm" id="btnDelete"><i class="fas fa-trash me-1"></i>Delete</button>
+                                                        <?php endif; ?>
                                                         <?php if ($tableType==='forms'): ?>
                                                                 <a href="#" class="btn btn-outline-info btn-sm" id="btnSignatories"><i class="fas fa-user-pen me-1"></i>Signatories</a>
                                                                 <div id="templateGroup" style="display:none" class="d-grid gap-1 mt-1">
                                                                         <button type="button" class="btn btn-outline-info btn-sm" id="tmplDownload"><i class="fas fa-download me-1"></i>Download Template</button>
-                                                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="tmplUpload"><i class="fas fa-upload me-1"></i>Upload / Replace Template</button>
-                                                                        <button type="button" class="btn btn-outline-danger btn-sm" id="tmplDelete"><i class="fas fa-trash me-1"></i>Delete Template</button>
+                                                                        <!-- <button type="button" class="btn btn-outline-secondary btn-sm" id="tmplUpload"><i class="fas fa-upload me-1"></i>Upload / Replace Template</button>
+                                                                        <button type="button" class="btn btn-outline-danger btn-sm" id="tmplDelete"><i class="fas fa-trash me-1"></i>Delete Template</button> -->
                                                                 </div>
+                                                        <?php elseif ($tableType==='system'): ?>
+                                                                <a href="#" class="btn btn-outline-primary btn-sm" id="btnEdit"><i class="fas fa-edit me-1"></i>Edit Value</a>
                                                         <?php endif; ?>
                                                 </div>
                                         <?php endif; ?>
@@ -200,6 +208,27 @@
 <?php $this->section('scripts') ?>
 <script>
 document.addEventListener('DOMContentLoaded', function(){
+        // Handle database backup download with SimpleModal confirmation
+        var backupBtn = document.getElementById('btnBackupDatabase');
+        if (backupBtn) {
+                backupBtn.addEventListener('click', function(e){
+                        e.preventDefault();
+                        var url = this.getAttribute('data-url');
+                        if (!url) return;
+                        
+                        window.SimpleModal.confirm(
+                                'This will download a complete SQL backup of the database. Continue?',
+                                'Download Database Backup',
+                                'warning'
+                        ).then(function(confirmed){
+                                if (confirmed) {
+                                        window.location.href = url;
+                                }
+                        });
+                });
+        }
+
+        // Handle view offices button
         var buttons = document.querySelectorAll('.btn-view-offices');
         buttons.forEach(function(btn){
                 btn.addEventListener('click', function(){
