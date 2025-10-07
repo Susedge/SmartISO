@@ -28,6 +28,7 @@
                             <th>ID</th>
                             <th>Form</th>
                             <th>Requestor</th>
+                            <th>Priority</th>
                             <th>Approved By</th>
                             <th>Completion Date</th>
                             <th>Action</th>
@@ -39,6 +40,26 @@
                             <td><?= $submission['id'] ?></td>
                             <td><?= esc($submission['form_code']) ?> - <?= esc($submission['form_description']) ?></td>
                             <td><?= esc($submission['requestor_name'] ?? 'Unknown') ?></td>
+                            <td>
+                                <?php 
+                                // Use priority from submission
+                                $priority = $submission['priority'] ?? '';
+                                
+                                // Map priority levels to labels and colors (3-level system)
+                                $priorityMap = [
+                                    'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
+                                    'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
+                                    'low' => ['label' => 'Low', 'color' => 'success', 'days' => 7]
+                                ];
+                                
+                                $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
+                                $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
+                                $etaDays = $priorityMap[$priority]['days'] ?? null;
+                                ?>
+                                <span class="badge bg-<?= $priorityColor ?>">
+                                    <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
+                                </span>
+                            </td>
                             <td><?= esc($submission['approver_name'] ?? 'N/A') ?></td>
                             <td><?= date('M d, Y', strtotime($submission['completion_date'])) ?></td>
                             <td>

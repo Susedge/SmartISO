@@ -21,6 +21,7 @@
                     <tr>
                         <th>ID</th>
                         <th>Form</th>
+                        <th>Priority</th>
                         <th>Status</th>
                         <th>Date</th>
                         <th>Actions</th>
@@ -32,6 +33,26 @@
                             <tr>
                                 <td><?= $submission['id'] ?></td>
                                 <td><?= esc($submission['form_code']) ?> - <?= esc($submission['form_description']) ?></td>
+                                <td>
+                                    <?php 
+                                    // Use priority from submission
+                                    $priority = $submission['priority'] ?? '';
+                                    
+                                    // Map priority levels to labels and colors (3-level system)
+                                    $priorityMap = [
+                                        'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
+                                        'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
+                                        'low' => ['label' => 'Low', 'color' => 'success', 'days' => 7]
+                                    ];
+                                    
+                                    $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
+                                    $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
+                                    $etaDays = $priorityMap[$priority]['days'] ?? null;
+                                    ?>
+                                    <span class="badge bg-<?= $priorityColor ?>">
+                                        <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
+                                    </span>
+                                </td>
                                 <td>
                                     <?php if ($submission['status'] == 'submitted'): ?>
                                         <span class="badge bg-primary">Submitted</span>
@@ -99,7 +120,7 @@
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="5" class="text-center">You haven't submitted any forms yet.</td>
+                            <td colspan="6" class="text-center">You haven't submitted any forms yet.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>

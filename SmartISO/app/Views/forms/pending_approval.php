@@ -94,13 +94,24 @@
                             <td><?= esc($submission['submitted_by_name']) ?></td>
                             <td><?= esc($submission['department_name'] ?? 'N/A') ?></td>
                             <td>
-                                <?php if (!empty($submission['priority'])): ?>
-                                    <span class="badge bg-secondary">
-                                        <?= esc(ucfirst($submission['priority'])) ?>
-                                    </span>
-                                <?php else: ?>
-                                    <span class="badge bg-secondary">Normal</span>
-                                <?php endif; ?>
+                                <?php 
+                                // Use priority from submission
+                                $priority = $submission['priority'] ?? '';
+                                
+                                // Map priority levels to labels and colors (3-level system)
+                                $priorityMap = [
+                                    'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
+                                    'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
+                                    'low' => ['label' => 'Low', 'color' => 'success', 'days' => 7]
+                                ];
+                                
+                                $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
+                                $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
+                                $etaDays = $priorityMap[$priority]['days'] ?? null;
+                                ?>
+                                <span class="badge bg-<?= $priorityColor ?>">
+                                    <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
+                                </span>
                             </td>
                             <td><?= date('M d, Y H:i:s', strtotime($submission['created_at'])) ?></td>
                             <td>

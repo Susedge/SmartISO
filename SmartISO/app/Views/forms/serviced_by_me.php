@@ -15,6 +15,7 @@
                         <tr>
                             <th>Form</th>
                             <th>Requestor</th>
+                            <th>Priority</th>
                             <th>Service Date</th>
                             <th>Status</th>
                             <th>Actions</th>
@@ -25,6 +26,26 @@
                         <tr>
                             <td><?= esc($item['form_code']) ?> - <?= esc($item['form_description']) ?></td>
                             <td><?= esc($item['requestor_name']) ?></td>
+                            <td>
+                                <?php 
+                                // Use priority from submission
+                                $priority = $item['priority'] ?? '';
+                                
+                                // Map priority levels to labels and colors (3-level system)
+                                $priorityMap = [
+                                    'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
+                                    'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
+                                    'low' => ['label' => 'Low', 'color' => 'success', 'days' => 7]
+                                ];
+                                
+                                $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
+                                $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
+                                $etaDays = $priorityMap[$priority]['days'] ?? null;
+                                ?>
+                                <span class="badge bg-<?= $priorityColor ?>">
+                                    <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
+                                </span>
+                            </td>
                             <td><?= isset($item['service_staff_signature_date']) ? date('M d, Y', strtotime($item['service_staff_signature_date'])) : 'Not serviced' ?></td>
                             <td>
                                 <?php if ($item['status'] == 'completed'): ?>
