@@ -7,6 +7,13 @@ use App\Models\FormSubmissionModel;
 
 class Dashboard extends BaseController
 {
+    protected $db;
+    
+    public function __construct()
+    {
+        $this->db = \Config\Database::connect();
+    }
+    
     public function index()
     {
         $userId = session()->get('user_id');
