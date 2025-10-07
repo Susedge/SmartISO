@@ -111,6 +111,22 @@ $(function(){
             return html;
         }
         
+        // Map submission status to badge color (matching submissions.php)
+        function getStatusBadge(status) {
+            const statusMap = {
+                'completed': { color: 'success', label: 'Completed' },
+                'approved': { color: 'info', label: 'Approved' },
+                'pending_service': { color: 'info', label: 'Approved' },
+                'submitted': { color: 'warning', label: 'Submitted' },
+                'pending': { color: 'secondary', label: 'Pending' },
+                'rejected': { color: 'danger', label: 'Rejected' },
+                'cancelled': { color: 'dark', label: 'Cancelled' }
+            };
+            
+            const statusInfo = statusMap[status] || { color: 'secondary', label: status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : 'Unknown' };
+            return `<span class="badge bg-${statusInfo.color}">${statusInfo.label}</span>`;
+        }
+        
         const modalContent = `
             <div class="feedback-details">
                 <div class="row mb-3">
@@ -126,10 +142,8 @@ $(function(){
                         <strong>Date:</strong> ${data.date}
                     </div>
                     <div class="col-md-6">
-                        <strong>Status:</strong> 
-                        <span class="badge bg-${data.feedbackStatus === 'reviewed' ? 'success' : 'warning'}">
-                            ${data.feedbackStatus ? (data.feedbackStatus.charAt(0).toUpperCase() + data.feedbackStatus.slice(1)) : 'Pending'}
-                        </span>
+                        <strong>Submission Status:</strong> 
+                        ${getStatusBadge(data.submissionStatus)}
                     </div>
                 </div>
                 <hr>
