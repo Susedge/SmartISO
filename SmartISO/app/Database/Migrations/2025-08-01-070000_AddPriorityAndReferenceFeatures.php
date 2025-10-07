@@ -13,7 +13,7 @@ class AddPriorityAndReferenceFeatures extends Migration
             'priority' => [
                 'type' => 'ENUM',
                 'constraint' => ['low', 'normal', 'high', 'urgent', 'critical'],
-                'default' => 'normal',
+                'default' => 'low',
                 'after' => 'status'
             ],
             'reference_file' => [

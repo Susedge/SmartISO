@@ -26,57 +26,72 @@ class Dashboard extends BaseController
         
         if ($userType === 'requestor') {
             // For requestors - count their own submissions by status
-            $statusSummary['submitted'] = $formSubmissionModel->where('submitted_by', $userId)
-                                                         ->where('status', 'submitted')
-                                                         ->countAllResults();
+            // Need to use separate builder instances for each count to avoid query state issues
+            $statusSummary['submitted'] = $this->db->table('form_submissions')
+                                                   ->where('submitted_by', $userId)
+                                                   ->where('status', 'submitted')
+                                                   ->countAllResults();
                                                          
-            $statusSummary['approved'] = $formSubmissionModel->where('submitted_by', $userId)
-                                                        ->whereIn('status', ['approved', 'pending_service'])
-                                                        ->countAllResults();
+            $statusSummary['approved'] = $this->db->table('form_submissions')
+                                                  ->where('submitted_by', $userId)
+                                                  ->whereIn('status', ['approved', 'pending_service'])
+                                                  ->countAllResults();
                                                         
-            $statusSummary['rejected'] = $formSubmissionModel->where('submitted_by', $userId)
-                                                        ->where('status', 'rejected')
-                                                        ->countAllResults();
+            $statusSummary['rejected'] = $this->db->table('form_submissions')
+                                                  ->where('submitted_by', $userId)
+                                                  ->where('status', 'rejected')
+                                                  ->countAllResults();
                                                         
             // Count completed using completion flag for consistency
-            $statusSummary['completed'] = $formSubmissionModel->where('submitted_by', $userId)
-                                                         ->where('completed', 1)
-                                                         ->countAllResults();
+            $statusSummary['completed'] = $this->db->table('form_submissions')
+                                                   ->where('submitted_by', $userId)
+                                                   ->where('completed', 1)
+                                                   ->countAllResults();
         } 
         elseif ($userType === 'approving_authority') {
             // For approving authorities - count forms they need to approve and ones they've approved
-            $statusSummary['pending_approval'] = $formSubmissionModel->where('status', 'submitted')
-                                                                ->countAllResults();
+            // Need to use separate builder instances for each count to avoid query state issues
+            $statusSummary['pending_approval'] = $this->db->table('form_submissions')
+                                                          ->where('status', 'submitted')
+                                                          ->countAllResults();
                                                                 
-            $statusSummary['approved_by_me'] = $formSubmissionModel->where('approver_id', $userId)
-                                                              ->whereIn('status', ['approved', 'pending_service', 'completed'])
-                                                              ->countAllResults();
+            $statusSummary['approved_by_me'] = $this->db->table('form_submissions')
+                                                        ->where('approver_id', $userId)
+                                                        ->whereIn('status', ['approved', 'pending_service', 'completed'])
+                                                        ->countAllResults();
                                                               
-            $statusSummary['rejected_by_me'] = $formSubmissionModel->where('approver_id', $userId)
-                                                              ->where('status', 'rejected')
-                                                              ->countAllResults();
+            $statusSummary['rejected_by_me'] = $this->db->table('form_submissions')
+                                                        ->where('approver_id', $userId)
+                                                        ->where('status', 'rejected')
+                                                        ->countAllResults();
                                                               
-            $statusSummary['completed'] = $formSubmissionModel->where('approver_id', $userId)
-                                                         ->where('completed', 1)
-                                                         ->countAllResults();
+            $statusSummary['completed'] = $this->db->table('form_submissions')
+                                                   ->where('approver_id', $userId)
+                                                   ->where('completed', 1)
+                                                   ->countAllResults();
         }
         elseif ($userType === 'service_staff') {
             // For service staff - count forms assigned to them
-            $statusSummary['pending_service'] = $formSubmissionModel->where('service_staff_id', $userId)
-                                                               ->whereIn('status', ['approved', 'pending_service'])
-                                                               ->where('service_staff_signature_date IS NULL')
-                                                               ->countAllResults();
-                                                               
-            $statusSummary['serviced_by_me'] = $formSubmissionModel->where('service_staff_id', $userId)
-                                                              ->where('service_staff_signature_date IS NOT NULL')
-                                                              ->countAllResults();
-                                                              
-            $statusSummary['rejected'] = $formSubmissionModel->where('status', 'rejected')
-                                                        ->countAllResults();
-                                                        
-            $statusSummary['completed'] = $formSubmissionModel->where('service_staff_id', $userId)
-                                                         ->where('completed', 1)
+            // Need to use separate builder instances for each count to avoid query state issues
+            $statusSummary['pending_service'] = $this->db->table('form_submissions')
+                                                         ->where('service_staff_id', $userId)
+                                                         ->whereIn('status', ['approved', 'pending_service'])
+                                                         ->where('service_staff_signature_date IS NULL')
                                                          ->countAllResults();
+                                                               
+            $statusSummary['serviced_by_me'] = $this->db->table('form_submissions')
+                                                        ->where('service_staff_id', $userId)
+                                                        ->where('service_staff_signature_date IS NOT NULL')
+                                                        ->countAllResults();
+                                                              
+            $statusSummary['rejected'] = $this->db->table('form_submissions')
+                                                  ->where('status', 'rejected')
+                                                  ->countAllResults();
+                                                        
+            $statusSummary['completed'] = $this->db->table('form_submissions')
+                                                   ->where('service_staff_id', $userId)
+                                                   ->where('completed', 1)
+                                                   ->countAllResults();
         }
         
         $data = [

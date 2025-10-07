@@ -214,24 +214,24 @@ class Forms extends BaseController
         $userType = session()->get('user_type');
         
         // Priority setting: Only service_staff and admin can set custom priority
-        $requestedPriority = $this->request->getPost('priority') ?? 'normal';
+        $requestedPriority = $this->request->getPost('priority') ?? 'low';
         $canSetPriority = in_array($userType, ['service_staff', 'admin']);
         
-        // If user cannot set priority, force it to 'normal'
+        // If user cannot set priority, force it to 'low'
         // This prevents requestors and other users from setting unauthorized priority levels
-        $priority = $canSetPriority ? $requestedPriority : 'normal';
+        $priority = $canSetPriority ? $requestedPriority : 'low';
         
         // Validate that the priority exists in our system
         if ($canSetPriority && !empty($requestedPriority)) {
             try {
                 $validPriority = $this->priorityModel->getPriorityByLevel($requestedPriority);
                 if (!$validPriority) {
-                    // If priority doesn't exist in database, fall back to 'normal'
-                    $priority = 'normal';
+                    // If priority doesn't exist in database, fall back to 'low'
+                    $priority = 'low';
                 }
             } catch (\Exception $e) {
-                // If there's any database error, fall back to 'normal'
-                $priority = 'normal';
+                // If there's any database error, fall back to 'low'
+                $priority = 'low';
             }
         }
         

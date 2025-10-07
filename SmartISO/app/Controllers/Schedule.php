@@ -29,9 +29,14 @@ class Schedule extends BaseController
         
         $data['title'] = 'Service Schedules';
         
-        // Admin and superuser can see all schedules
+        // Admin and superuser can see all schedules AND submissions without schedules
         if (in_array($userType, ['admin', 'superuser'])) {
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
+            
+            // Also get submissions that don't have schedule entries yet
+            $submissionsWithoutSchedules = $this->getSubmissionsWithoutSchedules();
+            // Merge them into the schedules array
+            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
@@ -391,9 +396,14 @@ class Schedule extends BaseController
         
         $data['title'] = 'Schedule Calendar';
         
-        // Admin and superuser can see all schedules
+        // Admin and superuser can see all schedules AND submissions without schedules
         if (in_array($userType, ['admin', 'superuser'])) {
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
+            
+            // Also get submissions that don't have schedule entries yet
+            $submissionsWithoutSchedules = $this->getSubmissionsWithoutSchedules();
+            // Merge them into the schedules array
+            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
@@ -476,6 +486,61 @@ class Schedule extends BaseController
             if ($dow <= 5) { $added++; }
         }
         return date('Y-m-d', $ts);
+    }
+
+    /**
+     * Get submissions that don't have schedule entries yet
+     * This ensures admin can see ALL submissions in the schedule view
+     */
+    private function getSubmissionsWithoutSchedules()
+    {
+        $db = \Config\Database::connect();
+        
+        // Find submissions that don't have a corresponding schedule entry
+        $builder = $db->table('form_submissions fs');
+        $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          fs.created_at, fs.priority,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
+            ->whereIn('fs.status', ['submitted', 'approved', 'pending_service']) // Only show active submissions
+            ->orderBy('fs.created_at', 'DESC');
+        
+        $results = $builder->get()->getResultArray();
+        
+        // Format these submissions as "virtual" schedule entries
+        $virtualSchedules = [];
+        foreach ($results as $row) {
+            // Use submission created date as the scheduled date
+            $createdDate = substr($row['created_at'], 0, 10);
+            
+            $virtualSchedules[] = [
+                'id' => 'sub-' . $row['submission_id'], // Prefix with 'sub-' to distinguish from real schedules
+                'submission_id' => $row['submission_id'],
+                'form_id' => $row['form_id'],
+                'panel_name' => $row['panel_name'],
+                'submission_status' => $row['submission_status'],
+                'form_code' => $row['form_code'],
+                'form_description' => $row['form_description'],
+                'requestor_name' => $row['requestor_name'],
+                'scheduled_date' => $createdDate,
+                'scheduled_time' => '09:00:00', // Default time
+                'duration_minutes' => 60,
+                'location' => '',
+                'notes' => 'Pending schedule assignment',
+                'status' => 'pending',
+                'assigned_staff_id' => null,
+                'assigned_staff_name' => null,
+                'priority' => $row['priority'] ?? 0,
+                'eta_days' => null,
+                'estimated_date' => null,
+                'priority_level' => null
+            ];
+        }
+        
+        return $virtualSchedules;
     }
 
     /**
