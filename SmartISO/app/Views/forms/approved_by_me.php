@@ -29,23 +29,27 @@
                             <td><?= esc($item['requestor_name']) ?></td>
                             <td>
                                 <?php 
-                                // Use priority from submission
-                                $priority = $item['priority'] ?? '';
+                                // Use priority_level from schedules table (like admin)
+                                $priority = $item['priority_level'] ?? '';
                                 
                                 // Map priority levels to labels and colors (3-level system)
                                 $priorityMap = [
-                                    'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
-                                    'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
-                                    'low' => ['label' => 'Low', 'color' => 'success', 'days' => 7]
+                                    'high' => ['label' => 'High', 'color' => 'danger'],
+                                    'medium' => ['label' => 'Medium', 'color' => 'warning'],
+                                    'low' => ['label' => 'Low', 'color' => 'success']
                                 ];
                                 
                                 $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
                                 $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
-                                $etaDays = $priorityMap[$priority]['days'] ?? null;
+                                $etaDays = $item['eta_days'] ?? null;
+                                $estimatedDate = $item['estimated_date'] ?? null;
                                 ?>
                                 <span class="badge bg-<?= $priorityColor ?>">
                                     <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
                                 </span>
+                                <?php if (!empty($estimatedDate)): ?>
+                                    <br><small class="text-muted">ETA: <?= date('M d, Y', strtotime($estimatedDate)) ?></small>
+                                <?php endif; ?>
                             </td>
                             <td><?= isset($item['approved_at']) ? date('M d, Y', strtotime($item['approved_at'])) : date('M d, Y', strtotime($item['updated_at'])) ?></td>
                             <td>

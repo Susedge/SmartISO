@@ -95,10 +95,10 @@
                             <td><?= esc($submission['department_name'] ?? 'N/A') ?></td>
                             <td>
                                 <?php 
-                                // Use priority from submission
-                                $priority = $submission['priority'] ?? '';
+                                // Use calendar-based priority from schedule or form_submission_data
+                                $priority = $submission['priority_level'] ?? '';
                                 
-                                // Map priority levels to labels and colors (3-level system)
+                                // Map priority levels to labels and colors (calendar-based)
                                 $priorityMap = [
                                     'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
                                     'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
@@ -107,11 +107,17 @@
                                 
                                 $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
                                 $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
-                                $etaDays = $priorityMap[$priority]['days'] ?? null;
+                                $etaDays = $submission['eta_days'] ?? ($priorityMap[$priority]['days'] ?? null);
                                 ?>
+                                
                                 <span class="badge bg-<?= $priorityColor ?>">
                                     <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
                                 </span>
+                                <?php if (!empty($submission['estimated_date'])): ?>
+                                <div class="small text-muted mt-1">
+                                    <small>ETA: <?= date('M d, Y', strtotime($submission['estimated_date'])) ?></small>
+                                </div>
+                                <?php endif; ?>
                             </td>
                             <td><?= date('M d, Y H:i:s', strtotime($submission['created_at'])) ?></td>
                             <td>

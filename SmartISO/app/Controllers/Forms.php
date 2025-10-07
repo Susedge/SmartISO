@@ -510,11 +510,15 @@ class Forms extends BaseController
             forms.code as form_code, 
             forms.description as form_description,
             requestor.full_name as requestor_name,
-            d.description as department_name
+            d.description as department_name,
+            sch.priority_level, 
+            sch.eta_days, 
+            sch.estimated_date
         ');
         $builder->join('forms', 'forms.id = form_submissions.form_id');
         $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
         $builder->join('departments d', 'd.id = requestor.department_id', 'left');
+        $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         
     // Filter for forms assigned to this service staff.
     // Accept both 'approved' and 'pending_service' statuses for backward compatibility
@@ -602,7 +606,10 @@ class Forms extends BaseController
             requestor.full_name as requestor_name,
             approver.full_name as approver_name,
             service_staff.full_name as service_staff_name,
-            d.description as department_name
+            d.description as department_name,
+            sch.priority_level, 
+            sch.eta_days, 
+            sch.estimated_date
         ";
         
         $builder->select($select);
@@ -611,6 +618,7 @@ class Forms extends BaseController
         $builder->join('users approver', 'approver.id = fs.approver_id', 'left');
         $builder->join('users service_staff', 'service_staff.id = fs.service_staff_id', 'left');
         $builder->join('departments d', 'd.id = requestor.department_id', 'left');
+        $builder->join('schedules sch', 'sch.submission_id = fs.id', 'left');
         $builder->where('fs.status', 'completed');
         
         // For requestors, only show their own completed forms
@@ -1150,40 +1158,36 @@ class Forms extends BaseController
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
-        // Get forms serviced by this user
-        $submissions = $this->formSubmissionModel->where('service_staff_id', $userId)
-                                            ->findAll();
+        // Get forms serviced by this user with query builder
+        $builder = $this->formSubmissionModel->builder();
+        $builder->select('
+            form_submissions.id, 
+            form_submissions.form_id, 
+            form_submissions.submitted_by, 
+            form_submissions.status, 
+            form_submissions.priority,
+            form_submissions.created_at, 
+            form_submissions.updated_at,
+            form_submissions.approved_at,
+            form_submissions.service_staff_signature_date,
+            forms.code as form_code, 
+            forms.description as form_description,
+            requestor.full_name as requestor_name,
+            sch.priority_level, 
+            sch.eta_days, 
+            sch.estimated_date
+        ');
+        $builder->join('forms', 'forms.id = form_submissions.form_id');
+        $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
+        $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
+        $builder->where('form_submissions.service_staff_id', $userId);
+        $builder->orderBy('form_submissions.updated_at', 'DESC');
         
-        // Enhance submissions with form details
-        $submissionsWithDetails = [];
-        foreach ($submissions as $submission) {
-            // Get form details
-            $form = $this->formModel->find($submission['form_id']);
-            $submissionWithDetails = $submission;
-            
-            if ($form) {
-                $submissionWithDetails['form_code'] = $form['code'];
-                $submissionWithDetails['form_description'] = $form['description'];
-            } else {
-                $submissionWithDetails['form_code'] = 'Unknown';
-                $submissionWithDetails['form_description'] = 'Unknown Form';
-            }
-            
-            // Get requestor details
-            $userModel = new \App\Models\UserModel();
-            $requestor = $userModel->find($submission['submitted_by']);
-            if ($requestor) {
-                $submissionWithDetails['requestor_name'] = $requestor['full_name'];
-            } else {
-                $submissionWithDetails['requestor_name'] = 'Unknown User';
-            }
-            
-            $submissionsWithDetails[] = $submissionWithDetails;
-        }
+        $submissions = $builder->get()->getResultArray();
         
         $data = [
             'title' => 'Forms Serviced By Me',
-            'submissions' => $submissionsWithDetails
+            'submissions' => $submissions
         ];
         
         return view('forms/serviced_by_me', $data);
@@ -1210,11 +1214,15 @@ class Forms extends BaseController
             forms.code as form_code, 
             forms.description as form_description,
             requestor.full_name as requestor_name,
-            service_staff.full_name as service_staff_name
+            service_staff.full_name as service_staff_name,
+            sch.priority_level, 
+            sch.eta_days, 
+            sch.estimated_date
         ');
         $builder->join('forms', 'forms.id = form_submissions.form_id');
         $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
         $builder->join('users as service_staff', 'service_staff.id = form_submissions.service_staff_id', 'left'); // Left join to include submissions without service staff
+        $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         $builder->where('form_submissions.approver_id', $userId);
         $builder->orderBy('form_submissions.approved_at', 'DESC');
         

@@ -72,6 +72,10 @@ class FormSubmissionModel extends Model
         $builder->select('approver.full_name as approver_name, approver.signature as approver_signature')
             ->join('users approver', 'approver.id = fs.approver_id', 'left');
         
+        // Get schedule details for priority display
+        $builder->select('sch.priority_level, sch.eta_days, sch.estimated_date')
+            ->join('schedules sch', 'sch.submission_id = fs.id', 'left');
+        
         // Filter by user if needed
         if ($userId !== null) {
             $builder->where('fs.submitted_by', $userId);
@@ -111,11 +115,13 @@ class FormSubmissionModel extends Model
         $builder = $this->db->table('form_submissions fs');
         $builder->select('fs.*, f.code as form_code, f.description as form_description, 
                           u.full_name as submitted_by_name, d.description as department_name, 
-                          o.description as office_name')
+                          o.description as office_name,
+                          sch.priority_level, sch.eta_days, sch.estimated_date')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('departments d', 'd.id = u.department_id', 'left')
             ->join('offices o', 'o.id = u.office_id', 'left')
+            ->join('schedules sch', 'sch.submission_id = fs.id', 'left')
             ->where('fs.status', 'submitted');
         
         // For approving authority, check if they're assigned as a signatory for the forms
