@@ -191,8 +191,9 @@ class App extends BaseConfig
     /**
      * Whether to auto-create a pending schedule when a submission is created
      * (submitted). Set to false to disable automatic creation at submission time.
+     * ENABLED: Automatically creates schedules with ETA based on priority level.
      */
-    public bool $autoCreateScheduleOnSubmit = false;
+    public bool $autoCreateScheduleOnSubmit = true;
 
     /**
      * --------------------------------------------------------------------------

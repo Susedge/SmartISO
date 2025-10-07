@@ -303,20 +303,22 @@ class Forms extends BaseController
                         'notes' => 'Auto-created schedule on submit',
                         'status' => 'pending'
                     ];
-                    // Compute ETA based on priority: low=7 days (calendar), medium=5 business days, high=2 business days
+                    // Compute ETA based on priority with new mapping:
+                    // low = 7 calendar days, normal = 5 business days, high = 3 business days
+                    // medium = 5 business days, urgent = 2 business days, critical = 1 business day
                     $etaDays = null; $estimatedDate = null;
                     if ($priority === 'low') {
                         $etaDays = 7;
                         $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +7 days'));
-                    } elseif ($priority === 'medium') {
+                    } elseif ($priority === 'normal' || $priority === 'medium') {
                         $etaDays = 5;
-                        // Use Schedule controller helper if available, otherwise simple loop
+                        // Use Schedule controller helper if available
                         try {
                             $schCtrl = new \App\Controllers\Schedule();
                             $estimatedDate = $schCtrl->addBusinessDays($scheduledDate, 5);
                         } catch (\Throwable $e) {
                             // fallback: add calendar days (best-effort)
-                            $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +7 days'));
+                            $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +5 days'));
                         }
                     } elseif ($priority === 'high') {
                         $etaDays = 3;
@@ -326,6 +328,17 @@ class Forms extends BaseController
                         } catch (\Throwable $e) {
                             $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +3 days'));
                         }
+                    } elseif ($priority === 'urgent') {
+                        $etaDays = 2;
+                        try {
+                            $schCtrl = new \App\Controllers\Schedule();
+                            $estimatedDate = $schCtrl->addBusinessDays($scheduledDate, 2);
+                        } catch (\Throwable $e) {
+                            $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +2 days'));
+                        }
+                    } elseif ($priority === 'critical') {
+                        $etaDays = 1;
+                        $estimatedDate = date('Y-m-d', strtotime($scheduledDate . ' +1 day'));
                     }
                     if ($etaDays && $estimatedDate) {
                         $schedData['eta_days'] = $etaDays;

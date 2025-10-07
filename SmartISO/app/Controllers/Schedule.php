@@ -472,11 +472,12 @@ class Schedule extends BaseController
 
     /**
      * Add N business days to a date (skip Saturday/Sunday)
+     * Made public so other controllers can use it for ETA calculations
      * @param string $date YYYY-MM-DD
      * @param int $days
      * @return string YYYY-MM-DD
      */
-    private function addBusinessDays(string $date, int $days): string
+    public function addBusinessDays(string $date, int $days): string
     {
         $ts = strtotime($date);
         $added = 0;
