@@ -118,19 +118,11 @@ class FormSubmissionModel extends Model
             ->join('offices o', 'o.id = u.office_id', 'left')
             ->where('fs.status', 'submitted');
         
-        // For approving authority, filter by their department/office
+        // For approving authority, check if they're assigned as a signatory for the forms
         if ($userType === 'approving_authority') {
-            $userModel = new \App\Models\UserModel();
-            $approver = $userModel->find($userId);
-            if ($approver) {
-                if (!empty($approver['office_id'])) {
-                    // Filter by approver's office
-                    $builder->where('u.office_id', $approver['office_id']);
-                } elseif (!empty($approver['department_id'])) {
-                    // Filter by approver's department
-                    $builder->where('u.department_id', $approver['department_id']);
-                }
-            }
+            // Join with form_signatories to only show forms this user is assigned to approve
+            $builder->join('form_signatories fsig', 'fsig.form_id = f.id', 'inner');
+            $builder->where('fsig.user_id', $userId);
         }
         
         // Apply department filter (legacy: previously office filter)
