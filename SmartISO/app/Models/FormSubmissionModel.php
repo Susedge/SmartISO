@@ -136,9 +136,9 @@ class FormSubmissionModel extends Model
             $builder->where('d.description', $departmentFilter);
         }
         
-        // Apply priority filter
+        // Apply priority filter - use priority_level from schedules table
         if (!empty($priorityFilter)) {
-            $builder->where('fs.priority', $priorityFilter);
+            $builder->where('sch.priority_level', $priorityFilter);
         }
         
         $builder->orderBy('fs.created_at', 'ASC');

@@ -32,13 +32,28 @@ class PdfGenerator extends BaseController
     
     public function generateFormPdf($submissionId, $outputFormat = 'docx')
     {
+        // Increase limits for large file generation
+        @ini_set('memory_limit', '256M');
+        @ini_set('max_execution_time', '300'); // 5 minutes
+        
+        // Ensure session is active - critical for downloads
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
+        
+        if (!$userId) {
+            log_message('error', 'Export attempt without valid session for submission: ' . $submissionId);
+            return $this->response
+                ->setStatusCode(401)
+                ->setJSON(['error' => 'Session expired. Please login again.']);
+        }
+        
         $submission = $this->formSubmissionModel->find($submissionId);
         
         if (!$submission) {
-            return redirect()->to('/dashboard')
-                            ->with('error', 'Submission not found');
+            log_message('error', 'Export attempted for non-existent submission: ' . $submissionId);
+            return $this->response
+                ->setStatusCode(404)
+                ->setJSON(['error' => 'Submission not found']);
         }
         
         // Check permissions - allow export for completed forms
@@ -51,8 +66,10 @@ class PdfGenerator extends BaseController
         }
         
         if (!$canExport) {
-            return redirect()->back()
-                            ->with('error', 'You don\'t have permission to export this submission or it is not completed');
+            log_message('warning', 'Export permission denied for user ' . $userId . ' on submission ' . $submissionId);
+            return $this->response
+                ->setStatusCode(403)
+                ->setJSON(['error' => 'You don\'t have permission to export this submission or it is not completed']);
         }
         
         // Get form details (include office & department names via manual joins for placeholders)
@@ -105,7 +122,10 @@ class PdfGenerator extends BaseController
             
             // If no default exists either, return error
             if (!file_exists($templatePath)) {
-                return redirect()->back()->with('error', 'DOCX template not found');
+                log_message('error', 'DOCX template not found for form: ' . $form['code']);
+                return $this->response
+                    ->setStatusCode(500)
+                    ->setJSON(['error' => 'DOCX template not found']);
             }
         }
         
@@ -150,6 +170,9 @@ class PdfGenerator extends BaseController
             if (!is_dir($tempDir)) {
                 mkdir($tempDir, 0755, true);
             }
+            
+            // Clean up old temp files (older than 1 hour) to prevent disk space issues
+            $this->cleanupOldTempFiles($tempDir, 3600);
             
             // Save the processed document to a temp file
             $tempDocxFile = $tempDir . uniqid('form_') . '.docx';
@@ -213,17 +236,60 @@ class PdfGenerator extends BaseController
                 
                 if ($converted && file_exists($pdfFile)) {
                     $pdfFilename = str_replace('.docx','.pdf',$docxFilename);
-                    return $this->response->download($pdfFile, null)->setFileName($pdfFilename);
+                    
+                    // Verify file exists and is readable
+                    if (!is_readable($pdfFile)) {
+                        log_message('error', 'PDF file not readable: ' . $pdfFile);
+                        return $this->response
+                            ->setStatusCode(500)
+                            ->setJSON(['error' => 'Generated file is not readable']);
+                    }
+                    
+                    // Set proper headers for PDF download
+                    return $this->response
+                        ->setHeader('Content-Type', 'application/pdf')
+                        ->setHeader('Content-Disposition', 'attachment; filename="' . $pdfFilename . '"')
+                        ->setHeader('Content-Length', (string)filesize($pdfFile))
+                        ->setHeader('Cache-Control', 'must-revalidate, post-check=0, pre-check=0')
+                        ->setHeader('Pragma', 'public')
+                        ->download($pdfFile, null)
+                        ->setFileName($pdfFilename);
                 } else {
                     // Fallback to DOCX if PDF conversion failed
                     log_message('warning', 'PDF conversion failed, returning DOCX instead for submission: ' . $submissionId);
                 }
             }
-            return $this->response->download($tempDocxFile, null)->setFileName($docxFilename);
+            
+            // Verify DOCX file exists and is readable before download
+            if (!file_exists($tempDocxFile)) {
+                log_message('error', 'Generated DOCX file not found: ' . $tempDocxFile);
+                return $this->response
+                    ->setStatusCode(500)
+                    ->setJSON(['error' => 'Generated file not found']);
+            }
+            
+            if (!is_readable($tempDocxFile)) {
+                log_message('error', 'Generated DOCX file not readable: ' . $tempDocxFile);
+                return $this->response
+                    ->setStatusCode(500)
+                    ->setJSON(['error' => 'Generated file is not readable']);
+            }
+            
+            // Set proper headers for DOCX download
+            return $this->response
+                ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+                ->setHeader('Content-Disposition', 'attachment; filename="' . $docxFilename . '"')
+                ->setHeader('Content-Length', (string)filesize($tempDocxFile))
+                ->setHeader('Cache-Control', 'must-revalidate, post-check=0, pre-check=0')
+                ->setHeader('Pragma', 'public')
+                ->download($tempDocxFile, null)
+                ->setFileName($docxFilename);
             
         } catch (\Exception $e) {
-            log_message('error', 'Document generation error: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Error generating document: ' . $e->getMessage());
+            log_message('error', 'Document generation error: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
+            return $this->response
+                ->setStatusCode(500)
+                ->setJSON(['error' => 'Error generating document: ' . $e->getMessage()]);
         }
     }
     
@@ -1027,5 +1093,43 @@ class PdfGenerator extends BaseController
             $zip->addFromString('word/_rels/document.xml.rels', $relsDoc->saveXML());
         }
         $zip->close();
+    }
+    
+    /**
+     * Clean up old temporary files to prevent disk space issues
+     * 
+     * @param string $directory Directory to clean
+     * @param int $maxAge Maximum age in seconds (default 1 hour)
+     * @return void
+     */
+    private function cleanupOldTempFiles(string $directory, int $maxAge = 3600): void
+    {
+        try {
+            if (!is_dir($directory)) {
+                return;
+            }
+            
+            $now = time();
+            $files = glob($directory . 'form_*');
+            
+            if ($files === false) {
+                return;
+            }
+            
+            $cleaned = 0;
+            foreach ($files as $file) {
+                if (is_file($file) && ($now - filemtime($file)) > $maxAge) {
+                    if (@unlink($file)) {
+                        $cleaned++;
+                    }
+                }
+            }
+            
+            if ($cleaned > 0) {
+                log_message('info', "Cleaned up $cleaned old temporary files");
+            }
+        } catch (\Throwable $e) {
+            log_message('warning', 'Failed to clean up temp files: ' . $e->getMessage());
+        }
     }
 }

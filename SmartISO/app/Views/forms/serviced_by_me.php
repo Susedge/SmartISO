@@ -70,10 +70,10 @@
                                             <i class="fas fa-download me-1"></i> Export
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
-                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $item['id'] . '/pdf') ?>">
+                                            <li><a class="dropdown-item" href="<?= base_url('forms/export/' . $item['id'] . '/pdf') ?>">
                                                 <i class="fas fa-file-pdf me-2 text-danger"></i> PDF
                                             </a></li>
-                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $item['id'] . '/word') ?>">
+                                            <li><a class="dropdown-item" href="<?= base_url('forms/export/' . $item['id'] . '/word') ?>">
                                                 <i class="fas fa-file-word me-2 text-primary"></i> Word
                                             </a></li>
                                         </ul>

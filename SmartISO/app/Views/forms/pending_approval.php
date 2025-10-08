@@ -27,20 +27,9 @@
                         <label for="priority_filter" class="form-label">Filter by Priority</label>
                         <select name="priority" id="priority_filter" class="form-select">
                             <option value="">All Priorities</option>
-                            <?php 
-                            $safePriorities = $priorities ?? [
-                                'low' => 'Low',
-                                'normal' => 'Normal',
-                                'high' => 'High',
-                                'urgent' => 'Urgent',
-                                'critical' => 'Critical'
-                            ];
-                            foreach ($safePriorities as $priority_key => $priority_label): 
-                            ?>
-                                <option value="<?= esc($priority_key) ?>" <?= ($selectedPriority === $priority_key) ? 'selected' : '' ?>>
-                                    <?= esc($priority_label) ?>
-                                </option>
-                            <?php endforeach; ?>
+                            <option value="high" <?= ($selectedPriority === 'high') ? 'selected' : '' ?>>High (3 days)</option>
+                            <option value="medium" <?= ($selectedPriority === 'medium') ? 'selected' : '' ?>>Medium (5 days)</option>
+                            <option value="low" <?= ($selectedPriority === 'low') ? 'selected' : '' ?>>Low (7 days)</option>
                         </select>
                     </div>
                     <div class="col-md-2">

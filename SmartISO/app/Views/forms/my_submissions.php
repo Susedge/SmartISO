@@ -109,10 +109,10 @@
                                             Export
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-end">
-                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/pdf') ?>">
+                                            <li><a class="dropdown-item" href="<?= base_url('forms/export/' . $submission['id'] . '/pdf') ?>">
                                                 <i class="fas fa-file-pdf me-2 text-danger"></i> PDF
                                             </a></li>
-                                            <li><a class="dropdown-item" href="<?= base_url('forms/submission/' . $submission['id'] . '/word') ?>">
+                                            <li><a class="dropdown-item" href="<?= base_url('forms/export/' . $submission['id'] . '/word') ?>">
                                                 <i class="fas fa-file-word me-2 text-primary"></i> Word
                                             </a></li>
                                         </ul>

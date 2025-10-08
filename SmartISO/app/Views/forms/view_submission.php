@@ -29,10 +29,10 @@
 
                 <?php if ($submission['status'] === 'completed'): ?>
                     <div class="btn-group">
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/submission/' . $submission['id'] . '/pdf') ?>" title="Export PDF">
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/export/' . $submission['id'] . '/pdf') ?>" title="Export PDF">
                             <i class="fas fa-file-pdf"></i>
                         </a>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/submission/' . $submission['id'] . '/word') ?>" title="Export Word">
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/export/' . $submission['id'] . '/word') ?>" title="Export Word">
                             <i class="fas fa-file-word"></i>
                         </a>
                     </div>

@@ -77,7 +77,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('forms/cancel-submission', 'Forms::cancelSubmission');
     $routes->post('forms/delete-submission', 'Forms::deleteSubmission');
     $routes->get('forms/submission/(:num)', 'Forms::viewSubmission/$1');
-    $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2');
+    $routes->get('forms/submission/(:num)/(:alpha)', 'Forms::export/$1/$2'); // Legacy route
+    $routes->get('forms/export/(:num)/(:alpha)', 'Forms::export/$1/$2'); // Preferred export route
     $routes->get('forms/completed', 'Forms::completedForms');
 
     // For requestors
