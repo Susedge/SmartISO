@@ -245,15 +245,49 @@ class PdfGenerator extends BaseController
                             ->setJSON(['error' => 'Generated file is not readable']);
                     }
                     
-                    // Set proper headers for PDF download
-                    return $this->response
-                        ->setHeader('Content-Type', 'application/pdf')
-                        ->setHeader('Content-Disposition', 'attachment; filename="' . $pdfFilename . '"')
-                        ->setHeader('Content-Length', (string)filesize($pdfFile))
-                        ->setHeader('Cache-Control', 'must-revalidate, post-check=0, pre-check=0')
-                        ->setHeader('Pragma', 'public')
-                        ->download($pdfFile, null)
-                        ->setFileName($pdfFilename);
+                    // Clear any output buffers to prevent corruption
+                    if (ob_get_level()) {
+                        ob_end_clean();
+                    }
+                    
+                    // Get file info
+                    $fileSize = filesize($pdfFile);
+                    $mimeType = 'application/pdf';
+                    
+                    // Clear all headers
+                    header_remove();
+                    
+                    // Set headers directly (bypass CodeIgniter response filtering)
+                    header('Content-Type: ' . $mimeType);
+                    header('Content-Disposition: attachment; filename="' . $pdfFilename . '"');
+                    header('Content-Length: ' . $fileSize);
+                    header('Content-Transfer-Encoding: binary');
+                    header('Accept-Ranges: bytes');
+                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                    header('Pragma: public');
+                    header('Expires: 0');
+                    
+                    // Disable execution time limit for large files
+                    @set_time_limit(0);
+                    
+                    // Read and output file in chunks to handle large files
+                    $chunkSize = 8192; // 8KB chunks
+                    $handle = fopen($pdfFile, 'rb');
+                    
+                    if ($handle === false) {
+                        log_message('error', 'Failed to open PDF file for reading: ' . $pdfFile);
+                        http_response_code(500);
+                        echo json_encode(['error' => 'Failed to read file']);
+                        exit;
+                    }
+                    
+                    while (!feof($handle)) {
+                        echo fread($handle, $chunkSize);
+                        flush(); // Flush output buffer
+                    }
+                    
+                    fclose($handle);
+                    exit; // Terminate script after download
                 } else {
                     // Fallback to DOCX if PDF conversion failed
                     log_message('warning', 'PDF conversion failed, returning DOCX instead for submission: ' . $submissionId);
@@ -275,15 +309,49 @@ class PdfGenerator extends BaseController
                     ->setJSON(['error' => 'Generated file is not readable']);
             }
             
-            // Set proper headers for DOCX download
-            return $this->response
-                ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-                ->setHeader('Content-Disposition', 'attachment; filename="' . $docxFilename . '"')
-                ->setHeader('Content-Length', (string)filesize($tempDocxFile))
-                ->setHeader('Cache-Control', 'must-revalidate, post-check=0, pre-check=0')
-                ->setHeader('Pragma', 'public')
-                ->download($tempDocxFile, null)
-                ->setFileName($docxFilename);
+            // Clear any output buffers to prevent corruption
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+            
+            // Get file info
+            $fileSize = filesize($tempDocxFile);
+            $mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+            
+            // Clear all headers
+            header_remove();
+            
+            // Set headers directly (bypass CodeIgniter response filtering)
+            header('Content-Type: ' . $mimeType);
+            header('Content-Disposition: attachment; filename="' . $docxFilename . '"');
+            header('Content-Length: ' . $fileSize);
+            header('Content-Transfer-Encoding: binary');
+            header('Accept-Ranges: bytes');
+            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+            header('Pragma: public');
+            header('Expires: 0');
+            
+            // Disable execution time limit for large files
+            @set_time_limit(0);
+            
+            // Read and output file in chunks to handle large files
+            $chunkSize = 8192; // 8KB chunks
+            $handle = fopen($tempDocxFile, 'rb');
+            
+            if ($handle === false) {
+                log_message('error', 'Failed to open file for reading: ' . $tempDocxFile);
+                http_response_code(500);
+                echo json_encode(['error' => 'Failed to read file']);
+                exit;
+            }
+            
+            while (!feof($handle)) {
+                echo fread($handle, $chunkSize);
+                flush(); // Flush output buffer
+            }
+            
+            fclose($handle);
+            exit; // Terminate script after download
             
         } catch (\Exception $e) {
             log_message('error', 'Document generation error: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
