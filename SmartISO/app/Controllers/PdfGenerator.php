@@ -246,8 +246,20 @@ class PdfGenerator extends BaseController
                     }
                     
                     // Clear any output buffers to prevent corruption
-                    if (ob_get_level()) {
+                    while (ob_get_level()) {
                         ob_end_clean();
+                    }
+                    
+                    // On Windows, ensure file is not locked by waiting briefly
+                    clearstatcache(true, $pdfFile);
+                    usleep(100000); // 100ms delay to ensure file write is complete
+                    
+                    // Verify file one more time
+                    if (!file_exists($pdfFile) || !is_readable($pdfFile)) {
+                        log_message('error', 'PDF file became unavailable before download: ' . $pdfFile);
+                        http_response_code(500);
+                        echo json_encode(['error' => 'File is not available']);
+                        exit;
                     }
                     
                     // Get file info
@@ -263,7 +275,7 @@ class PdfGenerator extends BaseController
                     header('Content-Length: ' . $fileSize);
                     header('Content-Transfer-Encoding: binary');
                     header('Accept-Ranges: bytes');
-                    header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+                    header('Cache-Control: private, must-revalidate, post-check=0, pre-check=0, max-age=1');
                     header('Pragma: public');
                     header('Expires: 0');
                     
@@ -271,8 +283,8 @@ class PdfGenerator extends BaseController
                     @set_time_limit(0);
                     
                     // Read and output file in chunks to handle large files
-                    $chunkSize = 8192; // 8KB chunks
-                    $handle = fopen($pdfFile, 'rb');
+                    $chunkSize = 1024 * 8; // 8KB chunks
+                    $handle = @fopen($pdfFile, 'rb');
                     
                     if ($handle === false) {
                         log_message('error', 'Failed to open PDF file for reading: ' . $pdfFile);
@@ -281,9 +293,19 @@ class PdfGenerator extends BaseController
                         exit;
                     }
                     
+                    // Send file in chunks
                     while (!feof($handle)) {
-                        echo fread($handle, $chunkSize);
-                        flush(); // Flush output buffer
+                        $buffer = fread($handle, $chunkSize);
+                        if ($buffer === false) {
+                            break;
+                        }
+                        echo $buffer;
+                        
+                        // Force immediate output (important for Windows)
+                        if (ob_get_level()) {
+                            ob_flush();
+                        }
+                        flush();
                     }
                     
                     fclose($handle);
@@ -310,8 +332,20 @@ class PdfGenerator extends BaseController
             }
             
             // Clear any output buffers to prevent corruption
-            if (ob_get_level()) {
+            while (ob_get_level()) {
                 ob_end_clean();
+            }
+            
+            // On Windows, ensure file is not locked by waiting briefly
+            clearstatcache(true, $tempDocxFile);
+            usleep(100000); // 100ms delay to ensure file write is complete
+            
+            // Verify file one more time
+            if (!file_exists($tempDocxFile) || !is_readable($tempDocxFile)) {
+                log_message('error', 'File became unavailable before download: ' . $tempDocxFile);
+                http_response_code(500);
+                echo json_encode(['error' => 'File is not available']);
+                exit;
             }
             
             // Get file info
@@ -327,7 +361,7 @@ class PdfGenerator extends BaseController
             header('Content-Length: ' . $fileSize);
             header('Content-Transfer-Encoding: binary');
             header('Accept-Ranges: bytes');
-            header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+            header('Cache-Control: private, must-revalidate, post-check=0, pre-check=0, max-age=1');
             header('Pragma: public');
             header('Expires: 0');
             
@@ -335,8 +369,8 @@ class PdfGenerator extends BaseController
             @set_time_limit(0);
             
             // Read and output file in chunks to handle large files
-            $chunkSize = 8192; // 8KB chunks
-            $handle = fopen($tempDocxFile, 'rb');
+            $chunkSize = 1024 * 8; // 8KB chunks
+            $handle = @fopen($tempDocxFile, 'rb');
             
             if ($handle === false) {
                 log_message('error', 'Failed to open file for reading: ' . $tempDocxFile);
@@ -345,9 +379,19 @@ class PdfGenerator extends BaseController
                 exit;
             }
             
+            // Send file in chunks
             while (!feof($handle)) {
-                echo fread($handle, $chunkSize);
-                flush(); // Flush output buffer
+                $buffer = fread($handle, $chunkSize);
+                if ($buffer === false) {
+                    break;
+                }
+                echo $buffer;
+                
+                // Force immediate output (important for Windows)
+                if (ob_get_level()) {
+                    ob_flush();
+                }
+                flush();
             }
             
             fclose($handle);
