@@ -39,62 +39,62 @@ class Profile extends BaseController
     
     public function update()
     {
-        // Debug logging
-        log_message('info', 'Profile update called');
-        log_message('info', 'POST data: ' . json_encode($this->request->getPost()));
-        
         $userId = session()->get('user_id');
         $user = $this->userModel->find($userId);
         
         if (!$user) {
-            log_message('error', 'User not found: ' . $userId);
             return redirect()->to('/login')->with('error', 'User not found');
         }
         
-        log_message('info', 'User found: ' . $user['username']);
-        
+        // Simplified validation - only essential fields
         $rules = [
             'full_name' => 'required|min_length[3]|max_length[100]',
-            'email' => [
-                'label' => 'Email',
-                'rules' => "required|valid_email|is_unique[users.email,id,{$userId}]"
-            ],
-            'department_id' => 'permit_empty|integer',
-            'office_id' => 'permit_empty|integer'
+            'email' => "required|valid_email|is_unique[users.email,id,{$userId}]"
         ];
         
         if (!$this->validate($rules)) {
-            $errors = $this->validator->getErrors();
-            log_message('error', 'Validation failed: ' . json_encode($errors));
             return redirect()->back()
-                ->with('error', 'Validation failed. Please check your input.')
-                ->withInput()
-                ->with('validation', $this->validator);
+                ->with('error', 'Please check your input. ' . implode(' ', $this->validator->getErrors()))
+                ->withInput();
         }
         
+        // Simple update data - only the essential fields
         $updateData = [
-            'full_name' => $this->request->getPost('full_name'),
-            'email' => $this->request->getPost('email'),
-            'department_id' => $this->request->getPost('department_id') ?: null,
-            'office_id' => $this->request->getPost('office_id') ?: null
+            'full_name' => trim($this->request->getPost('full_name')),
+            'email' => trim($this->request->getPost('email'))
         ];
         
-        log_message('info', 'Update data: ' . json_encode($updateData));
+        // Add optional fields if provided
+        $departmentId = $this->request->getPost('department_id');
+        if (!empty($departmentId)) {
+            $updateData['department_id'] = (int)$departmentId;
+        }
+        
+        $officeId = $this->request->getPost('office_id');
+        if (!empty($officeId)) {
+            $updateData['office_id'] = (int)$officeId;
+        }
         
         try {
-            if ($this->userModel->update($userId, $updateData)) {
-                // Update session data
-                session()->set('full_name', $updateData['full_name']);
-                
-                log_message('info', 'Profile updated successfully');
-                return redirect()->to('/profile')->with('message', 'Profile updated successfully');
-            }
+            // Direct database update to avoid model validation issues
+            $db = \Config\Database::connect();
+            $builder = $db->table('users');
+            $result = $builder->where('id', $userId)->update($updateData);
             
-            log_message('error', 'Update returned false');
-            return redirect()->back()->with('error', 'Failed to update profile')->withInput();
+            if ($result) {
+                // Update session data
+                session()->set([
+                    'full_name' => $updateData['full_name'],
+                    'email' => $updateData['email']
+                ]);
+                
+                return redirect()->to('/profile')->with('message', 'Profile updated successfully!');
+            } else {
+                return redirect()->back()->with('error', 'No changes were made or update failed.')->withInput();
+            }
         } catch (\Exception $e) {
             log_message('error', 'Profile update error: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'An error occurred: ' . $e->getMessage())->withInput();
+            return redirect()->back()->with('error', 'Update failed: ' . $e->getMessage())->withInput();
         }
     }
     

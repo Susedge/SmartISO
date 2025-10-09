@@ -802,6 +802,44 @@ class Forms extends BaseController
             } catch (\Exception $e) {
                 log_message('error', 'Failed to assign service staff during signForm: ' . $e->getMessage());
             }
+
+            // OPTIONAL: Auto-create a pending schedule when a submission is approved and assigned
+            // This ensures consistency between all approval flows (signForm, submitApproval, and assignServiceStaff)
+            // Auto-create schedule only if enabled in config
+            try {
+                $appConf = config('App');
+                if (!empty($appConf->autoCreateScheduleOnApproval) && class_exists('App\\Models\\ScheduleModel')) {
+                    $scheduleModel = new \App\Models\ScheduleModel();
+                    // Only insert if ScheduleModel allows submission_id
+                    if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
+                        // Check if a schedule already exists for this submission to avoid duplicates
+                        $existingSchedule = $scheduleModel->where('submission_id', $id)->first();
+                        if (!$existingSchedule) {
+                            $schedData = [
+                                'submission_id' => $id,
+                                'scheduled_date' => date('Y-m-d'),
+                                'scheduled_time' => '09:00:00',
+                                'duration_minutes' => 60,
+                                'assigned_staff_id' => $serviceStaffId,
+                                'location' => '',
+                                'notes' => 'Auto-created schedule on approval via signForm',
+                                'status' => 'pending'
+                            ];
+
+                            // Insert quietly; if it fails, log but don't block approval flow
+                            try {
+                                $scheduleModel->insert($schedData);
+                                log_message('info', "Auto-created schedule for submission {$id} via signForm with service staff {$serviceStaffId}");
+                            } catch (\Throwable $inner) {
+                                log_message('error', 'Auto-schedule creation failed for submission ' . $id . ': ' . $inner->getMessage());
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Non-fatal: log and continue
+                log_message('error', 'Error while attempting to auto-create schedule in signForm: ' . $e->getMessage());
+            }
             
             return redirect()->to('/forms/pending-approval')
                             ->with('message', 'Form approved and signed successfully');
@@ -1348,22 +1386,27 @@ class Forms extends BaseController
                     $scheduleModel = new \App\Models\ScheduleModel();
                     // Only insert if ScheduleModel allows submission_id
                     if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
-                        $schedData = [
-                            'submission_id' => $submissionId,
-                            'scheduled_date' => date('Y-m-d'),
-                            'scheduled_time' => '09:00:00',
-                            'duration_minutes' => 60,
-                            'assigned_staff_id' => $serviceStaffId,
-                            'location' => '',
-                            'notes' => 'Auto-created schedule on approval',
-                            'status' => 'pending'
-                        ];
+                        // Check if a schedule already exists for this submission to avoid duplicates
+                        $existingSchedule = $scheduleModel->where('submission_id', $submissionId)->first();
+                        if (!$existingSchedule) {
+                            $schedData = [
+                                'submission_id' => $submissionId,
+                                'scheduled_date' => date('Y-m-d'),
+                                'scheduled_time' => '09:00:00',
+                                'duration_minutes' => 60,
+                                'assigned_staff_id' => $serviceStaffId,
+                                'location' => '',
+                                'notes' => 'Auto-created schedule on approval',
+                                'status' => 'pending'
+                            ];
 
-                        // Insert quietly; if it fails, log but don't block approval flow
-                        try {
-                            $scheduleModel->insert($schedData);
-                        } catch (\Throwable $inner) {
-                            log_message('error', 'Auto-schedule creation failed for submission ' . $submissionId . ': ' . $inner->getMessage());
+                            // Insert quietly; if it fails, log but don't block approval flow
+                            try {
+                                $scheduleModel->insert($schedData);
+                                log_message('info', "Auto-created schedule for submission {$submissionId} on approval with service staff {$serviceStaffId}");
+                            } catch (\Throwable $inner) {
+                                log_message('error', 'Auto-schedule creation failed for submission ' . $submissionId . ': ' . $inner->getMessage());
+                            }
                         }
                     }
                 }
@@ -1789,6 +1832,44 @@ class Forms extends BaseController
                 $this->formSubmissionModel->assignServiceStaff($submissionId, $serviceStaffId);
             } catch (\Exception $e) {
                 log_message('error', 'Failed to create assignment notification in assignServiceStaff: ' . $e->getMessage());
+            }
+
+            // OPTIONAL: Auto-create a pending schedule when a service staff is assigned
+            // This ensures consistency between both approval flows (submitApproval and assignServiceStaff)
+            // Auto-create schedule only if enabled in config
+            try {
+                $appConf = config('App');
+                if (!empty($appConf->autoCreateScheduleOnApproval) && class_exists('App\\Models\\ScheduleModel')) {
+                    $scheduleModel = new \App\Models\ScheduleModel();
+                    // Only insert if ScheduleModel allows submission_id
+                    if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
+                        // Check if a schedule already exists for this submission to avoid duplicates
+                        $existingSchedule = $scheduleModel->where('submission_id', $submissionId)->first();
+                        if (!$existingSchedule) {
+                            $schedData = [
+                                'submission_id' => $submissionId,
+                                'scheduled_date' => date('Y-m-d'),
+                                'scheduled_time' => '09:00:00',
+                                'duration_minutes' => 60,
+                                'assigned_staff_id' => $serviceStaffId,
+                                'location' => '',
+                                'notes' => 'Auto-created schedule on service staff assignment',
+                                'status' => 'pending'
+                            ];
+
+                            // Insert quietly; if it fails, log but don't block assignment flow
+                            try {
+                                $scheduleModel->insert($schedData);
+                                log_message('info', "Auto-created schedule for submission {$submissionId} assigned to service staff {$serviceStaffId}");
+                            } catch (\Throwable $inner) {
+                                log_message('error', 'Auto-schedule creation failed for submission ' . $submissionId . ': ' . $inner->getMessage());
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Non-fatal: log and continue
+                log_message('error', 'Error while attempting to auto-create schedule in assignServiceStaff: ' . $e->getMessage());
             }
 
             log_message('info', "Service staff {$serviceStaff['full_name']} assigned to submission {$submissionId} by user {$userId}");

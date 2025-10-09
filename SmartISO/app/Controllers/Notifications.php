@@ -27,6 +27,7 @@ class Notifications extends BaseController
     public function view($id)
     {
         $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
 
         // Ensure notification belongs to user
         $notification = $this->notificationModel->where('id', $id)->where('user_id', $userId)->first();
@@ -37,7 +38,19 @@ class Notifications extends BaseController
         // Mark as read (idempotent)
         $this->notificationModel->markAsRead($id, $userId);
 
-        // Prefer redirecting to the related submission when available
+        // Enhanced routing: Direct approving authorities to Review & Sign page for submissions
+        if (!empty($notification['submission_id']) && in_array($userType, ['approving_authority', 'admin'])) {
+            // Check if this is a submission notification that needs approval
+            $submissionModel = new \App\Models\FormSubmissionModel();
+            $submission = $submissionModel->find($notification['submission_id']);
+            
+            if ($submission && $submission['status'] === 'submitted') {
+                // Redirect to Review & Sign page for pending approvals
+                return redirect()->to(base_url('forms/approve/' . $notification['submission_id']));
+            }
+        }
+
+        // Prefer redirecting to the related submission when available (for other cases)
         if (!empty($notification['submission_id'])) {
             return redirect()->to(base_url('forms/submission/' . $notification['submission_id']));
         }

@@ -567,9 +567,10 @@ class Schedule extends BaseController
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
                           fs.created_at, fs.priority, fs.service_staff_id,
                           f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name')
+                          u.full_name as requestor_name, fsd.field_value as priority_level')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
             ->where('fs.service_staff_id', $staffId)
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->whereIn('fs.status', ['approved', 'pending_service']) // Only show submissions assigned to service staff
@@ -588,6 +589,17 @@ class Schedule extends BaseController
             if (!empty($row['service_staff_id'])) {
                 $staff = $this->userModel->find($row['service_staff_id']);
                 $staffName = $staff['full_name'] ?? null;
+            }
+            
+            // Get priority_level from submission data
+            $submissionDataModel = new \App\Models\FormSubmissionDataModel();
+            $priorityLevel = $submissionDataModel->getFieldValue($row['submission_id'], 'priority_level');
+            
+            // Set default priority_level if none exists
+            if (empty($priorityLevel)) {
+                $priorityLevel = 'medium'; // Default priority
+                // Optionally save the default priority
+                $submissionDataModel->setFieldValue($row['submission_id'], 'priority_level', $priorityLevel);
             }
             
             $virtualSchedules[] = [
@@ -610,7 +622,7 @@ class Schedule extends BaseController
                 'priority' => $row['priority'] ?? 0,
                 'eta_days' => null,
                 'estimated_date' => null,
-                'priority_level' => null
+                'priority_level' => $priorityLevel // Now properly set
             ];
         }
         
@@ -844,5 +856,61 @@ class Schedule extends BaseController
             'csrf_name' => csrf_token(),
             'csrf_hash' => csrf_hash()
         ]);
+    }
+
+    /**
+     * Get submissions directly assigned to service staff (not through schedules)
+     * This is a fallback method to ensure service staff see their assignments
+     */
+    private function getDirectServiceStaffAssignments($staffId)
+    {
+        $db = \Config\Database::connect();
+        
+        // Find submissions where service_staff_id = $staffId
+        $builder = $db->table('form_submissions fs');
+        $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          fs.created_at, fs.priority, fs.service_staff_id,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name, fsd.field_value as priority_level')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
+            ->where('fs.service_staff_id', $staffId)
+            ->whereIn('fs.status', ['approved', 'pending_service', 'submitted']) // Include all relevant statuses
+            ->orderBy('fs.created_at', 'DESC');
+        
+        $results = $builder->get()->getResultArray();
+        
+        // Format these submissions as "virtual" schedule entries for calendar display
+        $virtualSchedules = [];
+        foreach ($results as $row) {
+            // Use submission created date as the scheduled date
+            $createdDate = substr($row['created_at'], 0, 10);
+            
+            $virtualSchedules[] = [
+                'id' => 'staff-' . $row['submission_id'], // Prefix with 'staff-' to distinguish
+                'submission_id' => $row['submission_id'],
+                'form_id' => $row['form_id'],
+                'panel_name' => $row['panel_name'],
+                'submission_status' => $row['submission_status'],
+                'form_code' => $row['form_code'],
+                'form_description' => $row['form_description'],
+                'requestor_name' => $row['requestor_name'],
+                'scheduled_date' => $createdDate,
+                'scheduled_time' => '10:00:00', // Default time for staff assignments
+                'duration_minutes' => 60,
+                'location' => '',
+                'notes' => 'Service assignment - schedule pending',
+                'status' => 'pending',
+                'assigned_staff_id' => $row['service_staff_id'],
+                'assigned_staff_name' => 'You',
+                'priority' => $row['priority'] ?? 0,
+                'eta_days' => null,
+                'estimated_date' => null,
+                'priority_level' => $row['priority_level'] ?? 'medium'
+            ];
+        }
+        
+        return $virtualSchedules;
     }
 }

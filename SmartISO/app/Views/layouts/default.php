@@ -546,9 +546,15 @@
         }
         <?php endif; ?>
         
-        // Add loading states to forms
+        // Add loading states to forms (skip forms with custom handlers)
         const forms = document.querySelectorAll('form');
         forms.forEach(form => {
+            // Skip forms that have custom submit handlers
+            if (form.hasAttribute('data-custom-submit')) {
+                console.log('Skipping global handler for form with custom submit:', form.id);
+                return;
+            }
+            
             form.addEventListener('submit', function() {
                 // Ensure the form has the latest CSRF token in the POST body.
                 // Some flows rely on meta tags and JS; to avoid stale-token 403s we inject a managed hidden input
@@ -860,9 +866,8 @@
                 if(!items || items.length===0){ notificationsList.innerHTML = '<div class="text-center p-3 text-muted">No new notifications</div>'; return; }
                 const html = items.map(n=>{
                     const time = n.created_at ? new Date(n.created_at).toLocaleString() : '';
-                    // Prefer redirecting to the related submission page when submission_id is present
-                    const submissionUrl = n.submission_id ? '<?= base_url('forms/submission') ?>/' + n.submission_id : '';
-                    const actionUrl = submissionUrl || (n.action_url ? n.action_url : '#');
+                    // Use the notification view URL instead of direct submission URL to allow server-side routing logic
+                    const actionUrl = '<?= base_url('notifications/view') ?>/' + n.id;
                     const readLabel = n.read==0 ? 'Mark' : 'Read';
                                         return `<div class="dropdown-item d-flex align-items-start notif-item" data-id="${n.id}" data-action="${escapeHtml(actionUrl)}" data-submission-id="${n.submission_id ? n.submission_id : ''}" role="button">`+
                                                 `<div class="flex-grow-1">`+
@@ -878,25 +883,14 @@
                 }).join('');
                 notificationsList.innerHTML = html;
 
-                // Wire up click-to-open (open action_url and mark as read)
+                // Wire up click-to-open (use notification view URL to allow server-side routing logic)
                 notificationsList.querySelectorAll('.notif-item').forEach(item => {
                     const id = item.dataset.id;
                     item.addEventListener('click', function(e){
                         // Ignore clicks on buttons inside the item
                         if(e.target.closest('button')) return;
-                        // Prefer submission if attached, otherwise use action_url, otherwise fallback to notification view
-                        const submissionId = item.dataset.submissionId;
-                        const action = item.dataset.action;
-                        if(submissionId) {
-                            const target = '<?= base_url('forms/submission') ?>/' + submissionId;
-                            markRead(id).then(()=> { window.location.href = target; }).catch(()=> { window.location.href = target; });
-                        } else if(action && action !== '#'){
-                            // mark read via AJAX then go directly to the action
-                            markRead(id).then(()=> { window.location.href = action; }).catch(()=> { window.location.href = action; });
-                        } else {
-                            // Fallback: open notification view page which also marks it read
-                            window.location.href = '<?= base_url('notifications/view') ?>/'+id;
-                        }
+                        // Always use the notification view URL to allow server-side routing logic
+                        window.location.href = '<?= base_url('notifications/view') ?>/'+id;
                     });
                 });
 

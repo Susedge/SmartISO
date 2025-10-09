@@ -12,9 +12,19 @@ class Auth extends BaseController
     {
         $data = [];
         
-    // Get departments for dropdown (offices become departments)
-    $departmentModel = new DepartmentModel();
-    $data['departments'] = $departmentModel->findAll();
+        // Get departments for dropdown (offices become departments)
+        $departmentModel = new DepartmentModel();
+        $data['departments'] = $departmentModel->findAll();
+        
+        // If no departments exist, create a default one
+        if (empty($data['departments'])) {
+            $defaultDept = [
+                'code' => 'GEN',
+                'description' => 'General Department'
+            ];
+            $departmentModel->insert($defaultDept);
+            $data['departments'] = $departmentModel->findAll();
+        }
         
         if (strtoupper($this->request->getMethod()) === 'POST')
         {
@@ -30,21 +40,30 @@ class Auth extends BaseController
             if ($this->validate($rules)) {
                 $userModel = new UserModel();
                 
-                // Save the user
-                $userData = [
-                    'email'         => $this->request->getPost('email'),
-                    'username'      => $this->request->getPost('username'),
-                    'password_hash' => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
-                    'full_name'     => $this->request->getPost('full_name'),
-                    'department_id' => $this->request->getPost('department_id'),
-                    'user_type'     => 'user', // Default user type
-                    'active'        => 0, // Require admin activation (VAPT remediation)
-                ];
-                
-                $userModel->insert($userData);
-                
-                // Redirect to login page with success message
-                return redirect()->to('/auth/login')->with('message', 'Registration successful! You can now log in.');
+                try {
+                    // Save the user
+                    $userData = [
+                        'email'         => $this->request->getPost('email'),
+                        'username'      => $this->request->getPost('username'),
+                        'password_hash' => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
+                        'full_name'     => $this->request->getPost('full_name'),
+                        'department_id' => $this->request->getPost('department_id'),
+                        'user_type'     => 'requestor', // Default user type
+                        'active'        => 1, // Auto-activate for easier registration
+                    ];
+                    
+                    $userId = $userModel->insert($userData, true);
+                    
+                    if ($userId) {
+                        // Redirect to login page with success message
+                        return redirect()->to('/auth/login')->with('message', 'Registration successful! You can now log in.');
+                    } else {
+                        $data['error'] = 'Failed to create user account. Please try again.';
+                    }
+                } catch (\Exception $e) {
+                    log_message('error', 'Registration error: ' . $e->getMessage());
+                    $data['error'] = 'Registration failed: ' . $e->getMessage();
+                }
             } else {
                 // Display validation errors
                 $data['validation'] = $this->validator;
@@ -78,9 +97,9 @@ class Auth extends BaseController
                     ? $userModel->where('email', $identity)->first()
                     : $userModel->where('username', $identity)->first();
                 
-                if ($user && password_verify($password, $user['password_hash'])) {
+        if ($user && password_verify($password, $user['password_hash'])) {
                     if ($user['active'] == 0) {
-                        return redirect()->back()->with('error', 'Account is not active. Please contact administrator.');
+            return redirect()->back()->withInput()->with('error', 'Account is not active. Please contact administrator.');
                     }
                     
                     // Regenerate session ID to prevent fixation
@@ -105,7 +124,7 @@ class Auth extends BaseController
                     // Redirect to main dashboard for all user types
                     return redirect()->to('/dashboard');
                 } else {
-                    return redirect()->back()->with('error', 'Invalid username/email or password');
+                    return redirect()->back()->withInput()->with('error', 'Invalid username/email or password');
                 }
             } else {
                 $data['validation'] = $this->validator;
