@@ -1,7 +1,6 @@
 <?= $this->extend('layouts/default') ?>
 
 <?= $this->section('styles') ?>
-<link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css" rel="stylesheet">
 <link href="<?= base_url('assets/css/pastel.css') ?>" rel="stylesheet">
 <style>
 /* Analytics specific styles using pastel.css variables */
@@ -41,6 +40,16 @@
 .chart-container:hover {
     transform: translateY(-1px);
     box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+.chart-wrapper canvas {
+    max-height: 300px;
 }
 
 .chart-container h5 {
@@ -338,7 +347,9 @@
                 <i class="fas fa-chart-pie me-2 text-primary"></i>
                 Status Distribution
             </h5>
-            <canvas id="statusChart" height="300"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="statusChart"></canvas>
+            </div>
         </div>
     </div>
     
@@ -349,7 +360,9 @@
                 <i class="fas fa-chart-line me-2 text-primary"></i>
                 Submissions Timeline (30 Days)
             </h5>
-            <canvas id="timelineChart" height="300"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="timelineChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
@@ -362,7 +375,9 @@
                 <i class="fas fa-chart-bar me-2 text-primary"></i>
                 Most Used Forms
             </h5>
-            <canvas id="formUsageChart" height="250"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="formUsageChart"></canvas>
+            </div>
         </div>
     </div>
     
@@ -373,7 +388,9 @@
                 <i class="fas fa-building me-2 text-primary"></i>
                 Department Activity
             </h5>
-            <canvas id="departmentChart" height="250"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="departmentChart"></canvas>
+            </div>
         </div>
     </div>
 </div>
@@ -540,7 +557,7 @@
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // Chart.js default configuration
 Chart.defaults.font.family = 'Arial, sans-serif';
@@ -592,7 +609,8 @@ function initializeCharts() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
             plugins: {
                 legend: {
                     position: 'bottom',
@@ -629,7 +647,8 @@ function initializeCharts() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 2.5,
             scales: {
                 y: {
                     beginAtZero: true,
@@ -668,7 +687,8 @@ function initializeCharts() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 2.5,
             scales: {
                 y: {
                     beginAtZero: true
@@ -711,7 +731,8 @@ function initializeCharts() {
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
             plugins: {
                 legend: {
                     position: 'bottom',
