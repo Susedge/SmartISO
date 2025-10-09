@@ -49,6 +49,9 @@ $routes->group('auth', function ($routes) {
 // API routes (no auth required)
 $routes->get('api/current-time', 'Api::currentTime');
 
+// Debug route (temporary - remove in production)
+$routes->get('debug-data', 'DebugData::index');
+
 // Dashboard (requires login)
 $routes->get('/dashboard', 'Dashboard::index', ['filter' => 'auth']);
 

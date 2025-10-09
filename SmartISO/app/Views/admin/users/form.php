@@ -56,6 +56,20 @@
             
             <div class="row mb-3">
                 <div class="col-md-6">
+                    <label for="office_id" class="form-label">Office</label>
+                    <select class="form-select" id="office_id" name="office_id">
+                        <option value="">-- Select Office --</option>
+                        <?php foreach (($offices ?? []) as $office): ?>
+                            <option value="<?= $office['id'] ?>" <?= old('office_id', isset($user) ? ($user['office_id'] ?? '') : '') == $office['id'] ? 'selected' : '' ?>>
+                                <?= esc($office['code']) ?> - <?= esc($office['description']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
                     <label for="user_type" class="form-label">User Role</label>
                     <select class="form-select" id="user_type" name="user_type" required>
                         <option value="">-- Select Role --</option>

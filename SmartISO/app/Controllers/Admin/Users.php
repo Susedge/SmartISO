@@ -40,7 +40,8 @@ class Users extends BaseController
     {
         $data = [
             'title' => 'Create New User',
-            'departments' => $this->departmentModel->findAll()
+            'departments' => $this->departmentModel->findAll(),
+            'offices' => $this->officeModel->findAll()
         ];
         
         return view('admin/users/form', $data);
@@ -77,6 +78,7 @@ class Users extends BaseController
             'username' => $this->request->getPost('username'),
             'full_name' => $this->request->getPost('full_name'),
             'department_id' => $this->request->getPost('department_id') ?: null,
+            'office_id' => $this->request->getPost('office_id') ?: null,
             'user_type' => $this->request->getPost('user_type'),
             'active' => $this->request->getPost('active'),
             'password_hash' => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT)
@@ -112,7 +114,8 @@ class Users extends BaseController
         $data = [
             'title' => 'Edit User',
             'user' => $user,
-            'departments' => $this->departmentModel->findAll()
+            'departments' => $this->departmentModel->findAll(),
+            'offices' => $this->officeModel->findAll()
         ];
         
         return view('admin/users/form', $data);
@@ -166,6 +169,7 @@ class Users extends BaseController
             'username' => $this->request->getPost('username'),
             'full_name' => $this->request->getPost('full_name'),
             'department_id' => $this->request->getPost('department_id') ?: null,
+            'office_id' => $this->request->getPost('office_id') ?: null,
             'user_type' => $this->request->getPost('user_type'),
             'active' => $this->request->getPost('active')
         ];

@@ -88,11 +88,15 @@ class Analytics extends BaseController
         $totalDepartments = $this->departmentModel->countAll();
         $totalForms = $this->formModel->countAll();
 
+        log_message('info', "Analytics Overview - Submissions: $totalSubmissions, Users: $totalUsers, Departments: $totalDepartments, Forms: $totalForms");
+
         // Status distribution
         $statusCounts = $this->formSubmissionModel
             ->select('status, COUNT(*) as count')
             ->groupBy('status')
             ->findAll();
+
+        log_message('info', 'Status counts: ' . json_encode($statusCounts));
 
         // Recent submissions (last 30 days)
         $recentSubmissions = $this->formSubmissionModel
@@ -121,19 +125,23 @@ class Analytics extends BaseController
     {
         // Most used forms
         $formUsage = $this->formSubmissionModel
-            ->select('forms.description as form_name, COUNT(form_submissions.id) as usage_count')
-            ->join('forms', 'forms.id = form_submissions.form_id')
+            ->select('COALESCE(forms.description, "Unknown Form") as form_name, forms.code as form_code, COUNT(form_submissions.id) as usage_count')
+            ->join('forms', 'forms.id = form_submissions.form_id', 'left')
             ->groupBy('form_submissions.form_id')
             ->orderBy('usage_count', 'DESC')
             ->limit(10)
             ->findAll();
 
-        // Average processing time by form
+        // Average processing time by form (only for completed forms)
         $processingTimes = $this->formSubmissionModel
-            ->select('forms.description as form_name, AVG(TIMESTAMPDIFF(HOUR, form_submissions.created_at, form_submissions.updated_at)) as avg_hours')
-            ->join('forms', 'forms.id = form_submissions.form_id')
+            ->select('COALESCE(forms.description, "Unknown Form") as form_name, 
+                     AVG(TIMESTAMPDIFF(HOUR, form_submissions.created_at, form_submissions.updated_at)) as avg_hours,
+                     COUNT(*) as completed_count')
+            ->join('forms', 'forms.id = form_submissions.form_id', 'left')
             ->where('form_submissions.status', 'completed')
             ->groupBy('form_submissions.form_id')
+            ->orderBy('completed_count', 'DESC')
+            ->limit(10)
             ->findAll();
 
         return [
@@ -146,22 +154,29 @@ class Analytics extends BaseController
     {
         // Submissions by department
         $departmentSubmissions = $this->formSubmissionModel
-            ->select('departments.description as department_name, COUNT(form_submissions.id) as submission_count')
-            ->join('users', 'users.id = form_submissions.submitted_by')
+            ->select('COALESCE(departments.description, "Unassigned") as department_name, COUNT(form_submissions.id) as submission_count')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->join('departments', 'departments.id = users.department_id', 'left')
-            ->groupBy('users.department_id')
+            ->groupBy('COALESCE(departments.description, "Unassigned")')
             ->orderBy('submission_count', 'DESC')
             ->findAll();
 
         // Department completion rates
         $departmentCompletion = $this->formSubmissionModel
-            ->select('departments.description as department_name, 
+            ->select('COALESCE(departments.description, "Unassigned") as department_name, 
                      COUNT(form_submissions.id) as total,
                      SUM(CASE WHEN form_submissions.status = "completed" THEN 1 ELSE 0 END) as completed')
-            ->join('users', 'users.id = form_submissions.submitted_by')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->join('departments', 'departments.id = users.department_id', 'left')
-            ->groupBy('users.department_id')
+            ->groupBy('COALESCE(departments.description, "Unassigned")')
             ->findAll();
+
+        // Calculate completion rate percentages
+        foreach ($departmentCompletion as &$dept) {
+            $dept['completion_rate'] = $dept['total'] > 0 
+                ? round(($dept['completed'] / $dept['total']) * 100, 2) 
+                : 0;
+        }
 
         return [
             'submissions_by_department' => $departmentSubmissions,
@@ -195,26 +210,44 @@ class Analytics extends BaseController
 
     private function getPerformanceMetrics()
     {
-        // Average processing time by status
+        // Average processing time by status (only for statuses beyond 'submitted')
         $statusTimes = $this->formSubmissionModel
-            ->select('status, AVG(TIMESTAMPDIFF(HOUR, created_at, updated_at)) as avg_hours')
+            ->select('status, 
+                     AVG(TIMESTAMPDIFF(HOUR, created_at, updated_at)) as avg_hours,
+                     COUNT(*) as count')
             ->whereNotIn('status', ['submitted'])
             ->groupBy('status')
             ->findAll();
 
-        // User productivity
+        // User productivity (last 30 days)
         $userProductivity = $this->formSubmissionModel
-            ->select('users.full_name, COUNT(form_submissions.id) as submissions')
-            ->join('users', 'users.id = form_submissions.submitted_by')
+            ->select('COALESCE(users.full_name, "Unknown User") as full_name, 
+                     users.user_type,
+                     COUNT(form_submissions.id) as submissions')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-30 days')))
             ->groupBy('form_submissions.submitted_by')
             ->orderBy('submissions', 'DESC')
             ->limit(10)
             ->findAll();
 
+        // Service staff performance (completion metrics)
+        $staffPerformance = $this->formSubmissionModel
+            ->select('COALESCE(users.full_name, "Unknown Staff") as staff_name,
+                     COUNT(form_submissions.id) as assigned_count,
+                     SUM(CASE WHEN form_submissions.status = "completed" THEN 1 ELSE 0 END) as completed_count')
+            ->join('users', 'users.id = form_submissions.service_staff_id', 'left')
+            ->where('form_submissions.service_staff_id IS NOT NULL')
+            ->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-30 days')))
+            ->groupBy('form_submissions.service_staff_id')
+            ->orderBy('completed_count', 'DESC')
+            ->limit(5)
+            ->findAll();
+
         return [
             'status_processing_times' => $statusTimes,
-            'user_productivity' => $userProductivity
+            'user_productivity' => $userProductivity,
+            'staff_performance' => $staffPerformance
         ];
     }
 
@@ -223,10 +256,16 @@ class Analytics extends BaseController
         $options = new Options();
         $options->set('defaultFont', 'Arial');
         $options->set('isRemoteEnabled', true);
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('enable_javascript', true);
         
         $dompdf = new Dompdf($options);
         
         $data = $this->getReportData($reportType, $dateRange);
+        
+        // Generate chart images using QuickChart API
+        $data['chart_images'] = $this->generateChartImages($data);
+        
         $html = view('analytics/reports/pdf_template', $data);
         
         $dompdf->loadHtml($html);
@@ -248,6 +287,9 @@ class Analytics extends BaseController
         
         $data = $this->getReportData($reportType, $dateRange);
         
+        // Generate chart images
+        $chartImages = $this->generateChartImages($data);
+        
         // Title
         $section->addTitle('SmartISO Analytics Report', 1);
         $section->addText('Generated on: ' . date('Y-m-d H:i:s'));
@@ -260,9 +302,31 @@ class Analytics extends BaseController
         $section->addText('Completion Rate: ' . $data['overview']['completion_rate'] . '%');
         $section->addTextBreak();
         
+        // Add Status Distribution Chart
+        if (isset($chartImages['status_chart'])) {
+            $section->addTitle('Status Distribution Chart', 3);
+            $section->addImage($chartImages['status_chart'], [
+                'width' => 400,
+                'height' => 300,
+                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER
+            ]);
+            $section->addTextBreak();
+        }
+        
         // Add charts and tables data
         if (!empty($data['formStats']['form_usage'])) {
             $section->addTitle('Form Usage Statistics', 2);
+            
+            // Add Form Usage Chart
+            if (isset($chartImages['form_usage_chart'])) {
+                $section->addImage($chartImages['form_usage_chart'], [
+                    'width' => 500,
+                    'height' => 300,
+                    'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER
+                ]);
+                $section->addTextBreak();
+            }
+            
             $table = $section->addTable();
             $table->addRow();
             $table->addCell(3000)->addText('Form Name');
@@ -273,6 +337,28 @@ class Analytics extends BaseController
                 $table->addCell(3000)->addText($form['form_name']);
                 $table->addCell(2000)->addText($form['usage_count']);
             }
+            $section->addTextBreak();
+        }
+        
+        // Add Timeline Chart
+        if (isset($chartImages['timeline_chart'])) {
+            $section->addTitle('Submissions Timeline', 2);
+            $section->addImage($chartImages['timeline_chart'], [
+                'width' => 500,
+                'height' => 300,
+                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER
+            ]);
+            $section->addTextBreak();
+        }
+        
+        // Add Department Chart
+        if (isset($chartImages['department_chart'])) {
+            $section->addTitle('Department Activity', 2);
+            $section->addImage($chartImages['department_chart'], [
+                'width' => 400,
+                'height' => 300,
+                'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER
+            ]);
         }
         
         $filename = 'analytics_report_' . date('Y-m-d_H-i-s') . '.docx';
@@ -284,6 +370,9 @@ class Analytics extends BaseController
         
         $objWriter = IOFactory::createWriter($phpWord, 'Word2007');
         $objWriter->save($tempFile);
+        
+        // Clean up temporary chart images
+        $this->cleanupChartImages($chartImages);
         
         return $this->response
             ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
@@ -305,5 +394,208 @@ class Analytics extends BaseController
         ];
 
         return $data;
+    }
+
+    /**
+     * Generate chart images using QuickChart API
+     */
+    private function generateChartImages($data)
+    {
+        $chartImages = [];
+        
+        try {
+            // Status Distribution Chart (Doughnut)
+            $statusLabels = array_map(function($item) {
+                return ucfirst($item['status']);
+            }, $data['overview']['status_distribution']);
+            
+            $statusData = array_map(function($item) {
+                return $item['count'];
+            }, $data['overview']['status_distribution']);
+            
+            $statusChartConfig = [
+                'type' => 'doughnut',
+                'data' => [
+                    'labels' => $statusLabels,
+                    'datasets' => [[
+                        'data' => $statusData,
+                        'backgroundColor' => ['#FFD166', '#FFADC7', '#06D6A0', '#FFF3C4', '#EF476F', '#118AB2'],
+                        'borderColor' => ['#EABC41', '#FF9DB4', '#05C194', '#F5E8A3', '#DC3545', '#0F7A9F'],
+                        'borderWidth' => 2
+                    ]]
+                ],
+                'options' => [
+                    'plugins' => [
+                        'legend' => ['position' => 'bottom'],
+                        'title' => [
+                            'display' => true,
+                            'text' => 'Status Distribution',
+                            'font' => ['size' => 16]
+                        ]
+                    ]
+                ]
+            ];
+            
+            $chartImages['status_chart'] = $this->getQuickChartUrl($statusChartConfig, 500, 400);
+            
+            // Timeline Chart (Line)
+            if (!empty($data['timelineData']['daily_submissions'])) {
+                $timelineLabels = array_map(function($item) {
+                    return date('M j', strtotime($item['date']));
+                }, $data['timelineData']['daily_submissions']);
+                
+                $timelineData = array_map(function($item) {
+                    return $item['count'];
+                }, $data['timelineData']['daily_submissions']);
+                
+                $timelineChartConfig = [
+                    'type' => 'line',
+                    'data' => [
+                        'labels' => $timelineLabels,
+                        'datasets' => [[
+                            'label' => 'Submissions',
+                            'data' => $timelineData,
+                            'borderColor' => '#FFD166',
+                            'backgroundColor' => 'rgba(255, 209, 102, 0.2)',
+                            'fill' => true,
+                            'tension' => 0.4,
+                            'pointBackgroundColor' => '#EABC41',
+                            'pointBorderColor' => '#FFD166',
+                            'pointRadius' => 4,
+                            'borderWidth' => 2
+                        ]]
+                    ],
+                    'options' => [
+                        'scales' => [
+                            'y' => ['beginAtZero' => true]
+                        ],
+                        'plugins' => [
+                            'title' => [
+                                'display' => true,
+                                'text' => 'Submissions Timeline (30 Days)',
+                                'font' => ['size' => 16]
+                            ]
+                        ]
+                    ]
+                ];
+                
+                $chartImages['timeline_chart'] = $this->getQuickChartUrl($timelineChartConfig, 600, 300);
+            }
+            
+            // Form Usage Chart (Bar)
+            if (!empty($data['formStats']['form_usage'])) {
+                $formLabels = array_slice(array_map(function($item) {
+                    return strlen($item['form_name']) > 20 ? substr($item['form_name'], 0, 20) . '...' : $item['form_name'];
+                }, $data['formStats']['form_usage']), 0, 8);
+                
+                $formData = array_slice(array_map(function($item) {
+                    return $item['usage_count'];
+                }, $data['formStats']['form_usage']), 0, 8);
+                
+                $formChartConfig = [
+                    'type' => 'bar',
+                    'data' => [
+                        'labels' => $formLabels,
+                        'datasets' => [[
+                            'label' => 'Usage Count',
+                            'data' => $formData,
+                            'backgroundColor' => '#FFADC7',
+                            'borderColor' => '#FF9DB4',
+                            'borderWidth' => 2,
+                            'borderRadius' => 8
+                        ]]
+                    ],
+                    'options' => [
+                        'scales' => [
+                            'y' => ['beginAtZero' => true]
+                        ],
+                        'plugins' => [
+                            'title' => [
+                                'display' => true,
+                                'text' => 'Most Used Forms',
+                                'font' => ['size' => 16]
+                            ],
+                            'legend' => ['display' => false]
+                        ]
+                    ]
+                ];
+                
+                $chartImages['form_usage_chart'] = $this->getQuickChartUrl($formChartConfig, 600, 350);
+            }
+            
+            // Department Chart (Polar Area)
+            if (!empty($data['departmentStats']['submissions_by_department'])) {
+                $deptLabels = array_slice(array_map(function($item) {
+                    return $item['department_name'] ?: 'Unassigned';
+                }, $data['departmentStats']['submissions_by_department']), 0, 5);
+                
+                $deptData = array_slice(array_map(function($item) {
+                    return $item['submission_count'];
+                }, $data['departmentStats']['submissions_by_department']), 0, 5);
+                
+                $deptChartConfig = [
+                    'type' => 'polarArea',
+                    'data' => [
+                        'labels' => $deptLabels,
+                        'datasets' => [[
+                            'data' => $deptData,
+                            'backgroundColor' => [
+                                'rgba(255, 209, 102, 0.8)',
+                                'rgba(255, 173, 199, 0.8)',
+                                'rgba(6, 214, 160, 0.8)',
+                                'rgba(255, 243, 196, 0.8)',
+                                'rgba(239, 71, 111, 0.8)'
+                            ],
+                            'borderColor' => ['#EABC41', '#FF9DB4', '#05C194', '#F5E8A3', '#DC3545'],
+                            'borderWidth' => 2
+                        ]]
+                    ],
+                    'options' => [
+                        'plugins' => [
+                            'legend' => ['position' => 'bottom'],
+                            'title' => [
+                                'display' => true,
+                                'text' => 'Department Activity',
+                                'font' => ['size' => 16]
+                            ]
+                        ]
+                    ]
+                ];
+                
+                $chartImages['department_chart'] = $this->getQuickChartUrl($deptChartConfig, 450, 400);
+            }
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Chart generation error: ' . $e->getMessage());
+        }
+        
+        return $chartImages;
+    }
+
+    /**
+     * Get QuickChart API URL for chart image
+     */
+    private function getQuickChartUrl($chartConfig, $width = 500, $height = 300)
+    {
+        $baseUrl = 'https://quickchart.io/chart';
+        $params = [
+            'c' => json_encode($chartConfig),
+            'width' => $width,
+            'height' => $height,
+            'backgroundColor' => 'white',
+            'devicePixelRatio' => 2.0
+        ];
+        
+        return $baseUrl . '?' . http_build_query($params);
+    }
+
+    /**
+     * Clean up temporary chart image files
+     */
+    private function cleanupChartImages($chartImages)
+    {
+        // QuickChart uses remote URLs, no local cleanup needed
+        // This method is here for future use if we switch to local image generation
+        return true;
     }
 }

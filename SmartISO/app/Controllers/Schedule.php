@@ -41,6 +41,11 @@ class Schedule extends BaseController
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
+            
+            // Also get submissions assigned to this service staff that don't have schedules yet
+            $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+            // Merge them into the schedules array
+            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
         // Requestor sees schedules for their submissions
         elseif ($userType === 'requestor') {
@@ -408,6 +413,11 @@ class Schedule extends BaseController
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
+            
+            // Also get submissions assigned to this service staff that don't have schedules yet
+            $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+            // Merge them into the schedules array
+            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
         // Requestor sees schedules for their submissions
         elseif ($userType === 'requestor') {
@@ -534,6 +544,69 @@ class Schedule extends BaseController
                 'status' => 'pending',
                 'assigned_staff_id' => null,
                 'assigned_staff_name' => null,
+                'priority' => $row['priority'] ?? 0,
+                'eta_days' => null,
+                'estimated_date' => null,
+                'priority_level' => null
+            ];
+        }
+        
+        return $virtualSchedules;
+    }
+
+    /**
+     * Get submissions assigned to a service staff member that don't have schedule entries yet
+     * This ensures service staff can see ALL submissions assigned to them
+     */
+    private function getServiceStaffSubmissionsWithoutSchedules($staffId)
+    {
+        $db = \Config\Database::connect();
+        
+        // Find submissions assigned to this service staff that don't have a corresponding schedule entry
+        $builder = $db->table('form_submissions fs');
+        $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          fs.created_at, fs.priority, fs.service_staff_id,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->where('fs.service_staff_id', $staffId)
+            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
+            ->whereIn('fs.status', ['approved', 'pending_service']) // Only show submissions assigned to service staff
+            ->orderBy('fs.created_at', 'DESC');
+        
+        $results = $builder->get()->getResultArray();
+        
+        // Format these submissions as "virtual" schedule entries
+        $virtualSchedules = [];
+        foreach ($results as $row) {
+            // Use submission created date as the scheduled date
+            $createdDate = substr($row['created_at'], 0, 10);
+            
+            // Get service staff name
+            $staffName = null;
+            if (!empty($row['service_staff_id'])) {
+                $staff = $this->userModel->find($row['service_staff_id']);
+                $staffName = $staff['full_name'] ?? null;
+            }
+            
+            $virtualSchedules[] = [
+                'id' => 'sub-' . $row['submission_id'], // Prefix with 'sub-' to distinguish from real schedules
+                'submission_id' => $row['submission_id'],
+                'form_id' => $row['form_id'],
+                'panel_name' => $row['panel_name'],
+                'submission_status' => $row['submission_status'],
+                'form_code' => $row['form_code'],
+                'form_description' => $row['form_description'],
+                'requestor_name' => $row['requestor_name'],
+                'scheduled_date' => $createdDate,
+                'scheduled_time' => '09:00:00', // Default time
+                'duration_minutes' => 60,
+                'location' => '',
+                'notes' => 'Pending schedule assignment',
+                'status' => 'pending',
+                'assigned_staff_id' => $row['service_staff_id'],
+                'assigned_staff_name' => $staffName,
                 'priority' => $row['priority'] ?? 0,
                 'eta_days' => null,
                 'estimated_date' => null,

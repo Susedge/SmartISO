@@ -248,6 +248,12 @@
     <div class="section">
         <div class="section-title">Form Status Distribution</div>
         
+        <?php if (isset($chart_images['status_chart'])): ?>
+            <div style="text-align: center; margin: 15px 0;">
+                <img src="<?= $chart_images['status_chart'] ?>" alt="Status Distribution Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+            </div>
+        <?php endif; ?>
+        
         <table class="table">
             <thead>
                 <tr>
@@ -273,11 +279,6 @@
                 <?php endforeach; ?>
             </tbody>
         </table>
-        
-        <div class="chart-placeholder">
-            📊 Status Distribution Chart<br>
-            <small>Visual representation of form statuses would appear here in digital version</small>
-        </div>
     </div>
 
     <div class="page-break"></div>
@@ -285,6 +286,12 @@
     <!-- Form Usage Statistics -->
     <div class="section">
         <div class="section-title">Form Usage Analytics</div>
+        
+        <?php if (isset($chart_images['form_usage_chart'])): ?>
+            <div style="text-align: center; margin: 15px 0;">
+                <img src="<?= $chart_images['form_usage_chart'] ?>" alt="Form Usage Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+            </div>
+        <?php endif; ?>
         
         <div class="two-column">
             <div>
@@ -344,6 +351,12 @@
     <!-- Department Analysis -->
     <div class="section">
         <div class="section-title">Department Performance</div>
+        
+        <?php if (isset($chart_images['department_chart'])): ?>
+            <div style="text-align: center; margin: 15px 0;">
+                <img src="<?= $chart_images['department_chart'] ?>" alt="Department Activity Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+            </div>
+        <?php endif; ?>
         
         <table class="table">
             <thead>
@@ -452,10 +465,11 @@
     <div class="section">
         <div class="section-title">Timeline Analysis</div>
         
-        <div class="chart-placeholder">
-            📈 Daily Submissions Timeline<br>
-            <small>30-day trend chart would appear here in digital version</small>
-        </div>
+        <?php if (isset($chart_images['timeline_chart'])): ?>
+            <div style="text-align: center; margin: 15px 0;">
+                <img src="<?= $chart_images['timeline_chart'] ?>" alt="Submissions Timeline Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+            </div>
+        <?php endif; ?>
         
         <h4>Recent Activity Summary</h4>
         <table class="table">
