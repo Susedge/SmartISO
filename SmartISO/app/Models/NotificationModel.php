@@ -196,14 +196,27 @@ class NotificationModel extends Model
         
         if (!$submission) return;
         
+        // Get submitter's department
+        $userModel = new UserModel();
+        $submitter = $userModel->find($submission['submitted_by']);
+        $submitterDepartment = $submitter['department_id'] ?? null;
+        
         // Get form-specific assigned approvers
         $formSignatoryModel = new \App\Models\FormSignatoryModel();
         $assignedApprovers = $formSignatoryModel->getFormSignatories($submission['form_id']);
         
-        // If no specific approvers assigned, fall back to all approving authorities
+        // If no specific approvers assigned, fall back to approving authorities FROM THE SAME DEPARTMENT
         if (empty($assignedApprovers)) {
-            $userModel = new UserModel();
-            $assignedApprovers = $userModel->getUsersByType('approving_authority');
+            if ($submitterDepartment) {
+                // Only notify approvers from the same department
+                $assignedApprovers = $userModel->where('user_type', 'approving_authority')
+                                               ->where('department_id', $submitterDepartment)
+                                               ->where('active', 1)
+                                               ->findAll();
+            } else {
+                // No department - notify all (legacy support for data without departments)
+                $assignedApprovers = $userModel->getUsersByType('approving_authority');
+            }
         }
         
         $title = 'New Service Request Requires Approval';

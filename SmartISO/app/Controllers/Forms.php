@@ -769,6 +769,19 @@ class Forms extends BaseController
                             ->with('error', 'You don\'t have permission to view this submission');
         }
         
+        // Department verification for non-admin users
+        $userDepartmentId = session()->get('department_id');
+        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+
+        if (!$isAdmin && $userDepartmentId) {
+            // Get submitter's department
+            $submitter = $this->userModel->find($submission['submitted_by']);
+            if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                return redirect()->to('/dashboard')
+                    ->with('error', 'You can only view submissions from your department');
+            }
+        }
+        
         // Get form details
         $form = $this->formModel->find($submission['form_id']);
         
@@ -1018,6 +1031,18 @@ class Forms extends BaseController
                             ->with('error', 'Submission not found');
             }
             
+            // Department verification for non-admin approvers
+            $userDepartmentId = session()->get('department_id');
+            $isAdmin = in_array($userType, ['admin', 'superuser']);
+
+            if (!$isAdmin && $userDepartmentId) {
+                $requestor = $this->userModel->find($submission['submitted_by']);
+                if (!$requestor || $requestor['department_id'] != $userDepartmentId) {
+                    return redirect()->to('/forms/pending-approval')
+                        ->with('error', 'You can only approve submissions from your department');
+                }
+            }
+            
             // Get form details
             $form = $this->formModel->find($submission['form_id']);
             if (!$form) {
@@ -1038,11 +1063,25 @@ class Forms extends BaseController
             // Get panel fields
             $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
             
-            // Get available service staff - NEW CODE
+            // Get available service staff - filtered by department for non-admins
             $userModel = new \App\Models\UserModel();
-            $serviceStaff = $userModel->where('user_type', 'service_staff')
-                                 ->where('active', 1)
-                                 ->findAll();
+            $userDepartmentId = session()->get('department_id');
+            $isAdmin = in_array(session()->get('user_type'), ['admin', 'superuser']);
+
+            if ($isAdmin) {
+                // Admins can assign any service staff
+                $serviceStaff = $userModel->where('user_type', 'service_staff')
+                                          ->where('active', 1)
+                                          ->findAll();
+            } else if ($userDepartmentId) {
+                // Non-admins can only assign service staff from their department
+                $serviceStaff = $userModel->where('user_type', 'service_staff')
+                                          ->where('active', 1)
+                                          ->where('department_id', $userDepartmentId)
+                                          ->findAll();
+            } else {
+                $serviceStaff = [];
+            }
             
             // Check if user has a signature
             $currentUser = $this->userModel->find($userId);
@@ -1086,6 +1125,18 @@ class Forms extends BaseController
         if (!$submission) {
             return redirect()->to('/forms/pending-service')
                     ->with('error', 'Form not found');
+        }
+        
+        // Department verification for non-admin service staff
+        $userDepartmentId = session()->get('department_id');
+        $isAdmin = in_array($userType, ['admin', 'superuser']);
+
+        if (!$isAdmin && $userDepartmentId) {
+            $requestor = $this->userModel->find($submission['submitted_by']);
+            if (!$requestor || $requestor['department_id'] != $userDepartmentId) {
+                return redirect()->to('/forms/pending-service')
+                    ->with('error', 'You can only service submissions from your department');
+            }
         }
         
         // Check if this form is assigned to the current service staff
@@ -1325,6 +1376,16 @@ class Forms extends BaseController
         $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
         $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         $builder->where('form_submissions.service_staff_id', $userId);
+        
+        // Department filtering for non-admin service staff
+        $userDepartmentId = session()->get('department_id');
+        $userType = session()->get('user_type');
+        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+
+        if (!$isAdmin && $userDepartmentId) {
+            $builder->where('requestor.department_id', $userDepartmentId);
+        }
+        
         $builder->orderBy('form_submissions.updated_at', 'DESC');
         
         $submissions = $builder->get()->getResultArray();
@@ -1368,6 +1429,16 @@ class Forms extends BaseController
         $builder->join('users as service_staff', 'service_staff.id = form_submissions.service_staff_id', 'left'); // Left join to include submissions without service staff
         $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         $builder->where('form_submissions.approver_id', $userId);
+        
+        // Department filtering for non-admin approvers
+        $userDepartmentId = session()->get('department_id');
+        $userType = session()->get('user_type');
+        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+
+        if (!$isAdmin && $userDepartmentId) {
+            $builder->where('requestor.department_id', $userDepartmentId);
+        }
+        
         $builder->orderBy('form_submissions.approved_at', 'DESC');
         
         $submissions = $builder->get()->getResultArray();
@@ -1392,36 +1463,30 @@ class Forms extends BaseController
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
-        // Get forms rejected by this user
-        $submissions = $this->formSubmissionModel->where('approver_id', $userId)
-                                            ->where('status', 'rejected')
-                                            ->findAll();
+        // Get forms rejected by this user with query builder for department filtering
+        $builder = $this->formSubmissionModel->builder();
+        $builder->select('
+            form_submissions.*,
+            forms.code as form_code,
+            forms.description as form_description,
+            requestor.full_name as requestor_name
+        ');
+        $builder->join('forms', 'forms.id = form_submissions.form_id');
+        $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
+        $builder->where('form_submissions.approver_id', $userId);
+        $builder->where('form_submissions.status', 'rejected');
         
-        // Enhance submissions with form details
-        $submissionsWithDetails = [];
-        foreach ($submissions as $submission) {
-            // Get form details
-            $form = $this->formModel->find($submission['form_id']);
-            $submissionWithDetails = $submission;
-            
-            if ($form) {
-                $submissionWithDetails['form_code'] = $form['code'];
-                $submissionWithDetails['form_description'] = $form['description'];
-            } else {
-                $submissionWithDetails['form_code'] = 'Unknown';
-                $submissionWithDetails['form_description'] = 'Unknown Form';
-            }
-            
-            // Get requestor details
-            $requestor = $this->userModel->find($submission['submitted_by']);
-            if ($requestor) {
-                $submissionWithDetails['requestor_name'] = $requestor['full_name'];
-            } else {
-                $submissionWithDetails['requestor_name'] = 'Unknown User';
-            }
-            
-            $submissionsWithDetails[] = $submissionWithDetails;
+        // Department filtering for non-admin approvers
+        $userDepartmentId = session()->get('department_id');
+        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+
+        if (!$isAdmin && $userDepartmentId) {
+            $builder->where('requestor.department_id', $userDepartmentId);
         }
+        
+        $builder->orderBy('form_submissions.updated_at', 'DESC');
+        
+        $submissionsWithDetails = $builder->get()->getResultArray();
         
         $data = [
             'title' => 'Forms Rejected By Me',
@@ -1729,12 +1794,28 @@ class Forms extends BaseController
 
     public function export($id, $format = 'pdf')
     {
-        // Ensure submission exists and is completed before allowing export
+        // Get user context
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+        
+        // Ensure submission exists
         $submission = $this->formSubmissionModel->find($id);
         if (!$submission) {
             return redirect()->to('/forms/my-submissions')->with('error', 'Submission not found');
         }
-
+        
+        // Department verification for non-admins
+        if (!$isAdmin && $userDepartmentId) {
+            $submitter = $this->userModel->find($submission['submitted_by']);
+            if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                return redirect()->to('/dashboard')
+                    ->with('error', 'You can only export submissions from your department');
+            }
+        }
+        
+        // Ensure submission is completed before allowing export
         if (($submission['status'] ?? '') !== 'completed') {
             return redirect()->to('/forms/my-submissions')->with('error', 'Export is only available for completed submissions');
         }
