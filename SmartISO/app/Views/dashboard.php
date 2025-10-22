@@ -65,6 +65,44 @@
                         <i class="fas fa-check-circle me-2"></i> Completed Forms
                     </a>
                 </div>
+                
+                <?php elseif(session()->get('user_type') === 'department_admin'): ?>
+                <!-- Department Admin Quick Actions -->
+                <div class="d-grid gap-2">
+                    <a href="<?= base_url('forms/department-submissions') ?>" class="btn btn-outline-primary">
+                        <i class="fas fa-folder-open me-2"></i> Department Submissions
+                    </a>
+                    <a href="<?= base_url('feedback') ?>" class="btn btn-outline-info">
+                        <i class="fas fa-comments me-2"></i> Department Feedback
+                    </a>
+                    <a href="<?= base_url('admin/dynamicforms') ?>" class="btn btn-outline-success">
+                        <i class="fas fa-file-alt me-2"></i> Forms Management
+                    </a>
+                    <a href="<?= base_url('admin/users') ?>" class="btn btn-outline-warning">
+                        <i class="fas fa-users me-2"></i> User Management
+                    </a>
+                    <a href="<?= base_url('analytics') ?>" class="btn btn-outline-dark">
+                        <i class="fas fa-chart-line me-2"></i> Analytics
+                    </a>
+                </div>
+                
+                <?php elseif(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                <!-- Admin Quick Actions -->
+                <div class="d-grid gap-2">
+                    <a href="<?= base_url('admin/dynamicforms/submissions') ?>" class="btn btn-outline-primary">
+                        <i class="fas fa-clipboard-check me-2"></i> Review Submissions
+                    </a>
+                    <a href="<?= base_url('admin/users') ?>" class="btn btn-outline-info">
+                        <i class="fas fa-users me-2"></i> User Management
+                    </a>
+                    <a href="<?= base_url('admin/configurations') ?>" class="btn btn-outline-success">
+                        <i class="fas fa-cogs me-2"></i> Configurations
+                    </a>
+                    <a href="<?= base_url('analytics') ?>" class="btn btn-outline-dark">
+                        <i class="fas fa-chart-line me-2"></i> Analytics
+                    </a>
+                </div>
+                
                 <?php else: ?>
                 <p>No actions available for your user role.</p>
                 <?php endif; ?>
@@ -170,6 +208,72 @@
                             <div class="card-body text-center">
                                 <h5>Rejected</h5>
                                 <h2><?= $statusSummary['rejected'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Completed</h5>
+                                <h2><?= $statusSummary['completed'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <?php elseif(session()->get('user_type') === 'department_admin'): ?>
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Total Submissions</h5>
+                                <h2><?= $statusSummary['total'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Pending</h5>
+                                <h2><?= $statusSummary['submitted'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Approved</h5>
+                                <h2><?= $statusSummary['approved'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Completed</h5>
+                                <h2><?= $statusSummary['completed'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <?php elseif(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Total Submissions</h5>
+                                <h2><?= $statusSummary['total'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Pending Review</h5>
+                                <h2><?= $statusSummary['submitted'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Approved</h5>
+                                <h2><?= $statusSummary['approved'] ?? 0 ?></h2>
                             </div>
                         </div>
                     </div>

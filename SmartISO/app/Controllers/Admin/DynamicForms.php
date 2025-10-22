@@ -72,7 +72,11 @@ class DynamicForms extends BaseController
         $officeFilter = $this->request->getGet('office');
         $departmentFilter = $this->request->getGet('department');
 
-    // Show all offices (previously filtered by active=1 which hid legacy records without the flag)
+        // For department admins, only show offices from their department
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin' && session()->get('department_id');
+        $userDepartmentId = session()->get('department_id');
+
+        // Show all offices (previously filtered by active=1 which hid legacy records without the flag)
         $activeOffices = $this->officeModel->orderBy('description','ASC')->findAll();
         if (empty($activeOffices)) {
             // Fallback in case model has default scope filtering
@@ -83,12 +87,26 @@ class DynamicForms extends BaseController
                 log_message('warning','DynamicForms index office fallback failed: '.$e->getMessage());
             }
         }
+        
+        // Filter offices by department for department admins
+        if ($isDepartmentAdmin) {
+            $activeOffices = array_filter($activeOffices, function($office) use ($userDepartmentId) {
+                return isset($office['department_id']) && $office['department_id'] == $userDepartmentId;
+            });
+        }
+        
         $officeMap = [];
         foreach ($activeOffices as $o) { $officeMap[$o['id']] = $o['description']; }
 
         // Build base query
         $builder = $this->formModel->builder();
         $builder->select('*');
+        
+        // For department admins, filter forms by department_id
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            $builder->where('department_id', $userDepartmentId);
+        }
+        
         if ($q !== '') {
             $builder->groupStart()
                 ->like('code', $q)
@@ -135,6 +153,16 @@ class DynamicForms extends BaseController
         $form = $this->formModel->find($formId);
         if (!$form) {
             return redirect()->to('/admin/dynamicforms')->with('error', 'Form not found');
+        }
+        
+        // Department admin security check
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            if ($form['department_id'] != $userDepartmentId) {
+                return redirect()->to('/admin/dynamicforms')->with('error', 'You do not have permission to access this form');
+            }
         }
         
         $panelFields = $this->dbpanelModel->getPanelFields($panelName);
@@ -1330,6 +1358,17 @@ class DynamicForms extends BaseController
         }
         $departmentId = $office['department_id'] ?? null;
         
+        // Department admin security check
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            if ($departmentId != $userDepartmentId) {
+                return redirect()->to('/admin/dynamicforms')
+                               ->with('error', 'You can only create forms for offices in your department');
+            }
+        }
+        
         $data = [
             'code' => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
@@ -1356,6 +1395,22 @@ class DynamicForms extends BaseController
             return redirect()->to('/admin/dynamicforms')->with('error', 'Form ID is required');
         }
         
+        // Department admin security check - verify they own this form
+        $existingForm = $this->formModel->find($formId);
+        if (!$existingForm) {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Form not found');
+        }
+        
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            if ($existingForm['department_id'] != $userDepartmentId) {
+                return redirect()->to('/admin/dynamicforms')
+                               ->with('error', 'You do not have permission to edit this form');
+            }
+        }
+        
         $validation = \Config\Services::validation();
         $validation->setRules([
             'code' => "required|max_length[50]|is_unique[forms.code,id,{$formId}]",
@@ -1377,6 +1432,14 @@ class DynamicForms extends BaseController
         }
         $departmentId = $office['department_id'] ?? null; // keep in sync automatically
         
+        // Department admin security check - verify new office is in their department
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            if ($departmentId != $userDepartmentId) {
+                return redirect()->to('/admin/dynamicforms')
+                               ->with('error', 'You can only assign forms to offices in your department');
+            }
+        }
+        
         $data = [
             'code' => $this->request->getPost('code'),
             'description' => $this->request->getPost('description'),
@@ -1394,11 +1457,6 @@ class DynamicForms extends BaseController
     
     public function deleteForm()
     {
-        // Check if user is admin or superuser
-        if (!in_array(session('user_type'), ['admin', 'superuser'])) {
-            return redirect()->to('/admin/dynamicforms')->with('error', 'Unauthorized access. Admin or Superuser privileges required.');
-        }
-        
         if (!$this->request->getMethod() === 'POST') {
             return redirect()->to('/admin/dynamicforms')->with('error', 'Invalid request method');
         }
@@ -1406,6 +1464,26 @@ class DynamicForms extends BaseController
         $formId = $this->request->getPost('form_id');
         if (!$formId) {
             return redirect()->to('/admin/dynamicforms')->with('error', 'Form ID is required');
+        }
+        
+        // Department admin security check
+        $form = $this->formModel->find($formId);
+        if (!$form) {
+            return redirect()->to('/admin/dynamicforms')->with('error', 'Form not found');
+        }
+        
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array(session('user_type'), ['admin', 'superuser']);
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            if ($form['department_id'] != $userDepartmentId) {
+                return redirect()->to('/admin/dynamicforms')
+                               ->with('error', 'You do not have permission to delete this form');
+            }
+        } elseif (!$isGlobalAdmin) {
+            return redirect()->to('/admin/dynamicforms')
+                           ->with('error', 'Unauthorized access');
         }
         
         $form = $this->formModel->find($formId);

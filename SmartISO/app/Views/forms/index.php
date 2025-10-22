@@ -21,10 +21,13 @@
                         }
                     }
                 ?>
-                    <span class="badge bg-info text-dark">
-                        <i class="fas fa-filter me-1"></i>
-                        Filtered by: <?= esc($deptName) ?>
-                    </span>
+                    <div class="mt-1">
+                        <span class="badge bg-primary">
+                            <i class="fas fa-building me-1"></i>
+                            <?= esc($deptName) ?>
+                        </span>
+                        <small class="text-muted ms-2">Department restricted</small>
+                    </div>
                 <?php endif; ?>
             </div>
             <div class="d-flex flex-column align-items-end">
@@ -35,9 +38,9 @@
         </div>
     </div>
     <div class="card-body pt-2">
-        <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end mb-3 small">
+        <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end mb-3">
             <div class="col-sm-4 col-md-3">
-                <label class="form-label mb-1 text-uppercase ls-1">Department</label>
+                <label class="form-label mb-1 fw-semibold">Department</label>
                 <select name="department" id="departmentSelect" class="form-select form-select-sm" <?= (!$isGlobalAdmin && $userDepartmentId) ? 'disabled' : '' ?>>
                     <option value="">All Departments</option>
                     <?php foreach ($departments as $dept): ?>
@@ -48,11 +51,10 @@
                 </select>
                 <?php if (!$isGlobalAdmin && $userDepartmentId): ?>
                     <input type="hidden" name="department" value="<?= esc($selectedDepartment) ?>">
-                    <small class="text-muted">Department restricted</small>
                 <?php endif; ?>
             </div>
             <div class="col-sm-4 col-md-3">
-                <label class="form-label mb-1 text-uppercase ls-1">Office</label>
+                <label class="form-label mb-1 fw-semibold">Office</label>
                 <select name="office" id="officeSelect" class="form-select form-select-sm">
                     <option value="">All Offices</option>
                     <?php foreach (($allOffices ?? []) as $office): ?>
@@ -63,8 +65,12 @@
                 </select>
             </div>
             <div class="col-sm-4 col-md-3 d-flex gap-2">
-                <button type="submit" id="applyFilters" class="btn btn-primary btn-sm mt-auto d-none">Filter</button>
-                <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm mt-auto flex-shrink-0 <?= empty($selectedDepartment) && empty($selectedOffice) ? 'd-none':'' ?>">Reset</button>
+                <button type="submit" id="applyFilters" class="btn btn-primary btn-sm mt-auto d-none">
+                    <i class="fas fa-filter me-1"></i> Filter
+                </button>
+                <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm mt-auto flex-shrink-0 <?= empty($selectedDepartment) && empty($selectedOffice) ? 'd-none':'' ?>">
+                    <i class="fas fa-redo me-1"></i> Reset
+                </button>
                 <div id="filterStatus" class="small text-muted ms-auto d-none align-self-center">Filtering...</div>
             </div>
         </form>

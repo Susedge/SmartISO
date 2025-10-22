@@ -38,7 +38,7 @@ class Email extends BaseConfig
     /**
      * SMTP Password (Gmail App Password)
      */
-    public string $SMTPPass = 'nyvu scnm vnnv dafa';
+    public string $SMTPPass = 'nyvuscnmvnnvdafa';
 
     /**
      * SMTP Port

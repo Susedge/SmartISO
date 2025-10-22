@@ -76,6 +76,10 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/view/(:segment)', 'Forms::view/$1');
     $routes->post('forms/submit', 'Forms::submit');
     $routes->get('forms/my-submissions', 'Forms::mySubmissions');
+    
+    // Department admin routes
+    $routes->get('forms/department-submissions', 'Forms::departmentSubmissions');
+    
     // Submission lifecycle actions
     $routes->post('forms/cancel-submission', 'Forms::cancelSubmission');
     $routes->post('forms/delete-submission', 'Forms::deleteSubmission');

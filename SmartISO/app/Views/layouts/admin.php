@@ -25,6 +25,19 @@
                     <i class="fas fa-tachometer-alt me-2"></i> Dashboard
                 </a>
                 
+                <?php if(session()->get('user_type') === 'department_admin'): ?>
+                <!-- Department Admin Specific Menu Items -->
+                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('forms/department-submissions') ?>">
+                    <i class="fas fa-folder-open me-2"></i> Department Submissions
+                </a>
+                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('feedback') ?>">
+                    <i class="fas fa-comments me-2"></i> Department Feedback
+                </a>
+                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/dynamicforms') ?>">
+                    <i class="fas fa-file-alt me-2"></i> Forms Management
+                </a>
+                <?php endif; ?>
+                
                 <?php if(in_array(session()->get('user_type'), ['admin', 'department_admin', 'superuser'])): ?>
                 <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/users') ?>">
                     <i class="fas fa-users me-2"></i> Users

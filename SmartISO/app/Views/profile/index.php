@@ -389,26 +389,40 @@
                         
                         <div class="mb-3">
                             <label for="department_id" class="form-label"><i class="fas fa-building me-2"></i>Department</label>
-                            <select class="form-select" id="department_id" name="department_id">
+                            <select class="form-select" id="department_id" name="department_id" disabled>
                                 <option value="">-- Select Department --</option>
-                                <?php foreach ($departments as $dept): ?>
-                                    <option value="<?= $dept['id'] ?>" <?= old('department_id', $user['department_id']) == $dept['id'] ? 'selected' : '' ?>>
+                                <?php 
+                                $currentDeptId = old('department_id', $user['department_id']);
+                                foreach ($departments as $dept): 
+                                ?>
+                                    <option value="<?= $dept['id'] ?>" <?= $currentDeptId == $dept['id'] ? 'selected' : '' ?>>
                                         <?= esc($dept['description']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <input type="hidden" name="department_id" value="<?= esc($currentDeptId) ?>">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>Contact admin to change department
+                            </small>
                         </div>
                         
                         <div class="mb-3">
                             <label for="office_id" class="form-label"><i class="fas fa-map-marker-alt me-2"></i>Office</label>
-                            <select class="form-select" id="office_id" name="office_id">
+                            <select class="form-select" id="office_id" name="office_id" disabled>
                                 <option value="">-- Select Office --</option>
-                                <?php foreach ($offices as $office): ?>
-                                    <option value="<?= $office['id'] ?>" <?= old('office_id', $user['office_id']) == $office['id'] ? 'selected' : '' ?>>
+                                <?php 
+                                $currentOfficeId = old('office_id', $user['office_id']);
+                                foreach ($offices as $office): 
+                                ?>
+                                    <option value="<?= $office['id'] ?>" <?= $currentOfficeId == $office['id'] ? 'selected' : '' ?>>
                                         <?= esc($office['description']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <input type="hidden" name="office_id" value="<?= esc($currentOfficeId) ?>">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>Contact admin to change office
+                            </small>
                         </div>
                         
                         <div class="mb-3">

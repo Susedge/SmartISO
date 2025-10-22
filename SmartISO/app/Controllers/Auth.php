@@ -112,6 +112,7 @@ class Auth extends BaseController
                         'full_name' => $user['full_name'],
                         'user_type' => $user['user_type'],
                         'department_id' => $user['department_id'] ?? null,
+                        'is_department_admin' => ($user['user_type'] === 'department_admin'),
                         'isLoggedIn' => true,
                         'last_activity' => time() // Set initial last activity time
                     ];

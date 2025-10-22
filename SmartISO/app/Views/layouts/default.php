@@ -222,6 +222,36 @@
                             </a>
                         <?php endif; ?>
                         
+                        <!-- Department Admin section -->
+                        <?php if(session()->get('user_type') === 'department_admin'): ?>
+                        <div class="sidebar-heading">DEPARTMENT ADMINISTRATION</div>
+                        
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/department-submissions' ? 'active' : '' ?>" href="<?= base_url('forms/department-submissions') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-folder-open me-2"></i></div>
+                            <span>Department Submissions</span>
+                        </a>
+                        
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'feedback' ? 'active' : '' ?>" href="<?= base_url('feedback') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-comments me-2"></i></div>
+                            <span>Department Feedback</span>
+                        </a>
+                        
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/dynamicforms' ? 'active' : '' ?>" href="<?= base_url('admin/dynamicforms') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-file-alt me-2"></i></div>
+                            <span>Forms Management</span>
+                        </a>
+                        
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/users' ? 'active' : '' ?>" href="<?= base_url('admin/users') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-users me-2"></i></div>
+                            <span>User Management</span>
+                        </a>
+                        
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'analytics' ? 'active' : '' ?>" href="<?= base_url('analytics') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-chart-line me-2"></i></div>
+                            <span>Analytics</span>
+                        </a>
+                        <?php endif; ?>
+                        
                         <!-- Admin section -->
                         <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                         <div class="sidebar-heading">ADMINISTRATION</div>

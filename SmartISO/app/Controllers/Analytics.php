@@ -17,6 +17,7 @@ class Analytics extends BaseController
     protected $userModel;
     protected $departmentModel;
     protected $formModel;
+    protected $db;
 
     public function __construct()
     {
@@ -24,6 +25,7 @@ class Analytics extends BaseController
         $this->userModel = new UserModel();
         $this->departmentModel = new DepartmentModel();
         $this->formModel = new FormModel();
+        $this->db = \Config\Database::connect();
     }
 
     public function index()
@@ -98,13 +100,15 @@ class Analytics extends BaseController
 
     private function getOverviewData($filterDepartmentId = null)
     {
-        // Build query with optional department filtering
-        $builder = $this->formSubmissionModel->builder();
+        // Build query with optional department filtering - use fresh builder each time
         if ($filterDepartmentId) {
-            $builder->join('users', 'users.id = form_submissions.submitted_by')
-                   ->where('users.department_id', $filterDepartmentId);
+            $totalSubmissions = $this->db->table('form_submissions')
+                ->join('users', 'users.id = form_submissions.submitted_by')
+                ->where('users.department_id', $filterDepartmentId)
+                ->countAllResults();
+        } else {
+            $totalSubmissions = $this->formSubmissionModel->countAll();
         }
-        $totalSubmissions = $builder->countAllResults(false);
         
         $totalUsers = $this->userModel->countAll();
         $totalDepartments = $this->departmentModel->countAll();
@@ -201,24 +205,26 @@ class Analytics extends BaseController
 
     private function getDepartmentStatistics()
     {
-        // Submissions by department
-        $departmentSubmissions = $this->formSubmissionModel
+        // Submissions by department - use fresh builder
+        $departmentSubmissions = $this->db->table('form_submissions')
             ->select('COALESCE(departments.description, "Unassigned") as department_name, COUNT(form_submissions.id) as submission_count')
             ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->join('departments', 'departments.id = users.department_id', 'left')
             ->groupBy('COALESCE(departments.description, "Unassigned")')
             ->orderBy('submission_count', 'DESC')
-            ->findAll();
+            ->get()
+            ->getResultArray();
 
-        // Department completion rates
-        $departmentCompletion = $this->formSubmissionModel
+        // Department completion rates - use fresh builder
+        $departmentCompletion = $this->db->table('form_submissions')
             ->select('COALESCE(departments.description, "Unassigned") as department_name, 
                      COUNT(form_submissions.id) as total,
                      SUM(CASE WHEN form_submissions.status = "completed" THEN 1 ELSE 0 END) as completed')
             ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->join('departments', 'departments.id = users.department_id', 'left')
             ->groupBy('COALESCE(departments.description, "Unassigned")')
-            ->findAll();
+            ->get()
+            ->getResultArray();
 
         // Calculate completion rate percentages
         foreach ($departmentCompletion as &$dept) {

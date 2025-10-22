@@ -2167,6 +2167,113 @@ class Forms extends BaseController
         return redirect()->to('/forms/my-submissions')->with('message', 'Submission deleted successfully');
     }
 
+    /**
+     * View all submissions from users in the department (for department admins)
+     */
+    public function departmentSubmissions()
+    {
+        $userType = session()->get('user_type');
+        $userDeptId = session()->get('department_id');
+        
+        // Only accessible to department admins
+        if ($userType !== 'department_admin' || !$userDeptId) {
+            return redirect()->to('/dashboard')->with('error', 'Access denied');
+        }
+        
+        // Get filter parameters
+        $statusFilter = $this->request->getGet('status');
+        $officeFilter = $this->request->getGet('office');
+        $searchQuery = $this->request->getGet('q');
+        $page = (int)($this->request->getGet('page') ?? 1);
+        $perPage = 20;
+        
+        // Get all users from the department
+        $deptUserIds = $this->userModel
+            ->where('department_id', $userDeptId)
+            ->findColumn('id');
+        
+        if (empty($deptUserIds)) {
+            $deptUserIds = [0]; // No users, return empty result
+        }
+        
+        // Build query
+        $builder = $this->formSubmissionModel->builder();
+        $builder->select('form_submissions.*, forms.description as form_description, 
+                         users.full_name as requestor_name, users.username as requestor_username,
+                         offices.description as office_name,
+                         departments.description as department_name')
+                ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+                ->join('users', 'users.id = form_submissions.submitted_by', 'left')
+                ->join('offices', 'offices.id = users.office_id', 'left')
+                ->join('departments', 'departments.id = users.department_id', 'left')
+                ->whereIn('form_submissions.submitted_by', $deptUserIds)
+                ->orderBy('form_submissions.created_at', 'DESC');
+        
+        // Apply filters
+        if (!empty($statusFilter)) {
+            $builder->where('form_submissions.status', $statusFilter);
+        }
+        
+        if (!empty($officeFilter)) {
+            $builder->where('users.office_id', (int)$officeFilter);
+        }
+        
+        if (!empty($searchQuery)) {
+            $builder->groupStart()
+                    ->like('forms.description', $searchQuery)
+                    ->orLike('users.full_name', $searchQuery)
+                    ->orLike('users.username', $searchQuery)
+                    ->groupEnd();
+        }
+        
+        // Get total count for pagination
+        $totalCount = $builder->countAllResults(false);
+        
+        // Get paginated results
+        $submissions = $builder->limit($perPage, ($page - 1) * $perPage)->get()->getResultArray();
+        
+        // Get offices in department for filter
+        $deptOffices = $this->officeModel
+            ->where('department_id', $userDeptId)
+            ->orderBy('description', 'ASC')
+            ->findAll();
+        
+        // Calculate statistics
+        $stats = [
+            'total' => $totalCount,
+            'pending' => $this->formSubmissionModel->builder()
+                ->whereIn('submitted_by', $deptUserIds)
+                ->where('status', 'pending')
+                ->countAllResults(),
+            'approved' => $this->formSubmissionModel->builder()
+                ->whereIn('submitted_by', $deptUserIds)
+                ->where('status', 'approved')
+                ->countAllResults(),
+            'rejected' => $this->formSubmissionModel->builder()
+                ->whereIn('submitted_by', $deptUserIds)
+                ->where('status', 'rejected')
+                ->countAllResults(),
+            'serviced' => $this->formSubmissionModel->builder()
+                ->whereIn('submitted_by', $deptUserIds)
+                ->where('status', 'serviced')
+                ->countAllResults(),
+        ];
+        
+        $data = [
+            'title' => 'Department Submissions',
+            'submissions' => $submissions,
+            'offices' => $deptOffices,
+            'stats' => $stats,
+            'statusFilter' => $statusFilter,
+            'officeFilter' => $officeFilter,
+            'searchQuery' => $searchQuery,
+            'currentPage' => $page,
+            'totalPages' => ceil($totalCount / $perPage),
+            'perPage' => $perPage,
+        ];
+        
+        return view('forms/department_submissions', $data);
+    }
 
 }
 

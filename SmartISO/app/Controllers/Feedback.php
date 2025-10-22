@@ -23,6 +23,7 @@ class Feedback extends BaseController
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
+        $userDeptId = session()->get('department_id');
         
         $data['title'] = 'Feedback';
         
@@ -30,6 +31,43 @@ class Feedback extends BaseController
             // Show all feedback for admin/approvers
             $data['feedback'] = $this->feedbackModel->getFeedbackWithDetails();
             $data['averageRatings'] = $this->feedbackModel->getAverageRatings();
+        } elseif ($userType === 'department_admin' && $userDeptId) {
+            // Show feedback from users in their department
+            $deptUserIds = $this->userModel
+                ->where('department_id', $userDeptId)
+                ->findColumn('id');
+            
+            if (!empty($deptUserIds)) {
+                $builder = $this->feedbackModel->builder();
+                $builder->select('feedback.*, 
+                                 form_submissions.form_id,
+                                 forms.code as form_code,
+                                 forms.description as form_description,
+                                 users.full_name as user_name,
+                                 users.username')
+                        ->join('form_submissions', 'form_submissions.id = feedback.submission_id', 'left')
+                        ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+                        ->join('users', 'users.id = feedback.user_id', 'left')
+                        ->whereIn('feedback.user_id', $deptUserIds)
+                        ->orderBy('feedback.created_at', 'DESC');
+                $data['feedback'] = $builder->get()->getResultArray();
+            } else {
+                $data['feedback'] = [];
+            }
+            
+            // Calculate average ratings for department
+            if (!empty($deptUserIds)) {
+                $builder = $this->feedbackModel->builder();
+                $builder->selectAvg('rating', 'avg_rating')
+                        ->selectAvg('service_quality', 'avg_service_quality')
+                        ->selectAvg('timeliness', 'avg_timeliness')
+                        ->selectAvg('staff_professionalism', 'avg_staff_professionalism')
+                        ->selectAvg('overall_satisfaction', 'avg_overall_satisfaction')
+                        ->whereIn('user_id', $deptUserIds);
+                $data['averageRatings'] = $builder->get()->getRowArray();
+            } else {
+                $data['averageRatings'] = [];
+            }
         } else {
             // Show user's own feedback
             $data['feedback'] = $this->feedbackModel->getFeedbackWithDetails($userId);

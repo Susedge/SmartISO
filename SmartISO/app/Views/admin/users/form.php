@@ -43,7 +43,7 @@
                 </div>
                 <div class="col-md-6">
                     <label for="department_id" class="form-label">Department</label>
-                    <select class="form-select" id="department_id" name="department_id" <?= session()->get('is_department_admin') ? 'disabled' : '' ?>>
+                    <select class="form-select" id="department_id" name="department_id" disabled>
                         <option value="">-- Select Department --</option>
                         <?php 
                         $departments = $departments ?? [];
@@ -53,30 +53,41 @@
                                 return $dept['id'] == session()->get('scoped_department_id');
                             });
                         }
+                        $currentDeptId = old('department_id', isset($user) ? ($user['department_id'] ?? '') : '');
                         foreach ($departments as $dept): 
                         ?>
-                            <option value="<?= $dept['id'] ?>" <?= old('department_id', isset($user) ? ($user['department_id'] ?? '') : '') == $dept['id'] ? 'selected' : '' ?>>
+                            <option value="<?= $dept['id'] ?>" <?= $currentDeptId == $dept['id'] ? 'selected' : '' ?>>
                                 <?= esc($dept['code']) ?> - <?= esc($dept['description']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <?php if (session()->get('is_department_admin')): ?>
-                        <input type="hidden" name="department_id" value="<?= session()->get('scoped_department_id') ?>">
-                    <?php endif; ?>
+                    <!-- Hidden field to ensure department_id is submitted -->
+                    <input type="hidden" name="department_id" value="<?= esc($currentDeptId) ?>">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>Department cannot be changed after creation
+                    </small>
                 </div>
             </div>
             
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label for="office_id" class="form-label">Office</label>
-                    <select class="form-select" id="office_id" name="office_id">
+                    <select class="form-select" id="office_id" name="office_id" disabled>
                         <option value="">-- Select Office --</option>
-                        <?php foreach (($offices ?? []) as $office): ?>
-                            <option value="<?= $office['id'] ?>" <?= old('office_id', isset($user) ? ($user['office_id'] ?? '') : '') == $office['id'] ? 'selected' : '' ?>>
+                        <?php 
+                        $currentOfficeId = old('office_id', isset($user) ? ($user['office_id'] ?? '') : '');
+                        foreach (($offices ?? []) as $office): 
+                        ?>
+                            <option value="<?= $office['id'] ?>" <?= $currentOfficeId == $office['id'] ? 'selected' : '' ?>>
                                 <?= esc($office['code']) ?> - <?= esc($office['description']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <!-- Hidden field to ensure office_id is submitted -->
+                    <input type="hidden" name="office_id" value="<?= esc($currentOfficeId) ?>">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>Office cannot be changed after creation
+                    </small>
                 </div>
             </div>
             

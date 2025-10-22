@@ -165,6 +165,17 @@ class Configurations extends BaseController
         if (!in_array($tableType, ['departments','offices','forms','system','panels'])) {
             $tableType = 'departments';
         }
+        
+        // Department admins can only access forms and panels tabs
+        if (session()->get('user_type') === 'department_admin') {
+            $allowedTabs = ['forms', 'panels'];
+            if (!in_array($tableType, $allowedTabs)) {
+                // Redirect to forms tab instead of dynamicforms
+                return redirect()->to('/admin/configurations?type=forms')
+                               ->with('error', 'You do not have permission to access this section.');
+            }
+        }
+        
         $search = trim($this->request->getGet('q') ?? '');
 
         // Use fresh model instances for query building to avoid mutating controller properties
@@ -186,6 +197,11 @@ class Configurations extends BaseController
             }
         }
 
+        // For department admins, filter forms by department
+        if (session()->get('user_type') === 'department_admin' && session()->get('department_id')) {
+            $formsQ = $formsQ->where('department_id', session()->get('department_id'));
+        }
+        
         // Fetch lists (order consistently)
         $departments = $departmentsQ->orderBy('code','ASC')->findAll();
         $offices = ($tableType === 'offices' || $tableType === 'departments') ? $officesQ->orderBy('code','ASC')->findAll() : [];
@@ -297,6 +313,15 @@ class Configurations extends BaseController
     public function create()
     {
         $tableType = $this->request->getPost('table_type') ?? 'departments';
+        
+        // Block department admins from creating departments/offices (but allow forms)
+        if (session()->get('user_type') === 'department_admin') {
+            if ($tableType !== 'forms') {
+                return redirect()->to('/admin/configurations?type=forms')
+                               ->with('error', 'You do not have permission to create departments or offices.');
+            }
+        }
+        
         if ($tableType === 'departments') { return $this->createDepartment(); }
         if ($tableType === 'offices') { return $this->createOffice(); }
         if ($tableType === 'forms') { return $this->createForm(); }
@@ -383,6 +408,22 @@ class Configurations extends BaseController
                 if ($office) {
                     // office selection takes precedence and inherits its department
                     $departmentId = $office['department_id'] ?? null;
+                }
+            }
+            
+            // Department admin validation - can only create forms for their department
+            if (session()->get('user_type') === 'department_admin' && session()->get('department_id')) {
+                $userDepartmentId = session()->get('department_id');
+                if ($departmentId != $userDepartmentId) {
+                    if ($this->request->isAJAX()) {
+                        return $this->response->setStatusCode(403)->setJSON([
+                            'success' => false,
+                            'message' => 'You can only create forms for your department.'
+                        ]);
+                    }
+                    return redirect()->back()
+                        ->with('error', 'You can only create forms for your department.')
+                        ->withInput();
                 }
             }
 
@@ -503,6 +544,14 @@ class Configurations extends BaseController
      */
     public function ajaxSaveDepartment($id = null)
     {
+        // Block department admins from editing departments
+        if (session()->get('user_type') === 'department_admin') {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false, 
+                'message' => 'You do not have permission to edit departments.'
+            ]);
+        }
+        
         if (!$this->request->isAJAX()) {
             return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Invalid request']);
         }
@@ -599,6 +648,14 @@ class Configurations extends BaseController
      */
     public function ajaxSaveOffice($id = null)
     {
+        // Block department admins from editing offices
+        if (session()->get('user_type') === 'department_admin') {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false, 
+                'message' => 'You do not have permission to edit offices.'
+            ]);
+        }
+        
         if (!$this->request->isAJAX()) {
             return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Invalid request']);
         }
@@ -654,6 +711,18 @@ class Configurations extends BaseController
         }
         $existing = $this->formModel->find($id);
         if(!$existing){ return $this->response->setJSON(['success'=>false,'message'=>'Form not found','csrf'=>['name'=>csrf_token(),'hash'=>csrf_hash()]]); }
+        
+        // Department admin validation - can only edit forms in their department
+        if (session()->get('user_type') === 'department_admin' && session()->get('department_id')) {
+            $userDepartmentId = session()->get('department_id');
+            if ($existing['department_id'] != $userDepartmentId) {
+                return $this->response->setStatusCode(403)->setJSON([
+                    'success' => false,
+                    'message' => 'You can only edit forms in your department.',
+                    'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]
+                ]);
+            }
+        }
     $incomingCode = trim((string)$this->request->getPost('code'));
         $codeRule = 'required|alpha_numeric|min_length[2]|max_length[20]';
         if(strcasecmp($existing['code'],$incomingCode)!==0){ $codeRule .= '|is_unique[forms.code]'; }

@@ -14,7 +14,7 @@
                     <li class="nav-item">
                         <a class="nav-link" href="<?= base_url('dashboard') ?>"><i class="fas fa-tachometer-alt me-1"></i> Dashboard</a>
                     </li>
-                    <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                    <?php if(in_array(session()->get('user_type'), ['admin', 'superuser', 'department_admin'])): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?= base_url('analytics') ?>"><i class="fas fa-chart-line me-1"></i> Analytics</a>
                     </li>
