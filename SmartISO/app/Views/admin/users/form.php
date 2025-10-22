@@ -43,14 +43,26 @@
                 </div>
                 <div class="col-md-6">
                     <label for="department_id" class="form-label">Department</label>
-                    <select class="form-select" id="department_id" name="department_id">
+                    <select class="form-select" id="department_id" name="department_id" <?= session()->get('is_department_admin') ? 'disabled' : '' ?>>
                         <option value="">-- Select Department --</option>
-                        <?php foreach (($departments ?? []) as $dept): ?>
+                        <?php 
+                        $departments = $departments ?? [];
+                        // If department admin, only show their own department
+                        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+                            $departments = array_filter($departments, function($dept) {
+                                return $dept['id'] == session()->get('scoped_department_id');
+                            });
+                        }
+                        foreach ($departments as $dept): 
+                        ?>
                             <option value="<?= $dept['id'] ?>" <?= old('department_id', isset($user) ? ($user['department_id'] ?? '') : '') == $dept['id'] ? 'selected' : '' ?>>
                                 <?= esc($dept['code']) ?> - <?= esc($dept['description']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <?php if (session()->get('is_department_admin')): ?>
+                        <input type="hidden" name="department_id" value="<?= session()->get('scoped_department_id') ?>">
+                    <?php endif; ?>
                 </div>
             </div>
             
@@ -76,9 +88,13 @@
                         <option value="requestor" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'requestor' ? 'selected' : '' ?>>Requestor</option>
                         <option value="approving_authority" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'approving_authority' ? 'selected' : '' ?>>Approving Authority</option>
                         <option value="service_staff" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'service_staff' ? 'selected' : '' ?>>Service Staff</option>
-                        <option value="admin" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'admin' ? 'selected' : '' ?>>Admin</option>
-                        <?php if(session()->get('user_type') === 'superuser'): ?>
-                        <option value="superuser" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'superuser' ? 'selected' : '' ?>>Superuser</option>
+                        <?php if (!session()->get('is_department_admin')): ?>
+                            <!-- Only global admins and superusers can create department_admins, admins, and superusers -->
+                            <option value="department_admin" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'department_admin' ? 'selected' : '' ?>>Department Admin</option>
+                            <option value="admin" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'admin' ? 'selected' : '' ?>>Admin</option>
+                            <?php if(session()->get('user_type') === 'superuser'): ?>
+                            <option value="superuser" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'superuser' ? 'selected' : '' ?>>Superuser</option>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </select>
                 </div>

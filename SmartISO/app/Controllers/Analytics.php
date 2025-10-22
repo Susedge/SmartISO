@@ -28,13 +28,28 @@ class Analytics extends BaseController
 
     public function index()
     {
+        // Get user context for department filtering
+        $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
+        
+        $filterDepartmentId = null;
+        if (!$isGlobalAdmin && $userDepartmentId) {
+            $filterDepartmentId = $userDepartmentId;
+        }
+        if ($isDepartmentAdmin) {
+            $filterDepartmentId = session()->get('scoped_department_id');
+        }
+        
         $data = [
             'title' => 'Analytics Dashboard',
-            'overview' => $this->getOverviewData(),
-            'formStats' => $this->getFormStatistics(),
-            'departmentStats' => $this->getDepartmentStatistics(),
-            'timelineData' => $this->getTimelineData(),
-            'performanceMetrics' => $this->getPerformanceMetrics()
+            'overview' => $this->getOverviewData($filterDepartmentId),
+            'formStats' => $this->getFormStatistics($filterDepartmentId),
+            'departmentStats' => $this->getDepartmentStatistics($filterDepartmentId),
+            'timelineData' => $this->getTimelineData($filterDepartmentId),
+            'performanceMetrics' => $this->getPerformanceMetrics($filterDepartmentId),
+            'isDepartmentFiltered' => !$isGlobalAdmin
         ];
 
         return view('analytics/index', $data);
@@ -81,32 +96,52 @@ class Analytics extends BaseController
         }
     }
 
-    private function getOverviewData()
+    private function getOverviewData($filterDepartmentId = null)
     {
-        $totalSubmissions = $this->formSubmissionModel->countAll();
+        // Build query with optional department filtering
+        $builder = $this->formSubmissionModel->builder();
+        if ($filterDepartmentId) {
+            $builder->join('users', 'users.id = form_submissions.submitted_by')
+                   ->where('users.department_id', $filterDepartmentId);
+        }
+        $totalSubmissions = $builder->countAllResults(false);
+        
         $totalUsers = $this->userModel->countAll();
         $totalDepartments = $this->departmentModel->countAll();
         $totalForms = $this->formModel->countAll();
 
         log_message('info', "Analytics Overview - Submissions: $totalSubmissions, Users: $totalUsers, Departments: $totalDepartments, Forms: $totalForms");
 
-        // Status distribution
-        $statusCounts = $this->formSubmissionModel
-            ->select('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->findAll();
+        // Status distribution with department filtering
+        $statusBuilder = $this->db->table('form_submissions');
+        if ($filterDepartmentId) {
+            $statusBuilder->join('users', 'users.id = form_submissions.submitted_by')
+                         ->where('users.department_id', $filterDepartmentId);
+        }
+        $statusCounts = $statusBuilder->select('form_submissions.status, COUNT(*) as count')
+                                     ->groupBy('form_submissions.status')
+                                     ->get()
+                                     ->getResultArray();
 
         log_message('info', 'Status counts: ' . json_encode($statusCounts));
 
-        // Recent submissions (last 30 days)
-        $recentSubmissions = $this->formSubmissionModel
-            ->where('created_at >=', date('Y-m-d H:i:s', strtotime('-30 days')))
-            ->countAllResults();
+        // Recent submissions (last 30 days) with department filtering
+        $recentBuilder = $this->db->table('form_submissions')
+                                  ->where('form_submissions.created_at >=', date('Y-m-d H:i:s', strtotime('-30 days')));
+        if ($filterDepartmentId) {
+            $recentBuilder->join('users', 'users.id = form_submissions.submitted_by')
+                         ->where('users.department_id', $filterDepartmentId);
+        }
+        $recentSubmissions = $recentBuilder->countAllResults();
 
-        // Calculate completion rate
-        $completedForms = $this->formSubmissionModel
-            ->where('status', 'completed')
-            ->countAllResults();
+        // Calculate completion rate with department filtering
+        $completedBuilder = $this->db->table('form_submissions')
+                                    ->where('form_submissions.status', 'completed');
+        if ($filterDepartmentId) {
+            $completedBuilder->join('users', 'users.id = form_submissions.submitted_by')
+                            ->where('users.department_id', $filterDepartmentId);
+        }
+        $completedForms = $completedBuilder->countAllResults();
         
         $completionRate = $totalSubmissions > 0 ? ($completedForms / $totalSubmissions) * 100 : 0;
 
@@ -121,28 +156,42 @@ class Analytics extends BaseController
         ];
     }
 
-    private function getFormStatistics()
+    private function getFormStatistics($filterDepartmentId = null)
     {
-        // Most used forms
-        $formUsage = $this->formSubmissionModel
+        // Most used forms with department filtering
+        $formUsageBuilder = $this->db->table('form_submissions')
             ->select('COALESCE(forms.description, "Unknown Form") as form_name, forms.code as form_code, COUNT(form_submissions.id) as usage_count')
-            ->join('forms', 'forms.id = form_submissions.form_id', 'left')
-            ->groupBy('form_submissions.form_id')
-            ->orderBy('usage_count', 'DESC')
-            ->limit(10)
-            ->findAll();
+            ->join('forms', 'forms.id = form_submissions.form_id', 'left');
+        
+        if ($filterDepartmentId) {
+            $formUsageBuilder->join('users', 'users.id = form_submissions.submitted_by')
+                            ->where('users.department_id', $filterDepartmentId);
+        }
+        
+        $formUsage = $formUsageBuilder->groupBy('form_submissions.form_id')
+                                     ->orderBy('usage_count', 'DESC')
+                                     ->limit(10)
+                                     ->get()
+                                     ->getResultArray();
 
-        // Average processing time by form (only for completed forms)
-        $processingTimes = $this->formSubmissionModel
+        // Average processing time by form (only for completed forms) with department filtering
+        $processingTimesBuilder = $this->db->table('form_submissions')
             ->select('COALESCE(forms.description, "Unknown Form") as form_name, 
                      AVG(TIMESTAMPDIFF(HOUR, form_submissions.created_at, form_submissions.updated_at)) as avg_hours,
                      COUNT(*) as completed_count')
             ->join('forms', 'forms.id = form_submissions.form_id', 'left')
-            ->where('form_submissions.status', 'completed')
-            ->groupBy('form_submissions.form_id')
-            ->orderBy('completed_count', 'DESC')
-            ->limit(10)
-            ->findAll();
+            ->where('form_submissions.status', 'completed');
+        
+        if ($filterDepartmentId) {
+            $processingTimesBuilder->join('users', 'users.id = form_submissions.submitted_by')
+                                  ->where('users.department_id', $filterDepartmentId);
+        }
+        
+        $processingTimes = $processingTimesBuilder->groupBy('form_submissions.form_id')
+                                                 ->orderBy('completed_count', 'DESC')
+                                                 ->limit(10)
+                                                 ->get()
+                                                 ->getResultArray();
 
         return [
             'form_usage' => $formUsage,

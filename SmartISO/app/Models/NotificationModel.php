@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use CodeIgniter\Model;
+use App\Libraries\EmailService;
 
 class NotificationModel extends Model
 {
@@ -32,6 +33,46 @@ class NotificationModel extends Model
         'title'   => 'required|max_length[255]',
         'message' => 'required'
     ];
+
+    protected $emailService;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->emailService = new EmailService();
+    }
+
+    /**
+     * Send email notification to user
+     * 
+     * @param int $userId User ID to send email to
+     * @param string $title Email subject
+     * @param string $message Email message
+     * @return bool Success status
+     */
+    protected function sendEmailNotification($userId, $title, $message)
+    {
+        try {
+            // Get user email
+            $userModel = new UserModel();
+            $user = $userModel->find($userId);
+            
+            if (!$user || empty($user['email'])) {
+                log_message('warning', "Cannot send email to user {$userId}: No email address found");
+                return false;
+            }
+
+            $userName = $user['full_name'] ?? $user['username'] ?? '';
+            $userEmail = $user['email'];
+
+            // Send email
+            return $this->emailService->sendNotificationEmail($userEmail, $userName, $title, $message);
+            
+        } catch (\Exception $e) {
+            log_message('error', "Failed to send email notification: " . $e->getMessage());
+            return false;
+        }
+    }
 
     /**
      * Get notifications for a user
@@ -165,6 +206,9 @@ class NotificationModel extends Model
             $assignedApprovers = $userModel->getUsersByType('approving_authority');
         }
         
+        $title = 'New Service Request Requires Approval';
+        $message = "A new {$formCode} request has been submitted by " . ($submission['submitted_by_name'] ?? 'a user') . " and requires your approval.";
+        
         foreach ($assignedApprovers as $approver) {
             $userId = isset($approver['user_id']) ? $approver['user_id'] : $approver['id'];
 
@@ -172,11 +216,14 @@ class NotificationModel extends Model
             $this->insert([
                 'user_id'       => $userId,
                 'submission_id' => $submissionId,
-                'title'         => 'New Service Request Requires Approval',
-                'message'       => "A new {$formCode} request has been submitted by " . ($submission['submitted_by_name'] ?? 'a user') . " and requires your approval.",
+                'title'         => $title,
+                'message'       => $message,
                 'read'          => 0,
                 'created_at'    => date('Y-m-d H:i:s')
             ]);
+
+            // Send email notification
+            $this->sendEmailNotification($userId, $title, $message);
         }
     }
 
@@ -186,6 +233,7 @@ class NotificationModel extends Model
     public function createApprovalNotification($submissionId, $userId, $approved = true)
     {
         $status = $approved ? 'approved' : 'rejected';
+        $title = 'Request ' . ucfirst($status);
         $message = $approved ? 
             'Your service request has been approved and will be scheduled.' : 
             'Your service request has been rejected. Please check the comments for details.';
@@ -193,11 +241,14 @@ class NotificationModel extends Model
         $this->insert([
             'user_id'       => $userId,
             'submission_id' => $submissionId,
-            'title'         => 'Request ' . ucfirst($status),
+            'title'         => $title,
             'message'       => $message,
             'read'          => 0,
             'created_at'    => date('Y-m-d H:i:s')
         ]);
+
+        // Send email notification
+        $this->sendEmailNotification($userId, $title, $message);
     }
 
     /**
@@ -205,13 +256,19 @@ class NotificationModel extends Model
      */
     public function createScheduleNotification($scheduleId, $userId, $scheduledDate, $scheduledTime)
     {
+        $title = 'Service Scheduled';
+        $message = "Your service has been scheduled for {$scheduledDate} at {$scheduledTime}.";
+        
         $this->insert([
             'user_id'    => $userId,
-            'title'      => 'Service Scheduled',
-            'message'    => "Your service has been scheduled for {$scheduledDate} at {$scheduledTime}.",
+            'title'      => $title,
+            'message'    => $message,
             'read'       => 0,
             'created_at' => date('Y-m-d H:i:s')
         ]);
+
+        // Send email notification
+        $this->sendEmailNotification($userId, $title, $message);
     }
 
     /**
@@ -219,14 +276,20 @@ class NotificationModel extends Model
      */
     public function createServiceStaffAssignmentNotification($submissionId, $serviceStaffId, $formCode)
     {
+        $title = 'New Service Assignment';
+        $message = "You have been assigned to process a {$formCode} service request. Please review and complete the service.";
+        
         $this->insert([
             'user_id'       => $serviceStaffId,
             'submission_id' => $submissionId,
-            'title'         => 'New Service Assignment',
-            'message'       => "You have been assigned to process a {$formCode} service request. Please review and complete the service.",
+            'title'         => $title,
+            'message'       => $message,
             'read'          => 0,
             'created_at'    => date('Y-m-d H:i:s')
         ]);
+
+        // Send email notification
+        $this->sendEmailNotification($serviceStaffId, $title, $message);
     }
 
     /**
@@ -234,14 +297,20 @@ class NotificationModel extends Model
      */
     public function createServiceCompletionNotification($submissionId, $userId)
     {
+        $title = 'Service Completed';
+        $message = 'Your service request has been completed successfully. You can now provide feedback about your experience.';
+        
         $this->insert([
             'user_id'       => $userId,
             'submission_id' => $submissionId,
-            'title'         => 'Service Completed',
-            'message'       => 'Your service request has been completed successfully. You can now provide feedback about your experience.',
+            'title'         => $title,
+            'message'       => $message,
             'read'          => 0,
             'created_at'    => date('Y-m-d H:i:s')
         ]);
+
+        // Send email notification
+        $this->sendEmailNotification($userId, $title, $message);
     }
 
     /**
@@ -249,15 +318,20 @@ class NotificationModel extends Model
      */
     public function createCancellationNotification($submissionId, $userId, $formCode = '')
     {
+        $title = 'Request Cancelled';
         $message = 'A service request' . (!empty($formCode) ? " ({$formCode})" : '') . ' has been cancelled by the requestor.';
+        
         $this->insert([
             'user_id'       => $userId,
             'submission_id' => $submissionId,
-            'title'         => 'Request Cancelled',
+            'title'         => $title,
             'message'       => $message,
             'read'          => 0,
             'created_at'    => date('Y-m-d H:i:s')
         ]);
+
+        // Send email notification
+        $this->sendEmailNotification($userId, $title, $message);
     }
 
     /**

@@ -42,6 +42,14 @@ class Configurations extends BaseController
                 ->with('error', 'Form not found');
         }
         
+        // Department admins can only manage signatories for forms in their department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($form['department_id'] != session()->get('scoped_department_id')) {
+                return redirect()->to('/admin/configurations?type=forms')
+                    ->with('error', 'You can only manage signatories for forms in your department');
+            }
+        }
+        
         $signatories = $this->formSignatoryModel->getFormSignatories($formId);
         $availableApprovers = $this->userModel->where('user_type', 'approving_authority')
                                              ->where('active', 1)

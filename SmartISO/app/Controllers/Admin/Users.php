@@ -26,6 +26,12 @@ class Users extends BaseController
     $builder = $this->userModel->builder();
     $builder->select('users.*, d.description as department_name');
     $builder->join('departments d', 'd.id = users.department_id', 'left');
+    
+    // For department admins, only show users from their department
+    if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+        $builder->where('users.department_id', session()->get('scoped_department_id'));
+    }
+    
     $users = $builder->get()->getResultArray();
         
         $data = [
@@ -54,7 +60,7 @@ class Users extends BaseController
             'username' => 'required|alpha_numeric_punct|min_length[3]|max_length[30]|is_unique[users.username]',
             'full_name' => 'required|min_length[3]|max_length[100]',
             'department_id' => 'permit_empty|integer',
-            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser]',
+            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser,department_admin]',
             'password' => 'required|min_length[8]',
             'password_confirm' => 'required|matches[password]'
         ];
@@ -73,11 +79,29 @@ class Users extends BaseController
                 ->withInput();
         }
         
+        // Department admins can only create users in their own department
+        $departmentId = $this->request->getPost('department_id') ?: null;
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($departmentId != session()->get('scoped_department_id')) {
+                return redirect()->back()
+                    ->with('error', 'You can only create users in your own department')
+                    ->withInput();
+            }
+            
+            // Department admins cannot create global admins, superusers, or other department admins
+            $userType = $this->request->getPost('user_type');
+            if (in_array($userType, ['admin', 'superuser', 'department_admin'])) {
+                return redirect()->back()
+                    ->with('error', 'You do not have permission to create this type of user')
+                    ->withInput();
+            }
+        }
+        
         $data = [
             'email' => $this->request->getPost('email'),
             'username' => $this->request->getPost('username'),
             'full_name' => $this->request->getPost('full_name'),
-            'department_id' => $this->request->getPost('department_id') ?: null,
+            'department_id' => $departmentId,
             'office_id' => $this->request->getPost('office_id') ?: null,
             'user_type' => $this->request->getPost('user_type'),
             'active' => $this->request->getPost('active'),
@@ -111,6 +135,20 @@ class Users extends BaseController
                 ->with('error', 'You do not have permission to edit superuser accounts');
         }
         
+        // Department admins can only edit users in their own department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($user['department_id'] != session()->get('scoped_department_id')) {
+                return redirect()->to('admin/users')
+                    ->with('error', 'You can only edit users in your own department');
+            }
+            
+            // Department admins cannot edit global admins, superusers, or other department admins
+            if (in_array($user['user_type'], ['admin', 'superuser', 'department_admin'])) {
+                return redirect()->to('admin/users')
+                    ->with('error', 'You do not have permission to edit this type of user');
+            }
+        }
+        
         $data = [
             'title' => 'Edit User',
             'user' => $user,
@@ -136,12 +174,26 @@ class Users extends BaseController
                 ->with('error', 'You do not have permission to update superuser accounts');
         }
         
+        // Department admins can only edit users in their own department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($user['department_id'] != session()->get('scoped_department_id')) {
+                return redirect()->to('admin/users')
+                    ->with('error', 'You can only edit users in your own department');
+            }
+            
+            // Department admins cannot edit global admins, superusers, or other department admins
+            if (in_array($user['user_type'], ['admin', 'superuser', 'department_admin'])) {
+                return redirect()->to('admin/users')
+                    ->with('error', 'You do not have permission to edit this type of user');
+            }
+        }
+        
         $rules = [
             'email' => "required|valid_email|is_unique[users.email,id,$id]",
             'username' => "required|alpha_numeric_punct|min_length[3]|max_length[30]|is_unique[users.username,id,$id]",
             'full_name' => 'required|min_length[3]|max_length[100]',
             'department_id' => 'permit_empty|integer',
-            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser]',
+            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser,department_admin]',
         ];
         
         // Add password validation only if password field is filled
@@ -164,13 +216,30 @@ class Users extends BaseController
                 ->withInput();
         }
         
+        // Department admins cannot change department or create privileged users
+        $departmentId = $this->request->getPost('department_id') ?: null;
+        $userType = $this->request->getPost('user_type');
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($departmentId != session()->get('scoped_department_id')) {
+                return redirect()->back()
+                    ->with('error', 'You cannot change the department of users')
+                    ->withInput();
+            }
+            
+            if (in_array($userType, ['admin', 'superuser', 'department_admin'])) {
+                return redirect()->back()
+                    ->with('error', 'You do not have permission to create this type of user')
+                    ->withInput();
+            }
+        }
+        
         $data = [
             'email' => $this->request->getPost('email'),
             'username' => $this->request->getPost('username'),
             'full_name' => $this->request->getPost('full_name'),
-            'department_id' => $this->request->getPost('department_id') ?: null,
+            'department_id' => $departmentId,
             'office_id' => $this->request->getPost('office_id') ?: null,
-            'user_type' => $this->request->getPost('user_type'),
+            'user_type' => $userType,
             'active' => $this->request->getPost('active')
         ];
         

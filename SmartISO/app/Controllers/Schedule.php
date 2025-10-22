@@ -26,11 +26,14 @@ class Schedule extends BaseController
     {
         $userType = session()->get('user_type');
         $userId = session()->get('user_id');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
         
         $data['title'] = 'Service Schedules';
         
         // Admin and superuser can see all schedules AND submissions without schedules
-        if (in_array($userType, ['admin', 'superuser'])) {
+        if ($isGlobalAdmin) {
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
             
             // Also get submissions that don't have schedule entries yet
@@ -38,12 +41,27 @@ class Schedule extends BaseController
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
-        // Service staff sees schedules assigned to them
+        // Department admin sees schedules for their department
+        elseif ($isDepartmentAdmin) {
+            $schedules = $this->scheduleModel->getDepartmentSchedules(session()->get('scoped_department_id'));
+            
+            // Also get submissions without schedules from their department
+            $submissionsWithoutSchedules = $this->getDepartmentSubmissionsWithoutSchedules(session()->get('scoped_department_id'));
+            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+        }
+        // Service staff sees schedules assigned to them (filtered by department)
         elseif ($userType === 'service_staff') {
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
             
+            // Filter by department for non-admin service staff
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $schedules = array_filter($schedules, function($schedule) use ($userDepartmentId) {
+                    return isset($schedule['requestor_department_id']) && $schedule['requestor_department_id'] == $userDepartmentId;
+                });
+            }
+            
             // Also get submissions assigned to this service staff that don't have schedules yet
-            $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+            $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId, $userDepartmentId);
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
@@ -84,10 +102,20 @@ class Schedule extends BaseController
                 $schedules = [];
             }
         }
-        // Approving authority sees schedules for submissions they approved
+        // Approving authority sees schedules for submissions they approved (filtered by department)
         elseif ($userType === 'approving_authority') {
             // Get submissions approved by this user
-            $submissions = $this->submissionModel->where('approver_id', $userId)->findAll();
+            $builder = $this->submissionModel->builder();
+            $builder->select('form_submissions.*')
+                    ->join('users', 'users.id = form_submissions.submitted_by')
+                    ->where('form_submissions.approver_id', $userId);
+            
+            // Filter by department for non-admin approvers
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $builder->where('users.department_id', $userDepartmentId);
+            }
+            
+            $submissions = $builder->get()->getResultArray();
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
                 // Use the new method to get schedules with full details
@@ -131,6 +159,7 @@ class Schedule extends BaseController
 
         $data['events'] = json_encode($calendarEvents);
         $data['events_count'] = count($calendarEvents);
+        $data['isDepartmentFiltered'] = !$isGlobalAdmin;
 
         $data['title'] = 'Schedule Calendar';
         return view('schedule/calendar', $data);
@@ -558,7 +587,7 @@ class Schedule extends BaseController
      * Get submissions assigned to a service staff member that don't have schedule entries yet
      * This ensures service staff can see ALL submissions assigned to them
      */
-    private function getServiceStaffSubmissionsWithoutSchedules($staffId)
+    private function getServiceStaffSubmissionsWithoutSchedules($staffId, $departmentId = null)
     {
         $db = \Config\Database::connect();
         
@@ -567,14 +596,21 @@ class Schedule extends BaseController
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
                           fs.created_at, fs.priority, fs.service_staff_id,
                           f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name, fsd.field_value as priority_level')
+                          u.full_name as requestor_name, u.department_id,
+                          fsd.field_value as priority_level')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
             ->where('fs.service_staff_id', $staffId)
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
-            ->whereIn('fs.status', ['approved', 'pending_service']) // Only show submissions assigned to service staff
-            ->orderBy('fs.created_at', 'DESC');
+            ->whereIn('fs.status', ['approved', 'pending_service']); // Only show submissions assigned to service staff
+        
+        // Add department filter if provided
+        if ($departmentId) {
+            $builder->where('u.department_id', $departmentId);
+        }
+        
+        $builder->orderBy('fs.created_at', 'DESC');
         
         $results = $builder->get()->getResultArray();
         
@@ -622,7 +658,8 @@ class Schedule extends BaseController
                 'priority' => $row['priority'] ?? 0,
                 'eta_days' => null,
                 'estimated_date' => null,
-                'priority_level' => $priorityLevel // Now properly set
+                'priority_level' => $priorityLevel, // Now properly set
+                'requestor_department_id' => $row['department_id']
             ];
         }
         
@@ -908,6 +945,61 @@ class Schedule extends BaseController
                 'eta_days' => null,
                 'estimated_date' => null,
                 'priority_level' => $row['priority_level'] ?? 'medium'
+            ];
+        }
+        
+        return $virtualSchedules;
+    }
+    
+    /**
+     * Get submissions without schedules for a specific department
+     */
+    private function getDepartmentSubmissionsWithoutSchedules($departmentId)
+    {
+        $db = \Config\Database::connect();
+        
+        // Find submissions from users in the specified department that don't have schedules
+        $builder = $db->table('form_submissions fs');
+        $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          fs.created_at, fs.priority,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name, u.department_id')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->where('u.department_id', $departmentId)
+            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
+            ->whereIn('fs.status', ['submitted', 'approved', 'pending_service'])
+            ->orderBy('fs.created_at', 'DESC');
+        
+        $results = $builder->get()->getResultArray();
+        
+        // Format as virtual schedule entries
+        $virtualSchedules = [];
+        foreach ($results as $row) {
+            $createdDate = substr($row['created_at'], 0, 10);
+            
+            $virtualSchedules[] = [
+                'id' => 'sub-' . $row['submission_id'],
+                'submission_id' => $row['submission_id'],
+                'form_id' => $row['form_id'],
+                'panel_name' => $row['panel_name'],
+                'submission_status' => $row['submission_status'],
+                'form_code' => $row['form_code'],
+                'form_description' => $row['form_description'],
+                'requestor_name' => $row['requestor_name'],
+                'scheduled_date' => $createdDate,
+                'scheduled_time' => '09:00:00',
+                'duration_minutes' => 60,
+                'location' => '',
+                'notes' => 'Pending schedule assignment',
+                'status' => 'pending',
+                'assigned_staff_id' => null,
+                'assigned_staff_name' => null,
+                'priority' => $row['priority'] ?? 0,
+                'eta_days' => null,
+                'estimated_date' => null,
+                'priority_level' => null,
+                'requestor_department_id' => $row['department_id']
             ];
         }
         

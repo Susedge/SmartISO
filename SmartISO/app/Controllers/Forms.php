@@ -55,6 +55,16 @@ class Forms extends BaseController
     $selectedDepartment = (is_numeric($rawDept) && $rawDept !== '') ? (int)$rawDept : null;
     $selectedOffice = (is_numeric($rawOffice) && $rawOffice !== '') ? (int)$rawOffice : null;
 
+        // For non-admin users, restrict to their department only
+        $userDepartmentId = session()->get('department_id');
+        $userType = session()->get('user_type');
+        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+        
+        // If user is not an admin and has a department, force filter to their department
+        if (!$isAdmin && $userDepartmentId) {
+            $selectedDepartment = (int)$userDepartmentId;
+        }
+
         $departments = $this->departmentModel->findAll();
         // Offices: load all (including inactive) so user can still filter; then optionally restrict in list
         try {
@@ -413,15 +423,54 @@ class Forms extends BaseController
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
         
-        // Admin and superuser can see all submissions, others see only their own
-        $filterUserId = in_array($userType, ['admin', 'superuser']) ? null : $userId;
+        // Admin and superuser can see all submissions
+        // Department admins see only their department's submissions
+        // Regular users see only their own submissions
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
         
-        $title = in_array($userType, ['admin', 'superuser']) ? 'All Form Submissions' : 'My Form Submissions';
+        if ($isGlobalAdmin) {
+            // Global admins see everything
+            $filterUserId = null;
+            $filterDepartmentId = null;
+            $title = 'All Form Submissions';
+        } elseif ($isDepartmentAdmin) {
+            // Department admins see all submissions from their department
+            $filterUserId = null;
+            $filterDepartmentId = session()->get('scoped_department_id');
+            $title = 'Department Form Submissions';
+        } else {
+            // Regular users see only their own submissions
+            $filterUserId = $userId;
+            $filterDepartmentId = null;
+            $title = 'My Form Submissions';
+        }
+        
+        // Get submissions with optional filters
+        $builder = $this->formSubmissionModel->builder();
+        $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description, 
+                         users.full_name as requestor_name, departments.description as department_name')
+                ->join('forms', 'forms.id = form_submissions.form_id')
+                ->join('users', 'users.id = form_submissions.submitted_by')
+                ->join('departments', 'departments.id = users.department_id', 'left');
+        
+        if ($filterUserId) {
+            $builder->where('form_submissions.submitted_by', $filterUserId);
+        }
+        
+        if ($filterDepartmentId) {
+            $builder->where('users.department_id', $filterDepartmentId);
+        }
+        
+        $builder->orderBy('form_submissions.updated_at', 'DESC');
+        $submissions = $builder->get()->getResultArray();
         
         $data = [
             'title' => $title,
-            'submissions' => $this->formSubmissionModel->getSubmissionsWithDetails($filterUserId)
+            'submissions' => $submissions,
+            'isDepartmentFiltered' => !$isGlobalAdmin
         ];
         
         return view('forms/my_submissions', $data);
@@ -430,33 +479,75 @@ class Forms extends BaseController
     public function pendingApproval()
     {
         try {
-            // Only for approving_authority
+            // Only for approving_authority and admins
             if (session()->get('user_type') !== 'approving_authority' && 
-                session()->get('user_type') !== 'admin') {
+                session()->get('user_type') !== 'admin' &&
+                session()->get('user_type') !== 'department_admin') {
                 return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
             }
+            
+            $userType = session()->get('user_type');
+            $userDepartmentId = session()->get('department_id');
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+            $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
             
             // Get filter parameters
             $departmentFilter = $this->request->getGet('department');
             $priorityFilter = $this->request->getGet('priority');
             
-            // Get pending submissions with filters
+            // For non-admin users, restrict to their department
+            if (!$isGlobalAdmin && $userDepartmentId && !$departmentFilter) {
+                $departmentFilter = $userDepartmentId;
+            }
+            if ($isDepartmentAdmin && !$departmentFilter) {
+                $departmentFilter = session()->get('scoped_department_id');
+            }
+            
+            // Get pending submissions with department filtering
             try {
-                $submissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
+                $builder = $this->formSubmissionModel->builder();
+                $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description,
+                                 users.full_name as requestor_name, users.department_id,
+                                 departments.description as department_name')
+                        ->join('forms', 'forms.id = form_submissions.form_id')
+                        ->join('users', 'users.id = form_submissions.submitted_by')
+                        ->join('departments', 'departments.id = users.department_id', 'left')
+                        ->where('form_submissions.status', 'submitted');
+                
+                // Apply department filter
+                if ($departmentFilter) {
+                    $builder->where('users.department_id', $departmentFilter);
+                }
+                
+                // Apply priority filter if provided
+                if ($priorityFilter) {
+                    $builder->where('form_submissions.priority', $priorityFilter);
+                }
+                
+                $builder->orderBy('form_submissions.priority', 'DESC')
+                        ->orderBy('form_submissions.updated_at', 'ASC');
+                
+                $submissions = $builder->get()->getResultArray();
             } catch (\Exception $e) {
                 log_message('error', 'Error getting pending approvals: ' . $e->getMessage());
                 $submissions = [];
             }
             
-            // Get all department names for filter dropdown
+            // Get departments for filter dropdown (all for admins, only user's for others)
             try {
-                $deptRows = $this->db->table('departments')
-                    ->select('DISTINCT description')
+                $deptBuilder = $this->db->table('departments')
+                    ->select('id, description')
                     ->where('active', 1)
-                    ->orderBy('description')
-                    ->get()
-                    ->getResultArray();
-                $departments = array_column($deptRows, 'description');
+                    ->orderBy('description');
+                
+                if (!$isGlobalAdmin && $userDepartmentId) {
+                    $deptBuilder->where('id', $userDepartmentId);
+                }
+                if ($isDepartmentAdmin) {
+                    $deptBuilder->where('id', session()->get('scoped_department_id'));
+                }
+                
+                $departments = $deptBuilder->get()->getResultArray();
             } catch (\Exception $e) {
                 log_message('error', 'Error getting departments: ' . $e->getMessage());
                 $departments = [];
@@ -482,7 +573,8 @@ class Forms extends BaseController
                 'departments' => $departments ?? [],
                 'priorities' => $priorities ?? [],
                 'selectedDepartment' => $departmentFilter ?? '',
-                'selectedPriority' => $priorityFilter ?? ''
+                'selectedPriority' => $priorityFilter ?? '',
+                'isDepartmentFiltered' => !$isGlobalAdmin
             ];
             
             return view('forms/pending_approval', $data);
@@ -496,6 +588,10 @@ class Forms extends BaseController
     public function pendingService()
     {
         $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
         
         // Get submissions pending service
         $builder = $this->formSubmissionModel->builder();
@@ -510,6 +606,7 @@ class Forms extends BaseController
             forms.code as form_code, 
             forms.description as form_description,
             requestor.full_name as requestor_name,
+            requestor.department_id,
             d.description as department_name,
             sch.priority_level, 
             sch.eta_days, 
@@ -520,11 +617,19 @@ class Forms extends BaseController
         $builder->join('departments d', 'd.id = requestor.department_id', 'left');
         $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         
-    // Filter for forms assigned to this service staff.
-    // Accept both 'approved' and 'pending_service' statuses for backward compatibility
-    // (some flows set service_staff_id but leave status as 'approved')
-    $builder->where('form_submissions.service_staff_id', $userId);
-    $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
+        // Filter for forms assigned to this service staff.
+        // Accept both 'approved' and 'pending_service' statuses for backward compatibility
+        // (some flows set service_staff_id but leave status as 'approved')
+        $builder->where('form_submissions.service_staff_id', $userId);
+        $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
+        
+        // Add department filtering for non-admin users
+        if (!$isGlobalAdmin && $userDepartmentId) {
+            $builder->where('requestor.department_id', $userDepartmentId);
+        }
+        if ($isDepartmentAdmin) {
+            $builder->where('requestor.department_id', session()->get('scoped_department_id'));
+        }
         
         $builder->orderBy('form_submissions.approved_at', 'DESC');
         
@@ -532,7 +637,8 @@ class Forms extends BaseController
         
         $data = [
             'title' => 'Forms Pending Service',
-            'submissions' => $submissions
+            'submissions' => $submissions,
+            'isDepartmentFiltered' => !$isGlobalAdmin
         ];
         
         return view('forms/pending_service', $data);

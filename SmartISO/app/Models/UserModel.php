@@ -34,7 +34,7 @@ class UserModel extends Model
         'full_name'     => 'required|min_length[3]|max_length[100]',
         'department_id' => 'permit_empty|integer',
         'office_id'     => 'permit_empty|integer',
-        'user_type'     => 'required|in_list[admin,requestor,approving_authority,service_staff]',
+        'user_type'     => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser,department_admin]',
     ];
     
     /**

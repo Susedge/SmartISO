@@ -22,9 +22,16 @@ class Forms extends BaseController
     
     public function index()
     {
+        // For department admins, only show forms from their department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            $forms = $this->formModel->where('department_id', session()->get('scoped_department_id'))->findAll();
+        } else {
+            $forms = $this->formModel->findAll();
+        }
+        
         $data = [
             'title' => 'Form Management',
-            'forms' => $this->formModel->findAll()
+            'forms' => $forms
         ];
         
         return view('admin/forms/index', $data);
@@ -32,7 +39,12 @@ class Forms extends BaseController
     
     public function gallery()
     {
-        $forms = $this->formModel->findAll();
+        // For department admins, only show forms from their department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            $forms = $this->formModel->where('department_id', session()->get('scoped_department_id'))->findAll();
+        } else {
+            $forms = $this->formModel->findAll();
+        }
         
         // Check which forms have templates
         foreach ($forms as &$form) {
@@ -70,6 +82,16 @@ class Forms extends BaseController
         if ($this->validate($rules)) {
             // Ensure we also set an office_id when possible by deriving from department
             $departmentId = (int)$this->request->getPost('department_id');
+            
+            // Department admins can only create forms in their own department
+            if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+                if ($departmentId != session()->get('scoped_department_id')) {
+                    return redirect()->back()
+                        ->with('error', 'You can only create forms in your own department')
+                        ->withInput();
+                }
+            }
+            
             $office = $this->officeModel->where('department_id', $departmentId)->orderBy('id','ASC')->first();
             $officeId = $office['id'] ?? null;
 
@@ -93,22 +115,44 @@ class Forms extends BaseController
     {
         $form = $this->formModel->find($id);
         
-        if ($form) {
-            $data = [
-                'title' => 'Edit Form',
-                'form' => $form
-            ];
-            // Provide departments for selection
-            $data['departments'] = $this->departmentModel->findAll();
-
-            return view('admin/forms/edit', $data);
-        } else {
+        if (!$form) {
             return redirect()->to('/admin/forms')->with('error', 'Form not found');
         }
+        
+        // Department admins can only edit forms in their own department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($form['department_id'] != session()->get('scoped_department_id')) {
+                return redirect()->to('/admin/forms')
+                    ->with('error', 'You can only edit forms in your own department');
+            }
+        }
+        
+        $data = [
+            'title' => 'Edit Form',
+            'form' => $form
+        ];
+        // Provide departments for selection
+        $data['departments'] = $this->departmentModel->findAll();
+
+        return view('admin/forms/edit', $data);
     }
     
     public function update($id = null)
     {
+        $form = $this->formModel->find($id);
+        
+        if (!$form) {
+            return redirect()->to('/admin/forms')->with('error', 'Form not found');
+        }
+        
+        // Department admins can only edit forms in their own department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($form['department_id'] != session()->get('scoped_department_id')) {
+                return redirect()->to('/admin/forms')
+                    ->with('error', 'You can only edit forms in your own department');
+            }
+        }
+        
         $rules = [
             'code' => "required|alpha_numeric|min_length[2]|max_length[20]|is_unique[forms.code,id,$id]",
             'description' => 'required|min_length[3]|max_length[255]',
@@ -118,6 +162,16 @@ class Forms extends BaseController
         if ($this->validate($rules)) {
             // Keep office in sync by deriving from department if possible
             $departmentId = (int)$this->request->getPost('department_id');
+            
+            // Department admins cannot change the department
+            if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+                if ($departmentId != session()->get('scoped_department_id')) {
+                    return redirect()->back()
+                        ->with('error', 'You cannot change the department of forms')
+                        ->withInput();
+                }
+            }
+            
             $office = $this->officeModel->where('department_id', $departmentId)->orderBy('id','ASC')->first();
             $officeId = $office['id'] ?? null;
 
@@ -141,12 +195,20 @@ class Forms extends BaseController
     {
         $form = $this->formModel->find($id);
         
-        if ($form) {
-            $this->formModel->delete($id);
-            return redirect()->to('/admin/forms')->with('message', 'Form deleted successfully');
-        } else {
+        if (!$form) {
             return redirect()->to('/admin/forms')->with('error', 'Form not found');
         }
+        
+        // Department admins can only delete forms in their own department
+        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+            if ($form['department_id'] != session()->get('scoped_department_id')) {
+                return redirect()->to('/admin/forms')
+                    ->with('error', 'You can only delete forms in your own department');
+            }
+        }
+        
+        $this->formModel->delete($id);
+        return redirect()->to('/admin/forms')->with('message', 'Form deleted successfully');
     }
 
     public function signForm($id)

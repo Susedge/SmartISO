@@ -44,6 +44,9 @@
                                     case 'admin':
                                         $badgeClass = 'primary';
                                         break;
+                                    case 'department_admin':
+                                        $badgeClass = 'dark';
+                                        break;
                                     case 'approving_authority':
                                         $badgeClass = 'success';
                                         break;

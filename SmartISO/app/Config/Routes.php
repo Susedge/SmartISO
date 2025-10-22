@@ -162,8 +162,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('notifications/delete/(:num)', 'Notifications::delete/$1');
 });
 
-// Admin routes
-$routes->group('admin', ['filter' => 'auth:admin,superuser'], function ($routes) {
+// Admin routes - Now also accessible by department_admin with scoped access
+$routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     // Configurations - Consolidated lookup tables
     $routes->get('configurations', 'Admin\Configurations::index');
     $routes->get('configurations/new', 'Admin\Configurations::new');

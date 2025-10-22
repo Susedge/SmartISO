@@ -197,4 +197,25 @@ class ScheduleModel extends Model
         $new = empty($schedule['priority']) ? 1 : 0;
         return $this->update($id, ['priority' => $new]);
     }
+    
+    /**
+     * Get schedules for a specific department
+     */
+    public function getDepartmentSchedules($departmentId)
+    {
+        $builder = $this->db->table('schedules s');
+        $builder->select('s.*, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name, u.department_id as requestor_department_id,
+                          staff.full_name as assigned_staff_name')
+            ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('users staff', 'staff.id = s.assigned_staff_id', 'left')
+            ->where('u.department_id', $departmentId)
+            ->orderBy('s.scheduled_date', 'ASC')
+            ->orderBy('s.scheduled_time', 'ASC');
+        
+        return $builder->get()->getResultArray();
+    }
 }

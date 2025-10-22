@@ -13,19 +13,31 @@
     <div class="d-flex" id="wrapper">
         <!-- Sidebar -->
         <div class="border-end bg-dark text-white" id="sidebar-wrapper" style="width: 250px;">
-            <div class="sidebar-heading border-bottom bg-primary text-white p-3">SmartISO Admin</div>
+            <div class="sidebar-heading border-bottom bg-primary text-white p-3">
+                <?php if(session()->get('is_department_admin')): ?>
+                    Department Admin
+                <?php else: ?>
+                    SmartISO Admin
+                <?php endif; ?>
+            </div>
             <div class="list-group list-group-flush">
                 <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('dashboard') ?>">
                     <i class="fas fa-tachometer-alt me-2"></i> Dashboard
                 </a>
-                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/configurations?type=offices') ?>">
-                    <i class="fas fa-building me-2"></i> Offices
-                </a>
-                <?php if(session()->get('user_type') === 'superuser'): ?>
+                
+                <?php if(in_array(session()->get('user_type'), ['admin', 'department_admin', 'superuser'])): ?>
                 <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/users') ?>">
                     <i class="fas fa-users me-2"></i> Users
                 </a>
                 <?php endif; ?>
+                
+                <?php if(!session()->get('is_department_admin')): ?>
+                <!-- Only show Offices and global configurations to global admins -->
+                <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('admin/configurations?type=offices') ?>">
+                    <i class="fas fa-building me-2"></i> Offices
+                </a>
+                <?php endif; ?>
+                
                 <a class="list-group-item list-group-item-action bg-dark text-white p-3" href="<?= base_url('dashboard') ?>">
                     <i class="fas fa-chart-area me-2"></i> Main Site
                 </a>

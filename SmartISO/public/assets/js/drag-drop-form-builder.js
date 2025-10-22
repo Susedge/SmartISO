@@ -2291,7 +2291,40 @@ class FormBuilder {
             const cleanLabel = rawLabel.replace(/\s+/g,' ').trim();
             const baseName = field.name || field.field_name || cleanLabel;
             const cleanName = baseName.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]+/g,'').replace(/^_+|_+$/g,'');
-            return { ...field, id: field.id || 'field_' + Date.now() + '_' + Math.random(), width: field.width || 12, type: field.type || field.field_type, label: cleanLabel, field_label: cleanLabel, name: cleanName, field_name: cleanName };
+            
+            // CRITICAL FIX: Preserve options array for checkbox/dropdown fields
+            // The options are already decoded from JSON by the PHP controller
+            const fieldType = field.type || field.field_type;
+            let options = field.options || [];
+            
+            // If options doesn't exist but this is a field type that needs options, check if they exist elsewhere
+            if (!options || options.length === 0) {
+                if (['dropdown', 'radio', 'checkbox', 'checkboxes'].includes(fieldType)) {
+                    // Options might be in default_value if not already decoded
+                    if (field.default_value && typeof field.default_value === 'string') {
+                        try {
+                            const parsed = JSON.parse(field.default_value);
+                            if (Array.isArray(parsed)) {
+                                options = parsed;
+                            }
+                        } catch (e) {
+                            // Not JSON, ignore
+                        }
+                    }
+                }
+            }
+            
+            return { 
+                ...field, 
+                id: field.id || 'field_' + Date.now() + '_' + Math.random(), 
+                width: field.width || 12, 
+                type: fieldType, 
+                label: cleanLabel, 
+                field_label: cleanLabel, 
+                name: cleanName, 
+                field_name: cleanName,
+                options: options // Preserve the options!
+            };
         });
         const seenIds = new Set(); const seenNames = new Set();
         normalized = normalized.filter(f => { if (seenIds.has(f.id)) return false; if (f.name && seenNames.has(f.name)) return false; seenIds.add(f.id); if (f.name) seenNames.add(f.name); return true; });

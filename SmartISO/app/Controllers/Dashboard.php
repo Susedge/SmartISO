@@ -18,6 +18,9 @@ class Dashboard extends BaseController
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
         
         // Get department info if available (legacy office removed)
         $departmentId = session()->get('department_id');
@@ -56,10 +59,20 @@ class Dashboard extends BaseController
                                                    ->countAllResults();
         } 
         elseif ($userType === 'approving_authority') {
-            // For approving authorities - count forms they need to approve and ones they've approved
-            // Need to use separate builder instances for each count to avoid query state issues
-            $statusSummary['pending_approval'] = $this->db->table('form_submissions')
-                                                          ->where('status', 'submitted')
+            // For approving authorities - count forms they need to approve
+            // Apply department filtering for non-admin approvers
+            $builder = $this->db->table('form_submissions')
+                                ->join('users', 'users.id = form_submissions.submitted_by');
+            
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $builder->where('users.department_id', $userDepartmentId);
+            }
+            if ($isDepartmentAdmin) {
+                $builder->where('users.department_id', session()->get('scoped_department_id'));
+            }
+            
+            $statusSummary['pending_approval'] = (clone $builder)
+                                                          ->where('form_submissions.status', 'submitted')
                                                           ->countAllResults();
                                                                 
             $statusSummary['approved_by_me'] = $this->db->table('form_submissions')
@@ -79,11 +92,21 @@ class Dashboard extends BaseController
         }
         elseif ($userType === 'service_staff') {
             // For service staff - count forms assigned to them
-            // Need to use separate builder instances for each count to avoid query state issues
-            $statusSummary['pending_service'] = $this->db->table('form_submissions')
-                                                         ->where('service_staff_id', $userId)
-                                                         ->whereIn('status', ['approved', 'pending_service'])
-                                                         ->where('service_staff_signature_date IS NULL')
+            // Apply department filtering for non-admin service staff
+            $builder = $this->db->table('form_submissions')
+                                ->join('users', 'users.id = form_submissions.submitted_by');
+            
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $builder->where('users.department_id', $userDepartmentId);
+            }
+            if ($isDepartmentAdmin) {
+                $builder->where('users.department_id', session()->get('scoped_department_id'));
+            }
+            
+            $statusSummary['pending_service'] = (clone $builder)
+                                                         ->where('form_submissions.service_staff_id', $userId)
+                                                         ->whereIn('form_submissions.status', ['approved', 'pending_service'])
+                                                         ->where('form_submissions.service_staff_signature_date IS NULL')
                                                          ->countAllResults();
                                                                
             $statusSummary['serviced_by_me'] = $this->db->table('form_submissions')
@@ -91,8 +114,15 @@ class Dashboard extends BaseController
                                                         ->where('service_staff_signature_date IS NOT NULL')
                                                         ->countAllResults();
                                                               
-            $statusSummary['rejected'] = $this->db->table('form_submissions')
-                                                  ->where('status', 'rejected')
+            $baseBuilder = $this->db->table('form_submissions')
+                                    ->join('users', 'users.id = form_submissions.submitted_by');
+            
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $baseBuilder->where('users.department_id', $userDepartmentId);
+            }
+            
+            $statusSummary['rejected'] = (clone $baseBuilder)
+                                                  ->where('form_submissions.status', 'rejected')
                                                   ->countAllResults();
                                                         
             $statusSummary['completed'] = $this->db->table('form_submissions')
@@ -100,11 +130,32 @@ class Dashboard extends BaseController
                                                    ->where('completed', 1)
                                                    ->countAllResults();
         }
+        elseif ($isGlobalAdmin || $isDepartmentAdmin) {
+            // For admins - show department-wide or global statistics
+            $builder = $this->db->table('form_submissions')
+                                ->join('users', 'users.id = form_submissions.submitted_by');
+            
+            if ($isDepartmentAdmin) {
+                $builder->where('users.department_id', session()->get('scoped_department_id'));
+            }
+            
+            $statusSummary['total_submissions'] = (clone $builder)->countAllResults();
+            $statusSummary['pending_approval'] = (clone $builder)
+                                                        ->where('form_submissions.status', 'submitted')
+                                                        ->countAllResults();
+            $statusSummary['approved'] = (clone $builder)
+                                                ->whereIn('form_submissions.status', ['approved', 'pending_service'])
+                                                ->countAllResults();
+            $statusSummary['completed'] = (clone $builder)
+                                                ->where('form_submissions.completed', 1)
+                                                ->countAllResults();
+        }
         
         $data = [
             'title' => 'Dashboard',
             'department' => $department,
-            'statusSummary' => $statusSummary
+            'statusSummary' => $statusSummary,
+            'isDepartmentFiltered' => !$isGlobalAdmin
         ];
         
         return view('dashboard', $data);

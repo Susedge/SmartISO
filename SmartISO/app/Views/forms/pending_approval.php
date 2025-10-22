@@ -3,7 +3,15 @@
 <?= $this->section('content') ?>
 <div class="card">
     <div class="card-header">
-        <h3><?= $title ?></h3>
+        <div>
+            <h3 class="mb-1"><?= $title ?></h3>
+            <?php if (isset($isDepartmentFiltered) && $isDepartmentFiltered): ?>
+                <span class="badge bg-info text-dark">
+                    <i class="fas fa-filter me-1"></i>
+                    Showing department-specific submissions only
+                </span>
+            <?php endif; ?>
+        </div>
     </div>
     <div class="card-body">
         <!-- Filters and Actions -->
@@ -12,24 +20,40 @@
                 <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
                     <div class="col-md-5">
                         <label for="department_filter" class="form-label">Filter by Department</label>
-                        <select name="department" id="department_filter" class="form-select">
+                        <select name="department" id="department_filter" class="form-select" <?= (isset($isDepartmentFiltered) && $isDepartmentFiltered) ? 'disabled' : '' ?>>
                             <option value="">All Departments</option>
                             <?php if (isset($departments) && is_array($departments)): ?>
                                 <?php foreach ($departments as $dept): ?>
-                                    <option value="<?= esc($dept) ?>" <?= (($selectedDepartment ?? '') === $dept) ? 'selected' : '' ?>>
-                                        <?= esc($dept) ?>
+                                    <option value="<?= esc(is_array($dept) ? $dept['id'] : $dept) ?>" 
+                                            <?= ($selectedDepartment == (is_array($dept) ? $dept['id'] : $dept)) ? 'selected' : '' ?>>
+                                        <?= esc(is_array($dept) ? $dept['description'] : $dept) ?>
                                     </option>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>
+                        <?php if (isset($isDepartmentFiltered) && $isDepartmentFiltered): ?>
+                            <input type="hidden" name="department" value="<?= esc($selectedDepartment) ?>">
+                            <small class="text-muted">Department restricted</small>
+                        <?php endif; ?>
                     </div>
                     <div class="col-md-5">
                         <label for="priority_filter" class="form-label">Filter by Priority</label>
                         <select name="priority" id="priority_filter" class="form-select">
                             <option value="">All Priorities</option>
-                            <option value="high" <?= ($selectedPriority === 'high') ? 'selected' : '' ?>>High (3 days)</option>
-                            <option value="medium" <?= ($selectedPriority === 'medium') ? 'selected' : '' ?>>Medium (5 days)</option>
-                            <option value="low" <?= ($selectedPriority === 'low') ? 'selected' : '' ?>>Low (7 days)</option>
+                            <?php 
+                            $safePriorities = $priorities ?? [
+                                'low' => 'Low',
+                                'normal' => 'Normal',
+                                'high' => 'High',
+                                'urgent' => 'Urgent',
+                                'critical' => 'Critical'
+                            ];
+                            foreach ($safePriorities as $priority_key => $priority_label): 
+                            ?>
+                                <option value="<?= esc($priority_key) ?>" <?= ($selectedPriority === $priority_key) ? 'selected' : '' ?>>
+                                    <?= esc($priority_label) ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-md-2">

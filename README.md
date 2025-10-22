@@ -5,10 +5,33 @@
 - Uncomment `extension=intl` on php.ini
 - Uncomment `extension=gd` on php.ini
 - Uncomment `extension=zip` on php.ini
+- Uncomment `extension=openssl` on php.ini (required for email notifications)
 - Run - composer install
 - Create 'smartiso' db in phpMyAdmin
-- Run -  php spark:migrate
+- Run - php spark migrate
+- Run - php spark db:seed DepartmentAdminSeeder (optional - creates sample department admin)
 - Run - php spark serve
+
+## Email Notifications Setup (Optional - For Testing)
+SmartISO now supports Gmail email notifications for all system events.
+
+### Testing Email Notifications
+1. **Test email configuration:**
+   ```bash
+   php test_email.php
+   ```
+
+2. **Override user emails for testing (sends all emails to test address):**
+   ```bash
+   php override_user_emails.php
+   ```
+
+3. **Restore original user emails after testing:**
+   ```bash
+   php restore_user_emails.php
+   ```
+
+For detailed information, see: `GMAIL_NOTIFICATIONS_GUIDE.md`
 
 ADMIN 
 - Create accounts for “APPROVING AUTHORITIES” and “SERVICE STAFF”.
@@ -37,11 +60,19 @@ Send the completed request form back to the requestor for signature that the wor
 
 # Test Accounts
 password: password123
-- admin_user
-- approver_user
-- requestor_user
-- service_user
+- admin_user (Global Admin)
+- approver_user (Approving Authority)
+- requestor_user (Requestor)
+- service_user (Service Staff)
+- dept_admin_it (Department Admin - IT Department)
 
+# Email Configuration
+- SMTP: Gmail (smtp.gmail.com:587)
+- From: chesspiece901@gmail.com
+- Test Email: chesspiece901@gmail.com
+- App Password: nyvu scnm vnnv dafa
+- php override_user_emails.php
+- php restore_user_emails.php
 
 # For unit testing
  - run: composer run controllers:test
