@@ -19,8 +19,8 @@ class SendTestEmail extends BaseCommand
         try {
             $email = \Config\Services::email();
             
-            $email->setFrom('chesspiece901@gmail.com', 'SmartISO System');
-            $email->setTo('chesspiece901@gmail.com');
+            $email->setFrom('chesspiecedum2@gmail.com', 'SmartISO System');
+            $email->setTo('chesspiecedum2@gmail.com');
             $email->setSubject('SmartISO Email Test - ' . date('Y-m-d H:i:s'));
             
             $message = '
@@ -60,8 +60,8 @@ class SendTestEmail extends BaseCommand
                         
                         <p><strong>Email Configuration:</strong></p>
                         <ul>
-                            <li>From: chesspiece901@gmail.com</li>
-                            <li>To: chesspiece901@gmail.com</li>
+                            <li>From: chesspiecedum2@gmail.com</li>
+                            <li>To: chesspiecedum2@gmail.com</li>
                             <li>Mail Type: HTML</li>
                             <li>Charset: UTF-8</li>
                         </ul>
@@ -91,15 +91,15 @@ class SendTestEmail extends BaseCommand
             $email->setMessage($message);
             
             CLI::write('📧 Sending test email...', 'blue');
-            CLI::write('From: chesspiece901@gmail.com', 'white');
-            CLI::write('To: chesspiece901@gmail.com', 'white');
+            CLI::write('From: chesspiecedum2@gmail.com', 'white');
+            CLI::write('To: chesspiecedum2@gmail.com', 'white');
             CLI::write('Subject: SmartISO Email Test', 'white');
             CLI::newLine();
             
             if ($email->send()) {
                 CLI::write('✅ SUCCESS! Test email sent successfully!', 'green');
                 CLI::newLine();
-                CLI::write('📬 Check your inbox at: chesspiece901@gmail.com', 'yellow');
+                CLI::write('📬 Check your inbox at: chesspiecedum2@gmail.com', 'yellow');
                 CLI::write('   (Also check spam folder if not in inbox)', 'yellow');
                 CLI::newLine(2);
                 

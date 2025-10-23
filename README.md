@@ -68,8 +68,8 @@ password: password123
 
 # Email Configuration
 - SMTP: Gmail (smtp.gmail.com:587)
-- From: chesspiece901@gmail.com
-- Test Email: chesspiece901@gmail.com
+- From: chesspiecedum2@gmail.com
+- Test Email: chesspiecedum2@gmail.com
 - App Password: nyvu scnm vnnv dafa
 - php override_user_emails.php
 - php restore_user_emails.php
