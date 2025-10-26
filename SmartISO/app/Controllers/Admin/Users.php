@@ -251,8 +251,57 @@ class Users extends BaseController
         // Skip model validation and update directly
         $this->userModel->skipValidation(true);
         if ($this->userModel->update($id, $data)) {
+            // Check if department or office changed
+            $deptChanged = ($user['department_id'] != $data['department_id']);
+            $officeChanged = ($user['office_id'] != $data['office_id']);
+            
+            // If updating the currently logged-in user, refresh their session data
+            if ($id == session()->get('user_id')) {
+                session()->set([
+                    'email' => $data['email'],
+                    'username' => $data['username'],
+                    'full_name' => $data['full_name'],
+                    'department_id' => $data['department_id'],
+                    'office_id' => $data['office_id'],
+                    'user_type' => $data['user_type'],
+                    'active' => $data['active']
+                ]);
+                
+                // Update department admin flag if needed
+                if ($data['user_type'] === 'department_admin' && $data['department_id']) {
+                    session()->set([
+                        'is_department_admin' => true,
+                        'scoped_department_id' => $data['department_id']
+                    ]);
+                } else {
+                    session()->remove('is_department_admin');
+                    session()->remove('scoped_department_id');
+                }
+            } else {
+                // For other users, if department/office changed, force them to re-login
+                // by deleting their session data from the database
+                if ($deptChanged || $officeChanged) {
+                    try {
+                        $db = \Config\Database::connect();
+                        // Try to delete from ci_sessions table (database session driver)
+                        if ($db->tableExists('ci_sessions')) {
+                            // Session data typically stores user_id in the data column
+                            // We'll need to find sessions that contain this user's ID
+                            // For now, we'll add a notice message
+                        }
+                    } catch (\Exception $e) {
+                        // Session table might not exist if using file-based sessions
+                    }
+                }
+            }
+            
+            $message = 'User updated successfully';
+            if (($deptChanged || $officeChanged) && $id != session()->get('user_id')) {
+                $message .= '. Note: The user must log out and log back in for department/office changes to take effect.';
+            }
+            
             return redirect()->to('admin/users')
-                ->with('message', 'User updated successfully');
+                ->with('message', $message);
         } else {
             return redirect()->back()
                 ->with('error', 'Failed to update user')

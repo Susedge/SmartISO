@@ -12,19 +12,19 @@
 
 <!-- Event detail modal -->
 <div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl custom-wide-modal">
         <div class="modal-content shadow-lg border-0">
-            <div class="modal-header bg-gradient text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="modal-header bg-gradient text-white py-2" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                 <h5 class="modal-title fw-semibold" id="eventModalLabel">
                     <i class="fas fa-calendar-check me-2"></i>
                     <span id="eventModalTitleText"></span>
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4">
+            <div class="modal-body p-3">
                 <!-- content filled by JS -->
             </div>
-            <div class="modal-footer bg-light border-0 py-3">
+            <div class="modal-footer bg-light border-0 py-2">
                 <button type="button" class="btn btn-primary px-4 me-2" id="saveAndReloadBtn">
                     <i class="fas fa-save me-2"></i>Save
                 </button>
@@ -43,24 +43,42 @@
 <!-- Local fallback if CDN is blocked -->
 <link href="<?= base_url('assets/vendor/fullcalendar/index.global.min.css') ?>" rel="stylesheet">
 <style>
-/* Enhanced modal and priority select visuals for calendar event modal */
+/* Enhanced modal and priority select visuals for calendar event modal - COMPACT VERSION */
+/* Make modal extra wide */
+.custom-wide-modal {
+    max-width: 90% !important;
+}
+@media (min-width: 1400px) {
+    .custom-wide-modal {
+        max-width: 1400px !important;
+    }
+}
+/* Make SimpleModal extra wide too */
+#simpleModalOverlay .simple-modal.wide {
+    max-width: 90% !important;
+}
+@media (min-width: 1400px) {
+    #simpleModalOverlay .simple-modal.wide {
+        max-width: 1400px !important;
+    }
+}
 #simpleModalOverlay .simple-modal .sm-body .form-select { min-width: 180px; display: inline-block; vertical-align: middle; }
 #eventModal .modal-body .form-select { min-width: 200px; display: inline-block; vertical-align: middle; }
 #eventModal .modal-footer .btn + .btn { margin-left: .5rem; }
 .fc-eta-block { 
-    margin-bottom: 1rem;
-    padding: 1rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    border-radius: 8px;
-    border-left: 4px solid #667eea;
+    border-radius: 6px;
+    border-left: 3px solid #667eea;
 }
 .fc-eta-block strong {
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: #333;
 }
 .fc-event-section {
-    margin-bottom: 1.25rem;
-    padding-bottom: 1rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
     border-bottom: 1px solid #e9ecef;
 }
 .fc-event-section:last-child {
@@ -68,46 +86,46 @@
     margin-bottom: 0;
 }
 .fc-section-title {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: #6c757d;
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
 }
 .fc-event-title {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: #212529;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
 }
 .fc-badge-container {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
     align-items: center;
 }
 .fc-badge-container .badge {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.875rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.8rem;
     font-weight: 500;
 }
 .fc-description {
     background: #f8f9fa;
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 0.8rem;
     border-radius: 6px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: #495057;
     border-left: 3px solid #6c757d;
 }
 .fc-priority-selector {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: 0.6rem;
+    padding: 0.75rem;
     background: #fff;
     border: 2px dashed #dee2e6;
-    border-radius: 8px;
+    border-radius: 6px;
     transition: all 0.3s ease;
 }
 .fc-priority-selector:hover {
@@ -123,24 +141,32 @@
     color: #667eea;
 }
 .fc-no-priority {
-    padding: 1rem;
+    padding: 0.75rem;
     background: #fff3cd;
     border: 1px solid #ffc107;
     border-radius: 6px;
     color: #856404;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     text-align: center;
 }
 .fc-event-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: rgba(102, 126, 234, 0.1);
     color: #667eea;
-    margin-right: 0.5rem;
+    margin-right: 0.4rem;
+}
+/* Make modal content more compact with grid layout */
+#eventModal .modal-body .row {
+    margin-bottom: 0.5rem;
+}
+#eventModal .form-control, #eventModal .form-select {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.9rem;
 }
 </style>
 <?= $this->endSection() ?>
@@ -301,6 +327,19 @@ document.addEventListener('DOMContentLoaded', function(){
                 }
                 parts.push('</div>');
 
+                // Reschedule Section (Admin/Service Staff/Department Admin)
+                <?php if (in_array(session()->get('user_type'), ['admin', 'superuser', 'service_staff']) || session()->get('is_department_admin')): ?>
+                parts.push('<div class="fc-event-section">');
+                parts.push('<div class="fc-section-title"><i class="fas fa-calendar-alt me-1"></i>Reschedule Service</div>');
+                parts.push('<div class="fc-priority-selector">');
+                parts.push('<label for="reschedule-date" class="form-label mb-2">New Scheduled Date:</label>');
+                parts.push('<input type="date" id="reschedule-date" class="form-control" value="' + (info.event.startStr ? info.event.startStr.split('T')[0] : '') + '">');
+                parts.push('<label for="reschedule-time" class="form-label mb-2 mt-2">New Scheduled Time:</label>');
+                parts.push('<input type="time" id="reschedule-time" class="form-control" value="' + (ev.scheduled_time || '09:00') + '">');
+                parts.push('</div>');
+                parts.push('</div>');
+                <?php endif; ?>
+
                 // Priority Selector Section (Admin only)
                 if (adminPrioritySelect) {
                     parts.push('<div class="fc-event-section">');
@@ -331,21 +370,34 @@ document.addEventListener('DOMContentLoaded', function(){
 
                 // Use SimpleModal if present, otherwise fallback to Bootstrap modal
                 if (window.SimpleModal && typeof SimpleModal.show === 'function'){
-                    SimpleModal.show({ title: modalTitle, variant: 'info', message: content, wide: false, buttons: [ 
+                    SimpleModal.show({ title: modalTitle, variant: 'info', message: content, wide: true, buttons: [ 
                         {text:'Save', value:'save', variant:'primary'},
                         {text:'Close', value:'close'} 
                     ] }).then(function(val){
                         if (val === 'save') {
-                            // Get the selected priority value before reload
+                            // Get the selected priority value and reschedule info before reload
                             var sel = document.querySelector('#simpleModalOverlay #priority-level');
-                            if (sel) {
-                                var level = sel.value;
-                                var params = buildParams({ priority_level: level });
-                                if (ev.start) params.append('scheduled_date', ev.start);
-                                if (ev.scheduled_time) params.append('scheduled_time', ev.scheduled_time);
+                            var dateInput = document.querySelector('#simpleModalOverlay #reschedule-date');
+                            var timeInput = document.querySelector('#simpleModalOverlay #reschedule-time');
+                            
+                            if (sel || dateInput) {
+                                var level = sel ? sel.value : null;
+                                var newDate = dateInput ? dateInput.value : null;
+                                var newTime = timeInput ? timeInput.value : '09:00:00';
                                 
-                                // Save the priority then reload
-                                fetch('<?= base_url('schedule/update-priority/') ?>' + info.event.id, { 
+                                var params = buildParams({ 
+                                    priority_level: level || '',
+                                    scheduled_date: newDate || (ev.start ? ev.start.split('T')[0] : ''),
+                                    scheduled_time: newTime
+                                });
+                                
+                                // Determine which endpoint to use based on event ID format
+                                var eventId = info.event.id;
+                                var isVirtualEvent = String(eventId).startsWith('sub-') || String(eventId).startsWith('staff-');
+                                var endpoint = '<?= base_url('schedule/update-priority/') ?>' + eventId;
+                                
+                                // Save the priority/schedule then reload
+                                fetch(endpoint, { 
                                     method:'POST', 
                                     headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded'}, 
                                     body: params.toString() 
@@ -355,7 +407,7 @@ document.addEventListener('DOMContentLoaded', function(){
                                     location.reload();
                                 })
                                 .catch(function(err){ 
-                                    alert('Error saving priority');
+                                    alert('Error saving changes');
                                     location.reload();
                                 });
                             } else {
@@ -376,16 +428,29 @@ document.addEventListener('DOMContentLoaded', function(){
                         saveBtn.className='btn btn-primary px-4 me-2'; 
                         saveBtn.innerHTML = '<i class="fas fa-save me-2"></i>Save';
                         saveBtn.onclick = function() {
-                            // Get the selected priority value before reload
+                            // Get the selected priority value and reschedule info before reload
                             var sel = modalEl.querySelector('#priority-level');
-                            if (sel) {
-                                var level = sel.value;
-                                var params = buildParams({ priority_level: level });
-                                if (ev.start) params.append('scheduled_date', ev.start);
-                                if (ev.scheduled_time) params.append('scheduled_time', ev.scheduled_time);
+                            var dateInput = modalEl.querySelector('#reschedule-date');
+                            var timeInput = modalEl.querySelector('#reschedule-time');
+                            
+                            if (sel || dateInput) {
+                                var level = sel ? sel.value : null;
+                                var newDate = dateInput ? dateInput.value : null;
+                                var newTime = timeInput ? timeInput.value : '09:00:00';
                                 
-                                // Save the priority then reload
-                                fetch('<?= base_url('schedule/update-priority/') ?>' + info.event.id, { 
+                                var params = buildParams({ 
+                                    priority_level: level || '',
+                                    scheduled_date: newDate || (ev.start ? ev.start.split('T')[0] : ''),
+                                    scheduled_time: newTime
+                                });
+                                
+                                // Determine which endpoint to use based on event ID format
+                                var eventId = info.event.id;
+                                var isVirtualEvent = String(eventId).startsWith('sub-') || String(eventId).startsWith('staff-');
+                                var endpoint = '<?= base_url('schedule/update-priority/') ?>' + eventId;
+                                
+                                // Save the priority/schedule then reload
+                                fetch(endpoint, { 
                                     method:'POST', 
                                     headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded'}, 
                                     body: params.toString() 
@@ -395,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function(){
                                     location.reload();
                                 })
                                 .catch(function(err){ 
-                                    alert('Error saving priority');
+                                    alert('Error saving changes');
                                     location.reload();
                                 });
                             } else {

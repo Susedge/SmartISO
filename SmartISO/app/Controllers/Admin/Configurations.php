@@ -952,11 +952,13 @@ class Configurations extends BaseController
             ];
             // Accept optional panel_name assignment
             $panelName = $this->request->getPost('panel_name') ?: null;
-            if (($existing['panel_name'] ?? null) !== $panelName) { $updatePayload['panel_name'] = $panelName; }
+            $updatePayload['panel_name'] = $panelName;
+            
             // Accept optional office assignment and/or department assignment.
             // Office selection takes precedence: it will inherit its office's department.
             $officeId = $this->request->getPost('office_id') ?: null;
             $incomingDept = $this->request->getPost('department_id') ?: null;
+            
             if ($officeId !== null && $officeId !== '') {
                 $office = (new \App\Models\OfficeModel())->find((int)$officeId);
                 $deptId = $office['department_id'] ?? null;
@@ -964,11 +966,39 @@ class Configurations extends BaseController
                 $updatePayload['department_id'] = $deptId;
             } else {
                 // No office selected — allow department-only save
-                if ($incomingDept !== null) {
-                    $updatePayload['office_id'] = null;
-                    $updatePayload['department_id'] = $incomingDept ?: null;
+                $updatePayload['office_id'] = null;
+                $updatePayload['department_id'] = $incomingDept;
+            }
+            
+            // Check if there are actual changes
+            $hasChanges = false;
+            foreach ($updatePayload as $key => $value) {
+                $existingValue = $existing[$key] ?? null;
+                // Convert empty string to null for comparison
+                $existingValue = ($existingValue === '') ? null : $existingValue;
+                $value = ($value === '') ? null : $value;
+                
+                if ($existingValue != $value) {
+                    $hasChanges = true;
+                    break;
                 }
             }
+            
+            if (!$hasChanges) {
+                if ($this->request->isAJAX()) {
+                    return $this->response->setJSON(['success'=>true,'message'=>'No changes']);
+                }
+                session()->setFlashdata('message', 'No changes');
+                $item = $this->formModel->find($id);
+                $data = [
+                    'title' => 'Edit Form',
+                    'tableType' => 'forms',
+                    'item' => $item,
+                    'departments' => $this->departmentModel->findAll(),
+                ];
+                return view('admin/configurations/edit', $data);
+            }
+            
             $this->formModel->update($id, $updatePayload);
             if ($this->request->isAJAX()) {
                 return $this->response->setJSON(['success'=>true,'message'=>'Form updated successfully']);

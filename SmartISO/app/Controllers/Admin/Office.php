@@ -180,4 +180,24 @@ class Office extends BaseController
             'offices' => $offices
         ]);
     }
+    
+    public function byDepartment($departmentId = null)
+    {
+        if (!$departmentId) {
+            return $this->response->setJSON([
+                'success' => false,
+                'offices' => []
+            ]);
+        }
+        
+        $offices = $this->officeModel
+            ->where('department_id', $departmentId)
+            ->where('active', 1)
+            ->findAll();
+        
+        return $this->response->setJSON([
+            'success' => true,
+            'offices' => $offices
+        ]);
+    }
 }

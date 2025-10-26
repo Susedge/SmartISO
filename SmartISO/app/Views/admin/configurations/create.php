@@ -59,29 +59,23 @@
                 $isDepartmentAdmin = session()->get('is_department_admin');
                 $userDepartmentId = session()->get('department_id');
             ?>
-            <?php if ($isDepartmentAdmin): ?>
-                <!-- Department admin: show info message -->
-                <div class="alert alert-info mt-4" role="alert">
-                    <i class="fas fa-info-circle me-2"></i>You can only create forms for your department.
-                </div>
-            <?php endif; ?>
-            <div class="row g-4 mt-1">
+            
+            <div class="row g-4 mt-4">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Department <span class="text-danger">*</span></label>
                     <?php if ($isDepartmentAdmin): ?>
-                        <!-- Department admin: show selected department (read-only) -->
-                        <select class="form-select form-select-lg" id="department_id" name="department_id" required readonly disabled style="background-color: #e9ecef; cursor: not-allowed;">
+                        <!-- Department admin: pre-selected department -->
+                        <select class="form-select" id="department_id" name="department_id" required readonly disabled style="background-color: #e9ecef; cursor: not-allowed;">
                             <?php if (isset($departments) && is_array($departments)): foreach ($departments as $dept): ?>
                                 <?php if ($dept['id'] == $userDepartmentId): ?>
                                     <option value="<?= esc($dept['id']) ?>" selected><?= esc($dept['description']) ?></option>
                                 <?php endif; ?>
                             <?php endforeach; endif; ?>
                         </select>
-                        <!-- Hidden input to ensure value is submitted since disabled fields don't submit -->
                         <input type="hidden" name="department_id" value="<?= esc($userDepartmentId) ?>">
                     <?php else: ?>
                         <!-- Global admin: show all departments -->
-                        <select class="form-select form-select-lg" id="department_id" name="department_id" required>
+                        <select class="form-select" id="department_id" name="department_id" required>
                             <option value="">-- Select Department --</option>
                             <?php if (isset($departments) && is_array($departments)): foreach ($departments as $dept): ?>
                                 <option value="<?= esc($dept['id']) ?>" <?= old('department_id') == $dept['id'] ? 'selected' : '' ?>><?= esc($dept['description']) ?></option>
@@ -91,21 +85,21 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">Office (optional)</label>
-                    <select class="form-select form-select-lg" id="office_id" name="office_id">
+                    <select class="form-select" id="office_id" name="office_id">
                         <option value="">-- No Office --</option>
                         <?php if (isset($allOffices) && is_array($allOffices)): foreach ($allOffices as $office): ?>
                             <?php if ($isDepartmentAdmin): ?>
-                                <!-- Department admin: only show offices from their department -->
+                                <!-- Filtered offices for department admin -->
                                 <?php if (!empty($office['department_id']) && $office['department_id'] == $userDepartmentId): ?>
                                     <option value="<?= esc($office['id']) ?>" data-department="<?= esc($office['department_id']) ?>" <?= old('office_id') == $office['id'] ? 'selected' : '' ?>><?= esc($office['description']) ?></option>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <!-- Global admin: show all offices with department filter -->
+                                <!-- All offices for global admin -->
                                 <option value="<?= esc($office['id']) ?>" data-department="<?= esc($office['department_id'] ?? '') ?>" <?= old('office_id') == $office['id'] ? 'selected' : '' ?>><?= esc($office['description']) ?></option>
                             <?php endif; ?>
                         <?php endforeach; endif; ?>
                     </select>
-                    <div class="form-text">Office will inherit the selected department.</div>
+                    <small class="form-text text-muted">Automatically filtered by selected department</small>
                 </div>
             </div>
             <?php endif; ?>

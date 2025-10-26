@@ -138,7 +138,8 @@ class Schedule extends BaseController
         $calendarEvents = [];
         foreach ($schedules as $schedule) {
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
-            $title .= $schedule['form_code'] ?? ($schedule['panel_name'] ?? 'Service');
+            // Use form description (actual title) instead of form_code
+            $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
 
             // Use submission_status if available, otherwise fall back to schedule status
             $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
@@ -485,7 +486,8 @@ class Schedule extends BaseController
         $calendarEvents = [];
         foreach ($schedules as $schedule) {
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
-            $title .= $schedule['form_code'] ?? 'Service';
+            // Use form description (actual title) instead of form_code
+            $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
 
             // Use submission_status if available, otherwise fall back to schedule status
             $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
@@ -769,7 +771,7 @@ class Schedule extends BaseController
     }
 
     /**
-     * AJAX-only: update priority level and compute ETA without running full validation
+     * AJAX-only: update priority level and/or scheduled date/time and compute ETA without running full validation
      */
     public function updatePriority($id)
     {
@@ -783,11 +785,25 @@ class Schedule extends BaseController
         }
 
         $priorityLevel = $this->request->getPost('priority_level') ?: null;
-        $scheduledDate = $this->request->getPost('scheduled_date') ?: ($schedule['scheduled_date'] ?? null);
+        $newScheduledDate = $this->request->getPost('scheduled_date') ?: null;
+        $newScheduledTime = $this->request->getPost('scheduled_time') ?: null;
+        
+        // Use the new scheduled date if provided, otherwise use existing
+        $scheduledDate = $newScheduledDate ?: $schedule['scheduled_date'];
 
         $data = [];
+        
+        // Update scheduled date and time if provided
+        if ($newScheduledDate) {
+            $data['scheduled_date'] = $newScheduledDate;
+        }
+        if ($newScheduledTime) {
+            $data['scheduled_time'] = $newScheduledTime;
+        }
+        
+        // Compute ETA based on priority level
         if ($priorityLevel) {
-            $scheduledDateForEta = ($scheduledDate ?: $schedule['scheduled_date']);
+            $scheduledDateForEta = $scheduledDate;
             $etaDays = null; $estimatedDate = null;
             if ($priorityLevel === 'low') {
                 $etaDays = 7;
@@ -805,7 +821,7 @@ class Schedule extends BaseController
                 $data['estimated_date'] = $estimatedDate;
             }
         } else {
-            // Clear priority
+            // Clear priority if empty
             $data['eta_days'] = null;
             $data['priority_level'] = null;
             $data['estimated_date'] = null;
@@ -813,10 +829,18 @@ class Schedule extends BaseController
 
         $updated = $this->scheduleModel->update($id, $data);
         if ($updated) {
-            return $this->response->setJSON(['success' => true, 'estimated_date' => $data['estimated_date'] ?? null, 'eta_days' => $data['eta_days'] ?? null, 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+            return $this->response->setJSON([
+                'success' => true, 
+                'estimated_date' => $data['estimated_date'] ?? null, 
+                'eta_days' => $data['eta_days'] ?? null,
+                'scheduled_date' => $data['scheduled_date'] ?? $schedule['scheduled_date'],
+                'scheduled_time' => $data['scheduled_time'] ?? $schedule['scheduled_time'],
+                'csrf_name' => csrf_token(), 
+                'csrf_hash' => csrf_hash()
+            ]);
         }
 
-        return $this->response->setJSON(['success' => false, 'message' => 'Failed to update priority', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+        return $this->response->setJSON(['success' => false, 'message' => 'Failed to update', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
     }
 
     /**

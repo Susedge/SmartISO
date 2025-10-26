@@ -12,15 +12,7 @@
 </style>
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <div>
-            <h3 class="mb-1"><?= $title ?></h3>
-            <?php if (isset($isDepartmentFiltered) && $isDepartmentFiltered): ?>
-                <span class="badge bg-info text-dark">
-                    <i class="fas fa-building me-1"></i>
-                    Showing department-specific submissions only
-                </span>
-            <?php endif; ?>
-        </div>
+        <h3><?= $title ?></h3>
         <a href="<?= base_url('forms') ?>" class="btn btn-primary">Submit New Form</a>
     </div>
         <div class="card-body">        <div class="table-responsive">

@@ -43,51 +43,65 @@
                 </div>
                 <div class="col-md-6">
                     <label for="department_id" class="form-label">Department</label>
-                    <select class="form-select" id="department_id" name="department_id" disabled>
+                    <?php 
+                    $departments = $departments ?? [];
+                    // If department admin, only show their own department
+                    if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+                        $departments = array_filter($departments, function($dept) {
+                            return $dept['id'] == session()->get('scoped_department_id');
+                        });
+                    }
+                    $currentDeptId = old('department_id', isset($user) ? ($user['department_id'] ?? '') : '');
+                    $isDeptAdmin = session()->get('is_department_admin');
+                    $isGlobalAdmin = in_array(session()->get('user_type'), ['admin', 'superuser']);
+                    ?>
+                    <select class="form-select" id="department_id" name="department_id" <?= $isDeptAdmin ? 'disabled' : '' ?>>
                         <option value="">-- Select Department --</option>
-                        <?php 
-                        $departments = $departments ?? [];
-                        // If department admin, only show their own department
-                        if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
-                            $departments = array_filter($departments, function($dept) {
-                                return $dept['id'] == session()->get('scoped_department_id');
-                            });
-                        }
-                        $currentDeptId = old('department_id', isset($user) ? ($user['department_id'] ?? '') : '');
-                        foreach ($departments as $dept): 
-                        ?>
+                        <?php foreach ($departments as $dept): ?>
                             <option value="<?= $dept['id'] ?>" <?= $currentDeptId == $dept['id'] ? 'selected' : '' ?>>
                                 <?= esc($dept['code']) ?> - <?= esc($dept['description']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <!-- Hidden field to ensure department_id is submitted -->
-                    <input type="hidden" name="department_id" value="<?= esc($currentDeptId) ?>">
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>Department cannot be changed after creation
-                    </small>
+                    <?php if ($isDeptAdmin): ?>
+                        <!-- Hidden field for department admins -->
+                        <input type="hidden" name="department_id" value="<?= esc($currentDeptId) ?>">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>Department cannot be changed
+                        </small>
+                    <?php elseif ($isGlobalAdmin): ?>
+                        <small class="text-muted">
+                            <i class="fas fa-edit me-1"></i>Editable by global admins
+                        </small>
+                    <?php endif; ?>
                 </div>
             </div>
             
             <div class="row mb-3">
                 <div class="col-md-6">
                     <label for="office_id" class="form-label">Office</label>
-                    <select class="form-select" id="office_id" name="office_id" disabled>
+                    <?php 
+                    $currentOfficeId = old('office_id', isset($user) ? ($user['office_id'] ?? '') : '');
+                    ?>
+                    <select class="form-select" id="office_id" name="office_id" <?= $isDeptAdmin ? 'disabled' : '' ?>>
                         <option value="">-- Select Office --</option>
-                        <?php 
-                        $currentOfficeId = old('office_id', isset($user) ? ($user['office_id'] ?? '') : '');
-                        foreach (($offices ?? []) as $office): 
-                        ?>
+                        <?php foreach (($offices ?? []) as $office): ?>
                             <option value="<?= $office['id'] ?>" <?= $currentOfficeId == $office['id'] ? 'selected' : '' ?>>
                                 <?= esc($office['code']) ?> - <?= esc($office['description']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
-                    <!-- Hidden field to ensure office_id is submitted -->
-                    <input type="hidden" name="office_id" value="<?= esc($currentOfficeId) ?>">
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>Office cannot be changed after creation
-                    </small>
+                    <?php if ($isDeptAdmin): ?>
+                        <!-- Hidden field for department admins -->
+                        <input type="hidden" name="office_id" value="<?= esc($currentOfficeId) ?>">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>Office cannot be changed
+                        </small>
+                    <?php elseif ($isGlobalAdmin): ?>
+                        <small class="text-muted">
+                            <i class="fas fa-edit me-1"></i>Editable by global admins
+                        </small>
+                    <?php endif; ?>
                 </div>
             </div>
             
@@ -139,4 +153,46 @@
         </form>
     </div>
 </div>
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+<script>
+// Dynamic office loading based on department selection for global admins
+document.addEventListener('DOMContentLoaded', function() {
+    const departmentSelect = document.getElementById('department_id');
+    const officeSelect = document.getElementById('office_id');
+    
+    // Check if user can edit department (not disabled)
+    if (departmentSelect && !departmentSelect.disabled) {
+        departmentSelect.addEventListener('change', function() {
+            const departmentId = this.value;
+            
+            if (!departmentId) {
+                officeSelect.innerHTML = '<option value="">-- Select Office --</option>';
+                return;
+            }
+            
+            // Fetch offices for selected department
+            fetch('<?= base_url('admin/offices/by-department/') ?>' + departmentId)
+                .then(response => response.json())
+                .then(data => {
+                    officeSelect.innerHTML = '<option value="">-- Select Office --</option>';
+                    
+                    if (data.offices && data.offices.length > 0) {
+                        data.offices.forEach(office => {
+                            const option = document.createElement('option');
+                            option.value = office.id;
+                            option.textContent = office.code + ' - ' + office.description;
+                            officeSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching offices:', error);
+                    officeSelect.innerHTML = '<option value="">-- Error loading offices --</option>';
+                });
+        });
+    }
+});
+</script>
 <?= $this->endSection() ?>

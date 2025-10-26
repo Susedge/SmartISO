@@ -2,16 +2,8 @@
 
 <?= $this->section('content') ?>
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <div>
-            <h3 class="mb-1"><?= $title ?></h3>
-            <?php if (isset($isDepartmentFiltered) && $isDepartmentFiltered): ?>
-                <span class="badge bg-info text-dark">
-                    <i class="fas fa-building me-1"></i>
-                    Showing department-specific submissions only
-                </span>
-            <?php endif; ?>
-        </div>
+    <div class="card-header">
+        <h3><?= $title ?></h3>
     </div>
     <div class="card-body">
         <?php if (empty($submissions)): ?>
