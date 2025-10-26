@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
     // Admin-only select HTML injected safely via json_encode to avoid quoting issues
     <?php if (session()->get('user_type') === 'admin' || session()->get('user_type') === 'superuser'): ?>
-    var adminPrioritySelect = <?= json_encode('<div class="d-flex align-items-center mt-2"><label class="me-2 mb-0 small">Priority:</label><select id="priority-level" class="form-select form-select-sm priority-auto-save" style="width:auto; display:inline-block"><option value="">None</option><option value="high">High (3d)</option><option value="medium">Medium (5d)</option><option value="low">Low (7d)</option></select></div>') ?>;
+    var adminPrioritySelect = <?= json_encode('<div class="d-flex align-items-center mt-2"><label class="me-2 mb-0 small">Priority:</label><select id="priority-level" class="form-select form-select-sm priority-auto-save" style="width:auto; display:inline-block"><option value="">None</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>') ?>;
     <?php else: ?>
     var adminPrioritySelect = null;
     <?php endif; ?>
@@ -277,9 +277,9 @@ document.addEventListener('DOMContentLoaded', function(){
                 }
                 if (ev.priority_level) {
                     var priorityBadge = '';
-                    if (ev.priority_level === 'high') priorityBadge = '<span class="badge bg-danger"><i class="fas fa-exclamation-circle me-1"></i>High Priority (3d)</span>';
-                    else if (ev.priority_level === 'medium') priorityBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-info-circle me-1"></i>Medium Priority (5d)</span>';
-                    else if (ev.priority_level === 'low') priorityBadge = '<span class="badge bg-success"><i class="fas fa-arrow-down me-1"></i>Low Priority (7d)</span>';
+                    if (ev.priority_level === 'high') priorityBadge = '<span class="badge bg-danger"><i class="fas fa-exclamation-circle me-1"></i>High Priority</span>';
+                    else if (ev.priority_level === 'medium') priorityBadge = '<span class="badge bg-warning text-dark"><i class="fas fa-info-circle me-1"></i>Medium Priority</span>';
+                    else if (ev.priority_level === 'low') priorityBadge = '<span class="badge bg-success"><i class="fas fa-arrow-down me-1"></i>Low Priority</span>';
                     else priorityBadge = '<span class="badge bg-secondary">' + escapeHtml(ev.priority_level) + '</span>';
                     parts.push(priorityBadge);
                 }
@@ -347,9 +347,9 @@ document.addEventListener('DOMContentLoaded', function(){
                     parts.push('<div class="fc-priority-selector">');
                     parts.push('<select id="priority-level" class="form-select priority-auto-save">');
                     parts.push('<option value="">None</option>');
-                    parts.push('<option value="high" ' + (ev.priority_level === 'high' ? 'selected' : '') + '>🔴 High (3d)</option>');
-                    parts.push('<option value="medium" ' + (ev.priority_level === 'medium' ? 'selected' : '') + '>🟡 Medium (5d)</option>');
-                    parts.push('<option value="low" ' + (ev.priority_level === 'low' ? 'selected' : '') + '>🟢 Low (7d)</option>');
+                    parts.push('<option value="high" ' + (ev.priority_level === 'high' ? 'selected' : '') + '>🔴 High</option>');
+                    parts.push('<option value="medium" ' + (ev.priority_level === 'medium' ? 'selected' : '') + '>🟡 Medium</option>');
+                    parts.push('<option value="low" ' + (ev.priority_level === 'low' ? 'selected' : '') + '>🟢 Low</option>');
                     parts.push('</select>');
                     parts.push('<span class="fc-saving-indicator d-none"><i class="fas fa-spinner fa-spin"></i></span>');
                     parts.push('</div>');
@@ -385,10 +385,15 @@ document.addEventListener('DOMContentLoaded', function(){
                                 var newDate = dateInput ? dateInput.value : null;
                                 var newTime = timeInput ? timeInput.value : '09:00:00';
                                 
+                                // Determine if this is a manual schedule (user changed the date)
+                                var originalDate = ev.start ? ev.start.split('T')[0] : '';
+                                var isManualSchedule = newDate && newDate !== originalDate;
+                                
                                 var params = buildParams({ 
                                     priority_level: level || '',
                                     scheduled_date: newDate || (ev.start ? ev.start.split('T')[0] : ''),
-                                    scheduled_time: newTime
+                                    scheduled_time: newTime,
+                                    is_manual_schedule: isManualSchedule ? '1' : '0'
                                 });
                                 
                                 // Determine which endpoint to use based on event ID format
@@ -438,10 +443,15 @@ document.addEventListener('DOMContentLoaded', function(){
                                 var newDate = dateInput ? dateInput.value : null;
                                 var newTime = timeInput ? timeInput.value : '09:00:00';
                                 
+                                // Determine if this is a manual schedule (user changed the date)
+                                var originalDate = ev.start ? ev.start.split('T')[0] : '';
+                                var isManualSchedule = newDate && newDate !== originalDate;
+                                
                                 var params = buildParams({ 
                                     priority_level: level || '',
                                     scheduled_date: newDate || (ev.start ? ev.start.split('T')[0] : ''),
-                                    scheduled_time: newTime
+                                    scheduled_time: newTime,
+                                    is_manual_schedule: isManualSchedule ? '1' : '0'
                                 });
                                 
                                 // Determine which endpoint to use based on event ID format

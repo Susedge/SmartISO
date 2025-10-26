@@ -146,12 +146,31 @@
                                 </table>
         <?php elseif ($tableType === 'panels'): ?>
                         <table class="table table-sm table-striped table-hover align-middle" id="table-panels" data-type="panels">
-                                <thead><tr><th style="display:none">ID</th><th>Panel Name</th></tr></thead>
+                                <thead><tr><th style="display:none">ID</th><th>Panel Name</th><th>Department</th><th>Office</th></tr></thead>
                         <tbody>
                                 <?php if (!empty($panels)): foreach ($panels as $panel): ?>
-                                        <tr data-id="<?= esc($panel['panel_name']) ?>" data-code="<?= esc($panel['panel_name']) ?>">
+                                        <tr data-id="<?= esc($panel['panel_name']) ?>" 
+                                            data-code="<?= esc($panel['panel_name']) ?>"
+                                            data-department-id="<?= esc($panel['department_id'] ?? '') ?>"
+                                            data-office-id="<?= esc($panel['office_id'] ?? '') ?>">
                                                 <td style="display:none">0</td>
                                                 <td><?= esc($panel['panel_name']) ?></td>
+                                                <td>
+                                                        <?php
+                                                                $deptName = null;
+                                                                if (!empty($panel['department_name'])) { $deptName = $panel['department_name']; }
+                                                                elseif (!empty($panel['department_id']) && isset($departmentMap[$panel['department_id']])) { $deptName = $departmentMap[$panel['department_id']]; }
+                                                                echo $deptName ? esc($deptName) : '<small class="text-muted">&mdash;</small>';
+                                                        ?>
+                                                </td>
+                                                <td>
+                                                        <?php
+                                                                $officeName = null;
+                                                                if (!empty($panel['office_name'])) { $officeName = $panel['office_name']; }
+                                                                elseif (!empty($panel['office_id']) && isset($officeMap[$panel['office_id']])) { $officeName = $officeMap[$panel['office_id']]; }
+                                                                echo $officeName ? esc($officeName) : '<small class="text-muted">&mdash;</small>';
+                                                        ?>
+                                                </td>
                                         </tr>
                                 <?php endforeach; else: ?>
                                         <?php // no panels: leave tbody empty so DataTables shows no records ?>
@@ -180,6 +199,7 @@
                                                 <div id="panelSelectionActions" style="display:none" class="d-grid gap-2">
                                                         <a href="#" class="btn btn-outline-success btn-sm" id="btnPanelBuilder"><i class="fas fa-tools me-1"></i>Panel Builder</a>
                                                         <a href="#" class="btn btn-outline-primary btn-sm" id="btnPanelEditFields"><i class="fas fa-edit me-1"></i>Edit Fields</a>
+                                                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnPanelEditInfo"><i class="fas fa-building me-1"></i>Edit Assignment</button>
                                                         <button type="button" class="btn btn-outline-info btn-sm" id="btnPanelCopy"><i class="fas fa-copy me-1"></i>Copy Panel</button>
                                                         <button type="button" class="btn btn-outline-danger btn-sm" id="btnPanelDelete"><i class="fas fa-trash me-1"></i>Delete</button>
                                                 </div>

@@ -1430,4 +1430,29 @@ public function updateSystemConfig()
 
         exit;
     }
+    
+    public function getDepartments()
+    {
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        $departments = $this->departmentModel->orderBy('code', 'ASC')->findAll();
+        
+        return $this->response->setJSON([
+            'success' => true,
+            'departments' => $departments,
+            'is_department_admin' => $isDepartmentAdmin,
+            'user_department_id' => $userDepartmentId
+        ]);
+    }
+    
+    public function getOffices()
+    {
+        $offices = $this->officeModel->orderBy('code', 'ASC')->findAll();
+        return $this->response->setJSON([
+            'success' => true,
+            'offices' => $offices
+        ]);
+    }
 }
+

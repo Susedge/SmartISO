@@ -31,9 +31,9 @@
           <label class="form-label">Priority</label>
           <select name="priority_level" class="form-control form-control-sm">
             <option value="" <?= empty($schedule['priority_level']) ? 'selected' : '' ?>>None</option>
-            <option value="high" <?= isset($schedule['priority_level']) && $schedule['priority_level']==='high' ? 'selected' : '' ?>>High (3d)</option>
-            <option value="medium" <?= isset($schedule['priority_level']) && $schedule['priority_level']==='medium' ? 'selected' : '' ?>>Medium (4d)</option>
-            <option value="low" <?= isset($schedule['priority_level']) && $schedule['priority_level']==='low' ? 'selected' : '' ?>>Low (5d)</option>
+            <option value="high" <?= isset($schedule['priority_level']) && $schedule['priority_level']==='high' ? 'selected' : '' ?>>High</option>
+            <option value="medium" <?= isset($schedule['priority_level']) && $schedule['priority_level']==='medium' ? 'selected' : '' ?>>Medium</option>
+            <option value="low" <?= isset($schedule['priority_level']) && $schedule['priority_level']==='low' ? 'selected' : '' ?>>Low</option>
           </select>
         </div>
         <div class="col-6 d-flex align-items-end">

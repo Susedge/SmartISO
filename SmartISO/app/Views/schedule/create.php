@@ -28,9 +28,9 @@
           <label class="form-label">Priority</label>
           <select name="priority_level" class="form-control form-control-sm">
             <option value="">None</option>
-            <option value="high">High (3d)</option>
-            <option value="medium">Medium (4d)</option>
-            <option value="low">Low (5d)</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
           </select>
         </div>
         <div class="col-6 d-flex align-items-end">

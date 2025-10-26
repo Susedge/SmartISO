@@ -24,7 +24,8 @@ class DbpanelModel extends Model
     protected $allowedFields = [
         'panel_name', 'field_name', 'field_label', 'field_type', 
         'bump_next_field', 'code_table', 'length', 'field_order',
-    'required', 'width', 'field_role', 'default_value'
+        'required', 'width', 'field_role', 'default_value',
+        'department_id', 'office_id'
     ];    
     
     protected $useTimestamps = true;
@@ -77,11 +78,17 @@ class DbpanelModel extends Model
     
     public function getPanels()
     {
-        return $this->select('panel_name')
+        $db = \Config\Database::connect();
+        
+        return $db->table($this->table . ' p')
+                    ->select('p.panel_name, p.department_id, p.office_id, d.description as department_name, o.description as office_name')
+                    ->join('departments d', 'd.id = p.department_id', 'left')
+                    ->join('offices o', 'o.id = p.office_id', 'left')
                     ->distinct()
-                    ->where('panel_name IS NOT NULL')
-                    ->where('panel_name !=', '')
-                    ->orderBy('panel_name', 'ASC')
-                    ->findAll();
+                    ->where('p.panel_name IS NOT NULL')
+                    ->where('p.panel_name !=', '')
+                    ->orderBy('p.panel_name', 'ASC')
+                    ->get()
+                    ->getResultArray();
     }
 }

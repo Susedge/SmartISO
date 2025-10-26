@@ -232,6 +232,9 @@ class DynamicForms extends BaseController
         }
 
         $panelName = $this->request->getPost('panel_name');
+        $departmentId = $this->request->getPost('department_id') ?: null;
+        $officeId = $this->request->getPost('office_id') ?: null;
+        
         if (empty($panelName)) {
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
         }
@@ -245,6 +248,8 @@ class DynamicForms extends BaseController
         // Create a placeholder field so the panel is created and editable in the builder
         $this->dbpanelModel->insert([
             'panel_name' => $panelName,
+            'department_id' => $departmentId,
+            'office_id' => $officeId,
             'field_name' => '_placeholder',
             'field_label' => 'Placeholder',
             'field_type' => 'input',
@@ -254,6 +259,57 @@ class DynamicForms extends BaseController
         ]);
 
     return redirect()->to('/admin/configurations?type=panels')->with('message', 'Panel created successfully');
+    }
+    
+    public function updatePanelInfo()
+    {
+        if ($this->request->getMethod() !== 'POST') {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+        }
+
+        $panelName = $this->request->getPost('panel_name');
+        $departmentId = $this->request->getPost('department_id') ?: null;
+        $officeId = $this->request->getPost('office_id') ?: null;
+        
+        if (empty($panelName)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Panel name is required']);
+        }
+
+        // Check if panel exists
+        $panelExists = $this->dbpanelModel->where('panel_name', $panelName)->first();
+        if (!$panelExists) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Panel not found']);
+        }
+
+        // Department admin check - can only edit panels in their department
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            // Force department to be their own
+            $departmentId = $userDepartmentId;
+        }
+
+        try {
+            // Update all records for this panel
+            $this->dbpanelModel->where('panel_name', $panelName)
+                ->set([
+                    'department_id' => $departmentId,
+                    'office_id' => $officeId
+                ])
+                ->update();
+
+            return $this->response->setJSON([
+                'success' => true, 
+                'message' => 'Panel updated successfully'
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'Panel update error: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false, 
+                'message' => 'Error updating panel: ' . $e->getMessage()
+            ]);
+        }
     }
     
     public function copyPanel()
@@ -316,6 +372,94 @@ class DynamicForms extends BaseController
                           ->delete();
     }
 
+    public function editPanelInfo($panelName = null)
+    {
+        if (!$panelName) {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
+        }
+        
+        // Get panel info
+        $panelInfo = $this->dbpanelModel->where('panel_name', $panelName)->first();
+        if (!$panelInfo) {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel not found');
+        }
+        
+        // Check department admin permissions
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            if ($panelInfo['department_id'] && $panelInfo['department_id'] != $userDepartmentId) {
+                return redirect()->to('/admin/configurations?type=panels')
+                    ->with('error', 'You do not have permission to edit this panel');
+            }
+        }
+        
+        // Get all departments and offices
+        $departmentModel = new \App\Models\DepartmentModel();
+        $officeModel = new \App\Models\OfficeModel();
+        
+        $data = [
+            'title' => 'Edit Panel Assignment',
+            'panel_name' => $panelName,
+            'panel_info' => $panelInfo,
+            'departments' => $departmentModel->orderBy('description', 'ASC')->findAll(),
+            'allOffices' => $officeModel->orderBy('description', 'ASC')->findAll(),
+            'isDepartmentAdmin' => $isDepartmentAdmin,
+            'userDepartmentId' => $userDepartmentId
+        ];
+        
+        return view('admin/dynamicforms/edit_panel_info', $data);
+    }
+
+    public function savePanelInfo()
+    {
+        if ($this->request->getMethod() !== 'POST') {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Invalid request method');
+        }
+
+        $panelName = $this->request->getPost('panel_name');
+        $departmentId = $this->request->getPost('department_id') ?: null;
+        $officeId = $this->request->getPost('office_id') ?: null;
+        
+        if (empty($panelName)) {
+            return redirect()->back()->with('error', 'Panel name is required')->withInput();
+        }
+
+        // Check if panel exists
+        $panelExists = $this->dbpanelModel->where('panel_name', $panelName)->first();
+        if (!$panelExists) {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel not found');
+        }
+
+        // Department admin check - can only edit panels in their department
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            // Force department to be their own
+            $departmentId = $userDepartmentId;
+        }
+
+        try {
+            // Update all records for this panel
+            $this->dbpanelModel->where('panel_name', $panelName)
+                ->set([
+                    'department_id' => $departmentId,
+                    'office_id' => $officeId
+                ])
+                ->update();
+
+            return redirect()->to('/admin/dynamicforms/edit-panel-info/' . urlencode($panelName))
+                ->with('message', 'Panel assignment updated successfully');
+        } catch (\Exception $e) {
+            log_message('error', 'Panel update error: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Error updating panel: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+    
     public function editPanel($panelName = null)
     {
         if (!$panelName) {
@@ -337,7 +481,7 @@ class DynamicForms extends BaseController
         unset($pf2);
         
         $data = [
-            'title' => 'Edit Panel: ' . $panelName,
+            'title' => 'Edit Panel Fields: ' . $panelName,
             'panel_name' => $panelName,
             'panel_fields' => $panelFields
         ];

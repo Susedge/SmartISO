@@ -206,6 +206,9 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
             return redirect()->to('/admin/configurations?type=panels');
         });
     $routes->get('dynamicforms/edit-panel/(:segment)', 'Admin\DynamicForms::editPanel/$1');
+    $routes->get('dynamicforms/edit-panel-info/(:segment)', 'Admin\DynamicForms::editPanelInfo/$1');
+    $routes->post('dynamicforms/save-panel-info', 'Admin\DynamicForms::savePanelInfo');
+    $routes->post('dynamicforms/update-panel-info', 'Admin\DynamicForms::updatePanelInfo');
     $routes->get('dynamicforms/form-builder/(:segment)', 'Admin\DynamicForms::formBuilder/$1');
     $routes->post('dynamicforms/save-form-builder', 'Admin\DynamicForms::saveFormBuilder');
     $routes->post('dynamicforms/reorder-fields', 'Admin\DynamicForms::reorderFields');
@@ -243,6 +246,9 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->get('configurations/delete-template/(:num)', 'Admin\Configurations::deleteTemplate/$1');
     $routes->post('configurations/upload-template/(:num)', 'Admin\Configurations::uploadTemplate/$1');
     $routes->post('configurations/update-system-config', 'Admin\Configurations::updateSystemConfig');
+    // Department and Office API endpoints for panel assignment
+    $routes->get('configurations/get-departments', 'Admin\Configurations::getDepartments');
+    $routes->get('configurations/get-offices', 'Admin\Configurations::getOffices');
     // Database backup (download SQL dump)
     $routes->get('configurations/backup-database', 'Admin\Configurations::exportDatabase');
     
@@ -254,6 +260,7 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->post('office/update/(:num)', 'Admin\Office::update/$1');
     $routes->get('office/delete/(:num)', 'Admin\Office::delete/$1');
     $routes->get('office/active', 'Admin\Office::getActiveOffices');
+    $routes->get('offices/by-department/(:num)', 'Admin\Office::byDepartment/$1');
     
     // Admin notification cleanup
     $routes->post('notifications/cleanup', 'Notifications::cleanup');

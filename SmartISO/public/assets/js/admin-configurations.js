@@ -193,6 +193,7 @@
             document.getElementById('btnAddPanelModal')?.addEventListener('click', function(e){ e.preventDefault(); self.createPanel(); });
             document.getElementById('btnPanelBuilder')?.addEventListener('click', function(e){ e.preventDefault(); if(!self.selectedRow) return; window.location = window.baseUrl + 'admin/dynamicforms/form-builder/'+ encodeURIComponent(self.currentCode()); });
             document.getElementById('btnPanelEditFields')?.addEventListener('click', function(e){ e.preventDefault(); if(!self.selectedRow) return; window.location = window.baseUrl + 'admin/dynamicforms/edit-panel/'+ encodeURIComponent(self.currentCode()); });
+            document.getElementById('btnPanelEditInfo')?.addEventListener('click', function(e){ e.preventDefault(); if(!self.selectedRow) return; window.location = window.baseUrl + 'admin/dynamicforms/edit-panel-info/'+ encodeURIComponent(self.currentCode()); });
             document.getElementById('btnPanelCopy')?.addEventListener('click', function(e){ e.preventDefault(); self.copyPanel(); });
             document.getElementById('btnPanelDelete')?.addEventListener('click', function(e){ e.preventDefault(); self.deletePanel(); });
         } else {
@@ -281,10 +282,125 @@
     // Panels
     AdminConfigurations.prototype.createPanel = function(){
         var self=this;
-        SimpleModal.show({title:'Create Panel',variant:'info',message:'<label class="form-label">Panel Name</label><input type="text" id="sm_new_panel_name" class="form-control form-control-sm" placeholder="Enter panel name">',buttons:[{text:'Cancel',value:'x'},{text:'Create',value:'c',primary:true}]}).then(function(v){ if(v==='c'){ var name=(document.getElementById('sm_new_panel_name').value||'').trim(); if(!name){ SimpleModal.alert('Panel name required.','Validation','warning'); return; } self.postPanelForm('create-panel',{panel_name:name}); }});
-        setTimeout(()=>document.getElementById('sm_new_panel_name')?.focus(),60);
+        var formHtml = `
+            <div class="mb-3">
+                <label class="form-label">Panel Name</label>
+                <input type="text" id="sm_new_panel_name" class="form-control form-control-sm" placeholder="Enter panel name" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Department (Optional)</label>
+                <select id="sm_panel_department" class="form-select form-select-sm">
+                    <option value="">-- Select Department --</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Office (Optional)</label>
+                <select id="sm_panel_office" class="form-select form-select-sm">
+                    <option value="">-- Select Office --</option>
+                </select>
+            </div>
+        `;
+        
+        SimpleModal.show({
+            title:'Create Panel',
+            variant:'info',
+            message:formHtml,
+            buttons:[
+                {text:'Cancel',value:'x'},
+                {text:'Create',value:'c',primary:true}
+            ]
+        }).then(function(v){ 
+            if(v==='c'){ 
+                var name=(document.getElementById('sm_new_panel_name').value||'').trim(); 
+                var deptId=(document.getElementById('sm_panel_department').value||'');
+                var officeId=(document.getElementById('sm_panel_office').value||'');
+                
+                if(!name){ 
+                    SimpleModal.alert('Panel name required.','Validation','warning'); 
+                    return; 
+                } 
+                
+                var data = {panel_name:name};
+                if(deptId) data.department_id = deptId;
+                if(officeId) data.office_id = officeId;
+                
+                self.postPanelForm('create-panel', data); 
+            }
+        });
+        
+        // Load departments and offices after modal is shown
+        setTimeout(function(){
+            document.getElementById('sm_new_panel_name')?.focus();
+            self.loadPanelDepartments();
+            self.loadPanelOffices();
+        },60);
+    };
+    
+    AdminConfigurations.prototype.loadPanelDepartments = function(){
+        var self = this;
+        fetch(window.baseUrl + 'admin/configurations/get-departments')
+            .then(r => r.json())
+            .then(data => {
+                var select = document.getElementById('sm_panel_department');
+                if(!select || !data.departments) return;
+                
+                // Check if user is department admin
+                var isDeptAdmin = data.is_department_admin || false;
+                var userDeptId = data.user_department_id || null;
+                
+                data.departments.forEach(function(dept){
+                    var opt = document.createElement('option');
+                    opt.value = dept.id;
+                    opt.textContent = dept.code + ' - ' + dept.description;
+                    select.appendChild(opt);
+                });
+                
+                // If department admin, lock to their department
+                if(isDeptAdmin && userDeptId){
+                    select.value = userDeptId;
+                    select.disabled = true;
+                    // Trigger change to load offices
+                    select.dispatchEvent(new Event('change'));
+                }
+                
+                // Setup department change listener
+                select.addEventListener('change', function(){
+                    var deptId = this.value;
+                    var officeSelect = document.getElementById('sm_panel_office');
+                    if(!officeSelect) return;
+                    
+                    // Clear offices
+                    officeSelect.innerHTML = '<option value="">-- Select Office --</option>';
+                    
+                    if(!deptId) return;
+                    
+                    // Load offices for department
+                    fetch(window.baseUrl + 'admin/offices/by-department/' + deptId)
+                        .then(r => r.json())
+                        .then(data => {
+                            if(data.offices){
+                                data.offices.forEach(function(office){
+                                    var opt = document.createElement('option');
+                                    opt.value = office.id;
+                                    opt.textContent = office.code + ' - ' + office.description;
+                                    officeSelect.appendChild(opt);
+                                });
+                            }
+                        });
+                });
+            });
+    };
+    
+    AdminConfigurations.prototype.loadPanelOffices = function(){
+        fetch(window.baseUrl + 'admin/configurations/get-offices')
+            .then(r => r.json())
+            .then(data => {
+                // Don't populate initially - will be populated when department is selected
+            });
     };
     AdminConfigurations.prototype.copyPanel = function(){ if(!this.selectedRow) return; var p=this.currentCode(); var self=this; SimpleModal.show({title:'Copy Panel',variant:'info',message:'<div class="mb-2 small text-muted">Copy from <strong>'+self.escapeHtml(p)+'</strong></div><label class="form-label">New Panel Name</label><input type="text" id="sm_copy_panel_name" class="form-control form-control-sm" value="'+self.escapeHtml(p)+'_copy">',buttons:[{text:'Cancel',value:'x'},{text:'Copy',value:'copy',primary:true}]}).then(function(v){ if(v==='copy'){ var newName=(document.getElementById('sm_copy_panel_name').value||'').trim(); if(!newName){ SimpleModal.alert('Panel name required.','Validation','warning'); return; } self.postPanelForm('copy-panel',{source_panel_name:p,new_panel_name:newName}); }}); };
+    AdminConfigurations.prototype.copyPanel = function(){ if(!this.selectedRow) return; var p=this.currentCode(); var self=this; SimpleModal.show({title:'Copy Panel',variant:'info',message:'<div class="mb-2 small text-muted">Copy from <strong>'+self.escapeHtml(p)+'</strong></div><label class="form-label">New Panel Name</label><input type="text" id="sm_copy_panel_name" class="form-control form-control-sm" value="'+self.escapeHtml(p)+'_copy">',buttons:[{text:'Cancel',value:'x'},{text:'Copy',value:'copy',primary:true}]}).then(function(v){ if(v==='copy'){ var newName=(document.getElementById('sm_copy_panel_name').value||'').trim(); if(!newName){ SimpleModal.alert('Panel name required.','Validation','warning'); return; } self.postPanelForm('copy-panel',{source_panel_name:p,new_panel_name:newName}); }}); };
+    
     AdminConfigurations.prototype.deletePanel = function(){ if(!this.selectedRow) return; var p=this.currentCode(); var self=this; SimpleModal.confirm('Delete panel "'+this.escapeHtml(p)+'"? This cannot be undone.','Confirm Delete','warning').then(function(ok){ if(!ok) return; self.postPanelForm('delete-panel',{panel_name:p}); }); };
     AdminConfigurations.prototype.postPanelForm = function(endpoint, fields){
         // Read freshest CSRF tokens from meta tags to avoid stale-token 403s

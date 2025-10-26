@@ -219,6 +219,9 @@ class Schedule extends BaseController
 
     // Priority level mapping defaults
     $priorityLevel = $this->request->getPost('priority_level') ?: ($jsonBody['priority_level'] ?? null); // expected: high|medium|low
+    
+    // Check if this is a manual schedule (user explicitly set a date)
+    $isManualSchedule = $this->request->getPost('is_manual_schedule') ?: ($jsonBody['is_manual_schedule'] ?? false);
 
         $data = [
             'submission_id'      => $this->request->getPost('submission_id'),
@@ -228,11 +231,13 @@ class Schedule extends BaseController
             'assigned_staff_id'  => $this->request->getPost('assigned_staff_id'),
             'location'          => $this->request->getPost('location'),
             'notes'             => $this->request->getPost('notes'),
-            'status'            => 'confirmed'
+            'status'            => 'confirmed',
+            'is_manual_schedule' => $isManualSchedule ? 1 : 0
         ];
 
-        // Compute ETA from priority_level if provided
-        if ($priorityLevel) {
+        // Compute ETA from priority_level if provided AND not manually scheduled
+        // When manually scheduled, target completion date = scheduled date
+        if ($priorityLevel && !$isManualSchedule) {
             // New mapping per request:
             // low  => today + 1 week (7 calendar days)
             // medium => within 5 working days (business days)
@@ -252,6 +257,13 @@ class Schedule extends BaseController
                 $data['eta_days'] = $etaDays;
                 $data['priority_level'] = $priorityLevel;
                 $data['estimated_date'] = $estimatedDate;
+            }
+        } elseif ($isManualSchedule) {
+            // For manual schedules, target completion date = scheduled date
+            $data['estimated_date'] = $data['scheduled_date'];
+            $data['eta_days'] = 0; // Same day
+            if ($priorityLevel) {
+                $data['priority_level'] = $priorityLevel;
             }
         }
 
@@ -348,6 +360,9 @@ class Schedule extends BaseController
         }
 
         $priorityLevel = $this->request->getPost('priority_level') ?: ($jsonBody['priority_level'] ?? null);
+        
+        // Check if this is a manual schedule (user explicitly set a date)
+        $isManualSchedule = $this->request->getPost('is_manual_schedule') ?: ($jsonBody['is_manual_schedule'] ?? false);
 
         $data = [
             'scheduled_date'     => $this->request->getPost('scheduled_date') ?: ($jsonBody['scheduled_date'] ?? $schedule['scheduled_date']),
@@ -356,10 +371,13 @@ class Schedule extends BaseController
             'assigned_staff_id'  => $this->request->getPost('assigned_staff_id'),
             'location'          => $this->request->getPost('location'),
             'notes'             => $this->request->getPost('notes'),
-            'status'            => $this->request->getPost('status')
+            'status'            => $this->request->getPost('status'),
+            'is_manual_schedule' => $isManualSchedule ? 1 : 0
         ];
 
-        if ($priorityLevel) {
+        // Compute ETA from priority_level if provided AND not manually scheduled
+        // When manually scheduled, target completion date = scheduled date
+        if ($priorityLevel && !$isManualSchedule) {
             $scheduledDateForEta = $data['scheduled_date'] ?: $schedule['scheduled_date'];
             $etaDays = null; $estimatedDate = null;
             if ($priorityLevel === 'low') {
@@ -376,6 +394,14 @@ class Schedule extends BaseController
                 $data['eta_days'] = $etaDays;
                 $data['priority_level'] = $priorityLevel;
                 $data['estimated_date'] = $estimatedDate;
+            }
+        } elseif ($isManualSchedule) {
+            // For manual schedules, target completion date = scheduled date
+            $scheduledDateForManual = $data['scheduled_date'] ?: $schedule['scheduled_date'];
+            $data['estimated_date'] = $scheduledDateForManual;
+            $data['eta_days'] = 0; // Same day
+            if ($priorityLevel) {
+                $data['priority_level'] = $priorityLevel;
             }
         }
 
