@@ -154,7 +154,8 @@ class Schedule extends BaseController
                 'estimated_date' => $schedule['estimated_date'] ?? null,
                 'eta_days' => isset($schedule['eta_days']) ? (int)$schedule['eta_days'] : null,
                 'priority_level' => $schedule['priority_level'] ?? null,
-                'scheduled_time' => $schedule['scheduled_time'] ?? null
+                'scheduled_time' => $schedule['scheduled_time'] ?? null,
+                'is_manual_schedule' => isset($schedule['is_manual_schedule']) ? (int)$schedule['is_manual_schedule'] : 0
             ];
         }
 
@@ -813,6 +814,7 @@ class Schedule extends BaseController
         $priorityLevel = $this->request->getPost('priority_level') ?: null;
         $newScheduledDate = $this->request->getPost('scheduled_date') ?: null;
         $newScheduledTime = $this->request->getPost('scheduled_time') ?: null;
+        $isManualSchedule = $this->request->getPost('is_manual_schedule') ?: '0';
         
         // Use the new scheduled date if provided, otherwise use existing
         $scheduledDate = $newScheduledDate ?: $schedule['scheduled_date'];
@@ -827,8 +829,19 @@ class Schedule extends BaseController
             $data['scheduled_time'] = $newScheduledTime;
         }
         
-        // Compute ETA based on priority level
-        if ($priorityLevel) {
+        // Save the manual schedule flag
+        $data['is_manual_schedule'] = $isManualSchedule;
+        
+        // Handle manual schedule: target completion = scheduled date
+        if ($isManualSchedule === '1' || $isManualSchedule === 1) {
+            $data['estimated_date'] = $scheduledDate;
+            $data['eta_days'] = 0; // Same day
+            if ($priorityLevel) {
+                $data['priority_level'] = $priorityLevel;
+            }
+        }
+        // Compute ETA based on priority level for auto-scheduled items
+        elseif ($priorityLevel) {
             $scheduledDateForEta = $scheduledDate;
             $etaDays = null; $estimatedDate = null;
             if ($priorityLevel === 'low') {
@@ -847,7 +860,7 @@ class Schedule extends BaseController
                 $data['estimated_date'] = $estimatedDate;
             }
         } else {
-            // Clear priority if empty
+            // Clear priority if empty and not manual
             $data['eta_days'] = null;
             $data['priority_level'] = null;
             $data['estimated_date'] = null;
@@ -861,6 +874,7 @@ class Schedule extends BaseController
                 'eta_days' => $data['eta_days'] ?? null,
                 'scheduled_date' => $data['scheduled_date'] ?? $schedule['scheduled_date'],
                 'scheduled_time' => $data['scheduled_time'] ?? $schedule['scheduled_time'],
+                'is_manual_schedule' => $data['is_manual_schedule'] ?? 0,
                 'csrf_name' => csrf_token(), 
                 'csrf_hash' => csrf_hash()
             ]);

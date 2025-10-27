@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function(){
     function escapeHtml(str){ if (!str && str !== 0) return ''; return String(str).replace(/[&<>"'`]/g, function(s){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;', '`':'&#96;'}[s]; }); }
 
     // Admin-only select HTML injected safely via json_encode to avoid quoting issues
-    <?php if (session()->get('user_type') === 'admin' || session()->get('user_type') === 'superuser'): ?>
+    <?php if (session()->get('user_type') === 'admin' || session()->get('user_type') === 'superuser' || session()->get('is_department_admin')): ?>
     var adminPrioritySelect = <?= json_encode('<div class="d-flex align-items-center mt-2"><label class="me-2 mb-0 small">Priority:</label><select id="priority-level" class="form-select form-select-sm priority-auto-save" style="width:auto; display:inline-block"><option value="">None</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>') ?>;
     <?php else: ?>
     var adminPrioritySelect = null;
@@ -294,38 +294,43 @@ document.addEventListener('DOMContentLoaded', function(){
                     parts.push('</div>');
                 }
                 
-                // ETA Section - Always show with improved styling
-                parts.push('<div class="fc-event-section">');
-                parts.push('<div class="fc-section-title"><i class="fas fa-calendar-check me-1"></i>Estimated Completion</div>');
-                if (ev.estimated_date) {
-                    parts.push('<div class="fc-eta-block">');
-                    parts.push('<div class="d-flex align-items-center">');
-                    parts.push('<div class="fc-event-icon"><i class="fas fa-flag-checkered"></i></div>');
-                    parts.push('<div>');
-                    parts.push('<div class="small text-muted mb-1">Target Completion Date</div>');
-                    parts.push('<strong>' + escapeHtml(ev.estimated_date) + '</strong>');
-                    if (ev.eta_days) parts.push(' <span class="badge bg-primary ms-2">' + escapeHtml(ev.eta_days) + ' days</span>');
-                    parts.push('</div>');
-                    parts.push('</div>');
-                    parts.push('</div>');
-                } else if (ev.priority_level) {
-                    var etaDays = ev.priority_level === 'high' ? 3 : (ev.priority_level === 'medium' ? 5 : 7);
-                    parts.push('<div class="fc-eta-block">');
-                    parts.push('<div class="d-flex align-items-center">');
-                    parts.push('<div class="fc-event-icon"><i class="fas fa-hourglass-half"></i></div>');
-                    parts.push('<div>');
-                    parts.push('<div class="small text-muted mb-1">Will be calculated</div>');
-                    parts.push('<span class="text-muted">' + etaDays + ' days from scheduled date</span>');
-                    parts.push('</div>');
-                    parts.push('</div>');
-                    parts.push('</div>');
-                } else {
-                    parts.push('<div class="fc-no-priority">');
-                    parts.push('<i class="fas fa-exclamation-triangle me-2"></i>');
-                    parts.push('Select a priority level below to calculate estimated completion time');
+                // ETA Section - Hide when manually scheduled
+                // Only show Target Completion if NOT manually scheduled (is_manual_schedule != 1)
+                // Add ID to the section so we can hide it dynamically when date is changed
+                console.log('DEBUG - Event ID:', info.event.id, 'is_manual_schedule:', ev.is_manual_schedule, 'Type:', typeof ev.is_manual_schedule);
+                if (ev.is_manual_schedule != 1 && ev.is_manual_schedule !== '1') {
+                    parts.push('<div class="fc-event-section" id="estimated-completion-section">');
+                    parts.push('<div class="fc-section-title"><i class="fas fa-calendar-check me-1"></i>Estimated Completion</div>');
+                    if (ev.estimated_date) {
+                        parts.push('<div class="fc-eta-block">');
+                        parts.push('<div class="d-flex align-items-center">');
+                        parts.push('<div class="fc-event-icon"><i class="fas fa-flag-checkered"></i></div>');
+                        parts.push('<div>');
+                        parts.push('<div class="small text-muted mb-1">Target Completion Date</div>');
+                        parts.push('<strong>' + escapeHtml(ev.estimated_date) + '</strong>');
+                        if (ev.eta_days) parts.push(' <span class="badge bg-primary ms-2">' + escapeHtml(ev.eta_days) + ' days</span>');
+                        parts.push('</div>');
+                        parts.push('</div>');
+                        parts.push('</div>');
+                    } else if (ev.priority_level) {
+                        var etaDays = ev.priority_level === 'high' ? 3 : (ev.priority_level === 'medium' ? 5 : 7);
+                        parts.push('<div class="fc-eta-block">');
+                        parts.push('<div class="d-flex align-items-center">');
+                        parts.push('<div class="fc-event-icon"><i class="fas fa-hourglass-half"></i></div>');
+                        parts.push('<div>');
+                        parts.push('<div class="small text-muted mb-1">Will be calculated</div>');
+                        parts.push('<span class="text-muted">' + etaDays + ' days from scheduled date</span>');
+                        parts.push('</div>');
+                        parts.push('</div>');
+                        parts.push('</div>');
+                    } else {
+                        parts.push('<div class="fc-no-priority">');
+                        parts.push('<i class="fas fa-exclamation-triangle me-2"></i>');
+                        parts.push('Select a priority level below to calculate estimated completion time');
+                        parts.push('</div>');
+                    }
                     parts.push('</div>');
                 }
-                parts.push('</div>');
 
                 // Reschedule Section (Admin/Service Staff/Department Admin)
                 <?php if (in_array(session()->get('user_type'), ['admin', 'superuser', 'service_staff']) || session()->get('is_department_admin')): ?>
@@ -333,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 parts.push('<div class="fc-section-title"><i class="fas fa-calendar-alt me-1"></i>Reschedule Service</div>');
                 parts.push('<div class="fc-priority-selector">');
                 parts.push('<label for="reschedule-date" class="form-label mb-2">New Scheduled Date:</label>');
-                parts.push('<input type="date" id="reschedule-date" class="form-control" value="' + (info.event.startStr ? info.event.startStr.split('T')[0] : '') + '">');
+                parts.push('<input type="date" id="reschedule-date" class="form-control" value="' + (info.event.startStr ? info.event.startStr.split('T')[0] : '') + '" data-original-date="' + (info.event.startStr ? info.event.startStr.split('T')[0] : '') + '">');
                 parts.push('<label for="reschedule-time" class="form-label mb-2 mt-2">New Scheduled Time:</label>');
                 parts.push('<input type="time" id="reschedule-time" class="form-control" value="' + (ev.scheduled_time || '09:00') + '">');
                 parts.push('</div>');
@@ -420,6 +425,26 @@ document.addEventListener('DOMContentLoaded', function(){
                             }
                         }
                     });
+                    
+                    // Add event listener to hide Estimated Completion section when date is changed
+                    setTimeout(function() {
+                        var dateInput = document.querySelector('#simpleModalOverlay #reschedule-date');
+                        var estimatedSection = document.querySelector('#simpleModalOverlay #estimated-completion-section');
+                        
+                        if (dateInput && estimatedSection) {
+                            var originalDate = dateInput.getAttribute('data-original-date');
+                            
+                            dateInput.addEventListener('change', function() {
+                                if (this.value !== originalDate) {
+                                    // User manually changed the date - hide the estimated completion section
+                                    estimatedSection.style.display = 'none';
+                                } else {
+                                    // Date reverted to original - show it again
+                                    estimatedSection.style.display = 'block';
+                                }
+                            });
+                        }
+                    }, 100);
                 } else {
                     var modalEl = document.getElementById('eventModal');
                     modalEl.querySelector('#eventModalTitleText').textContent = modalTitle;
@@ -487,6 +512,26 @@ document.addEventListener('DOMContentLoaded', function(){
                         footer.appendChild(closeBtn);
                     }
                     var bsModal = bootstrap.Modal.getOrCreateInstance(modalEl); try { bsModal.show(); } catch(e){}
+                    
+                    // Add event listener to hide Estimated Completion section when date is changed
+                    setTimeout(function() {
+                        var dateInput = modalEl.querySelector('#reschedule-date');
+                        var estimatedSection = modalEl.querySelector('#estimated-completion-section');
+                        
+                        if (dateInput && estimatedSection) {
+                            var originalDate = dateInput.getAttribute('data-original-date');
+                            
+                            dateInput.addEventListener('change', function() {
+                                if (this.value !== originalDate) {
+                                    // User manually changed the date - hide the estimated completion section
+                                    estimatedSection.style.display = 'none';
+                                } else {
+                                    // Date reverted to original - show it again
+                                    estimatedSection.style.display = 'block';
+                                }
+                            });
+                        }
+                    }, 100);
                 }
             }
         });

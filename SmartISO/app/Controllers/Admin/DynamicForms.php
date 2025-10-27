@@ -331,7 +331,22 @@ class DynamicForms extends BaseController
                                 ->with('error', 'Source panel not found or has no fields');
             }
             
-            // Copy each field to the new panel
+            // Check department admin permissions - can only copy panels from their department
+            $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+            $userDepartmentId = session()->get('department_id');
+            
+            if ($isDepartmentAdmin && $userDepartmentId) {
+                $sourcePanelInfo = $this->dbpanelModel->where('panel_name', $sourcePanelName)->first();
+                if ($sourcePanelInfo && $sourcePanelInfo['department_id'] && $sourcePanelInfo['department_id'] != $userDepartmentId) {
+                    return redirect()->to('/admin/configurations?type=panels')
+                        ->with('error', 'You do not have permission to copy this panel');
+                }
+            }
+            
+            // Copy each field to the new panel (preserve department_id and office_id from source)
+            $departmentId = $sourceFields[0]['department_id'] ?? null;
+            $officeId = $sourceFields[0]['office_id'] ?? null;
+            
             foreach ($sourceFields as $field) {
                 $newFieldData = [
                     'panel_name' => $newPanelName,
@@ -345,7 +360,9 @@ class DynamicForms extends BaseController
                     'required' => $field['required'] ?? 0,
                     'bump_next_field' => $field['bump_next_field'] ?? 0,
                     'code_table' => $field['code_table'] ?? '',
-                    'length' => $field['length'] ?? ''
+                    'length' => $field['length'] ?? '',
+                    'department_id' => $departmentId,
+                    'office_id' => $officeId
                 ];
                 
                 $this->dbpanelModel->save($newFieldData);
@@ -1651,9 +1668,13 @@ class DynamicForms extends BaseController
     
     public function deletePanel()
     {
-        // Check if user is admin or superuser
-        if (!in_array(session('user_type'), ['admin', 'superuser'])) {
-            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Unauthorized access. Admin or Superuser privileges required.');
+        // Check if user is admin, superuser, or department admin
+        $userType = session('user_type');
+        $isDepartmentAdmin = $userType === 'department_admin';
+        $userDepartmentId = session('department_id');
+        
+        if (!in_array($userType, ['admin', 'superuser']) && !$isDepartmentAdmin) {
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Unauthorized access. Admin or Department Admin privileges required.');
         }
         
         if (!$this->request->getMethod() === 'POST') {
@@ -1663,6 +1684,15 @@ class DynamicForms extends BaseController
         $panelName = $this->request->getPost('panel_name');
         if (!$panelName) {
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
+        }
+        
+        // Check department admin permissions
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            $panelInfo = $this->dbpanelModel->where('panel_name', $panelName)->first();
+            if ($panelInfo && $panelInfo['department_id'] && $panelInfo['department_id'] != $userDepartmentId) {
+                return redirect()->to('/admin/configurations?type=panels')
+                    ->with('error', 'You do not have permission to delete this panel');
+            }
         }
         
         // Check if any forms are using this panel
