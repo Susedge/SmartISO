@@ -401,7 +401,21 @@
     AdminConfigurations.prototype.copyPanel = function(){ if(!this.selectedRow) return; var p=this.currentCode(); var self=this; SimpleModal.show({title:'Copy Panel',variant:'info',message:'<div class="mb-2 small text-muted">Copy from <strong>'+self.escapeHtml(p)+'</strong></div><label class="form-label">New Panel Name</label><input type="text" id="sm_copy_panel_name" class="form-control form-control-sm" value="'+self.escapeHtml(p)+'_copy">',buttons:[{text:'Cancel',value:'x'},{text:'Copy',value:'copy',primary:true}]}).then(function(v){ if(v==='copy'){ var newName=(document.getElementById('sm_copy_panel_name').value||'').trim(); if(!newName){ SimpleModal.alert('Panel name required.','Validation','warning'); return; } self.postPanelForm('copy-panel',{source_panel_name:p,new_panel_name:newName}); }}); };
     AdminConfigurations.prototype.copyPanel = function(){ if(!this.selectedRow) return; var p=this.currentCode(); var self=this; SimpleModal.show({title:'Copy Panel',variant:'info',message:'<div class="mb-2 small text-muted">Copy from <strong>'+self.escapeHtml(p)+'</strong></div><label class="form-label">New Panel Name</label><input type="text" id="sm_copy_panel_name" class="form-control form-control-sm" value="'+self.escapeHtml(p)+'_copy">',buttons:[{text:'Cancel',value:'x'},{text:'Copy',value:'copy',primary:true}]}).then(function(v){ if(v==='copy'){ var newName=(document.getElementById('sm_copy_panel_name').value||'').trim(); if(!newName){ SimpleModal.alert('Panel name required.','Validation','warning'); return; } self.postPanelForm('copy-panel',{source_panel_name:p,new_panel_name:newName}); }}); };
     
-    AdminConfigurations.prototype.deletePanel = function(){ if(!this.selectedRow) return; var p=this.currentCode(); var self=this; SimpleModal.confirm('Delete panel "'+this.escapeHtml(p)+'"? This cannot be undone.','Confirm Delete','warning').then(function(ok){ if(!ok) return; self.postPanelForm('delete-panel',{panel_name:p}); }); };
+    AdminConfigurations.prototype.deletePanel = function(){ 
+        if(!this.selectedRow) return; 
+        var p=this.currentCode(); 
+        var self=this; 
+        
+        // Delete confirmation with warning about cleaning up all references
+        SimpleModal.confirm(
+            'Delete panel "'+this.escapeHtml(p)+'"? This will also remove all references to this panel from forms and submissions. This cannot be undone.',
+            'Confirm Delete',
+            'warning'
+        ).then(function(ok){ 
+            if(!ok) return; 
+            self.postPanelForm('delete-panel',{panel_name:p}); 
+        });
+    };
     AdminConfigurations.prototype.postPanelForm = function(endpoint, fields){
         // Read freshest CSRF tokens from meta tags to avoid stale-token 403s
         var csrfNameMeta = document.querySelector('meta[name="csrf-name"]');

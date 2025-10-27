@@ -13,6 +13,14 @@ use App\Models\FormSubmissionDataModel;
 
 class DynamicForms extends BaseController
 {
+    protected $db;
+    protected $dbpanelModel;
+    protected $formModel;
+    protected $departmentModel;
+    protected $officeModel;
+    protected $formSubmissionModel;
+    protected $formSubmissionDataModel;
+
     /**
      * Rename a panel (update all rows with old_panel_name to new_panel_name)
      * Expects POST: old_panel_name, new_panel_name
@@ -49,10 +57,6 @@ class DynamicForms extends BaseController
             ]);
         }
     }
-    protected $dbpanelModel;
-    protected $formModel;
-    protected $departmentModel;
-    protected $officeModel;
     
     public function __construct()
     {
@@ -1674,15 +1678,21 @@ class DynamicForms extends BaseController
         $userDepartmentId = session('department_id');
         
         if (!in_array($userType, ['admin', 'superuser']) && !$isDepartmentAdmin) {
+            log_message('error', 'deletePanel - Unauthorized access attempt by user type: ' . $userType);
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Unauthorized access. Admin or Department Admin privileges required.');
         }
         
-        if (!$this->request->getMethod() === 'POST') {
+        if (strtoupper($this->request->getMethod()) !== 'POST') {
+            log_message('error', 'deletePanel - Invalid request method: ' . $this->request->getMethod());
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Invalid request method');
         }
         
         $panelName = $this->request->getPost('panel_name');
+        
+        log_message('info', '========== DELETE PANEL START ========== Panel: ' . $panelName);
+        
         if (!$panelName) {
+            log_message('error', 'deletePanel - Panel name is empty');
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
         }
         
@@ -1690,25 +1700,70 @@ class DynamicForms extends BaseController
         if ($isDepartmentAdmin && $userDepartmentId) {
             $panelInfo = $this->dbpanelModel->where('panel_name', $panelName)->first();
             if ($panelInfo && $panelInfo['department_id'] && $panelInfo['department_id'] != $userDepartmentId) {
+                log_message('error', 'deletePanel - Permission denied for department admin');
                 return redirect()->to('/admin/configurations?type=panels')
                     ->with('error', 'You do not have permission to delete this panel');
             }
         }
         
-        // Check if any forms are using this panel
+        // Start transaction for data integrity
+        $this->db->transStart();
+        
+        log_message('info', 'deletePanel - Transaction started');
+        
+        // 1. Clean up all references in forms table - set panel_name to NULL
         $formsUsingPanel = $this->formModel->where('panel_name', $panelName)->findAll();
+        log_message('info', 'deletePanel - Found ' . count($formsUsingPanel) . ' forms using this panel');
+        
         if (!empty($formsUsingPanel)) {
-            $formCodes = array_column($formsUsingPanel, 'code');
-            return redirect()->to('/admin/configurations?type=panels')
-                           ->with('error', 'Cannot delete panel. It is being used by forms: ' . implode(', ', $formCodes));
+            foreach ($formsUsingPanel as $form) {
+                $this->formModel->update($form['id'], ['panel_name' => null]);
+            }
+            log_message('info', 'deletePanel - Cleaned up panel reference from ' . count($formsUsingPanel) . ' forms.');
         }
         
-        // Delete all fields for this panel
+        // 2. Clean up all references in form_submissions table - set panel_name to NULL
+        $formSubmissionModel = new \App\Models\FormSubmissionModel();
+        $submissionsUsingPanel = $formSubmissionModel->where('panel_name', $panelName)->findAll();
+        log_message('info', 'deletePanel - Found ' . count($submissionsUsingPanel) . ' submissions using this panel');
+        
+        if (!empty($submissionsUsingPanel)) {
+            foreach ($submissionsUsingPanel as $submission) {
+                $formSubmissionModel->update($submission['id'], ['panel_name' => null]);
+            }
+            log_message('info', 'deletePanel - Cleaned up panel reference from ' . count($submissionsUsingPanel) . ' form submissions.');
+        }
+        
+        // 3. Delete all field definitions for this panel from dbpanel table
         $deleted = $this->dbpanelModel->where('panel_name', $panelName)->delete();
+        log_message('info', 'deletePanel - Delete operation returned: ' . ($deleted ? 'TRUE' : 'FALSE'));
+        
+        // Complete transaction
+        $this->db->transComplete();
+        
+        if ($this->db->transStatus() === false) {
+            log_message('error', 'deletePanel - Transaction failed for panel "' . $panelName . '"');
+            return redirect()->to('/admin/configurations?type=panels')->with('error', 'Failed to delete panel due to database error');
+        }
+        
+        log_message('info', 'deletePanel - Panel deletion completed - Panel: "' . $panelName . '", Fields deleted: ' . $deleted . ', Forms updated: ' . count($formsUsingPanel) . ', Submissions updated: ' . count($submissionsUsingPanel));
+        log_message('info', '========== DELETE PANEL END ==========');
         
         if ($deleted) {
-            return redirect()->to('/admin/configurations?type=panels')->with('success', 'Panel "' . $panelName . '" deleted successfully');
+            $message = 'Panel "' . $panelName . '" and all its references deleted successfully';
+            $details = [];
+            if (!empty($formsUsingPanel)) {
+                $details[] = count($formsUsingPanel) . ' form(s) updated';
+            }
+            if (!empty($submissionsUsingPanel)) {
+                $details[] = count($submissionsUsingPanel) . ' submission(s) updated';
+            }
+            if (!empty($details)) {
+                $message .= ' (' . implode(', ', $details) . ')';
+            }
+            return redirect()->to('/admin/configurations?type=panels')->with('success', $message);
         } else {
+            log_message('error', 'deletePanel - Delete returned false - panel may not exist');
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Failed to delete panel or panel not found');
         }
     }
