@@ -477,6 +477,50 @@
     </div>
 </div>
 
+<!-- Submissions Overview -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-inbox me-2 text-primary"></i>Recent Submissions</h5>
+                <small class="text-muted">Showing latest 100 submissions</small>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Form</th>
+                                <th>Submitted By</th>
+                                <th>Date Submitted</th>
+                                <th>Date Completed</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (!empty($submissionsOverview)): ?>
+                                <?php foreach ($submissionsOverview as $sub): ?>
+                                    <tr>
+                                        <td><?= esc($sub['form_name']) ?></td>
+                                        <td><?= esc($sub['submitted_by']) ?></td>
+                                        <td><?= $sub['created_at'] ? date('M d, Y H:i', strtotime($sub['created_at'])) : '' ?></td>
+                                        <td><?= $sub['completion_date'] ? date('M d, Y H:i', strtotime($sub['completion_date'])) : '-' ?></td>
+                                        <td><span class="badge bg-secondary"><?= esc(ucfirst($sub['status'])) ?></span></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">No submissions to display</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Export Modal -->
 <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
@@ -569,7 +613,8 @@ const analyticsData = {
     formStats: <?= json_encode($formStats) ?>,
     departmentStats: <?= json_encode($departmentStats) ?>,
     timelineData: <?= json_encode($timelineData) ?>,
-    performanceMetrics: <?= json_encode($performanceMetrics) ?>
+    performanceMetrics: <?= json_encode($performanceMetrics) ?>,
+    submissionsOverview: <?= json_encode($submissionsOverview) ?>
 };
 
 // Initialize charts
