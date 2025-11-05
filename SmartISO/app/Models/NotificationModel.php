@@ -208,14 +208,14 @@ class NotificationModel extends Model
         // If no specific approvers assigned, fall back to approving authorities FROM THE SAME DEPARTMENT
         if (empty($assignedApprovers)) {
             if ($submitterDepartment) {
-                // Include both approving authorities and department admins from the same department
-                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
+                // Include approving authorities, department admins, and superusers from the same department
+                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin', 'superuser'])
                                                ->where('department_id', $submitterDepartment)
                                                ->where('active', 1)
                                                ->findAll();
             } else {
                 // No department - notify all approvers (legacy support for data without departments)
-                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
+                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin', 'superuser'])
                                                ->where('active', 1)
                                                ->findAll();
             }

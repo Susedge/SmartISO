@@ -16,6 +16,8 @@
     <link rel="stylesheet" href="<?= base_url('assets/css/pastel.css') ?>">
     <!-- Optional Toastify for non-blocking toasts -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <!-- Toastr CSS for notifications -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <!-- CSRF tokens for AJAX -->
     <meta name="csrf-name" content="<?= csrf_token() ?>">
     <meta name="csrf-hash" content="<?= csrf_hash() ?>">
@@ -177,8 +179,19 @@
                             </a>
                         <?php endif; ?>
                         
-                        <!-- For approving authority and department admins -->
-                        <?php if(session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
+                        <!-- For approving authority, department admins, and admins (if enabled) -->
+                        <?php 
+                        $userType = session()->get('user_type');
+                        $showApproverLinks = in_array($userType, ['approving_authority', 'department_admin']);
+                        
+                        // Check if admins can approve
+                        if (in_array($userType, ['admin', 'superuser'])) {
+                            $configModel = new \App\Models\ConfigurationModel();
+                            $adminCanApprove = (bool)$configModel->getConfig('admin_can_approve', false);
+                            $showApproverLinks = $showApproverLinks || $adminCanApprove;
+                        }
+                        ?>
+                        <?php if($showApproverLinks): ?>
                             <div class="sidebar-heading">APPROVALS</div>
 
                             <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/pending-approval' ? 'active' : '' ?>" href="<?= base_url('forms/pending-approval') ?>">
@@ -273,6 +286,11 @@
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/configurations' ? 'active' : '' ?>" href="<?= base_url('admin/configurations') ?>">
                             <div class="nav-link-icon"><i class="fas fa-cogs me-2"></i></div>
                             <span>Configurations</span>
+                        </a>
+
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/database-backup' ? 'active' : '' ?>" href="<?= base_url('admin/database-backup') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-database me-2"></i></div>
+                            <span>Database Backup</span>
                         </a>
 
                         <!-- For admin users only -->
@@ -447,6 +465,8 @@
 
     <!-- jQuery CDN -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+    <!-- Toastr JS for notifications -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <!-- DataTables CSS/JS (used for client-side table search/pagination) -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>

@@ -13,7 +13,7 @@
                     <?php if (!isset($isDepartmentAdmin) || !$isDepartmentAdmin): ?>
                     <div class="col-md-5">
                         <label for="department_filter" class="form-label">Filter by Department</label>
-                        <select name="department" id="department_filter" class="form-select" <?= (isset($isDepartmentFiltered) && $isDepartmentFiltered) ? 'disabled' : '' ?>>
+                        <select name="department" id="department_filter" class="form-select">
                             <option value="">All Departments</option>
                             <?php if (isset($departments) && is_array($departments)): ?>
                                 <?php foreach ($departments as $dept): ?>
@@ -24,10 +24,6 @@
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>
-                        <?php if (isset($isDepartmentFiltered) && $isDepartmentFiltered): ?>
-                            <input type="hidden" name="department" value="<?= esc($selectedDepartment) ?>">
-                            <small class="text-muted">Department restricted</small>
-                        <?php endif; ?>
                     </div>
                     <?php endif; ?>
                         <div class="col-md-3">

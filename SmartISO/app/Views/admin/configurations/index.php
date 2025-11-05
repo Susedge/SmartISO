@@ -185,23 +185,15 @@
                                 <?php if($tableType==='panels'): ?>
                                         <a href="#" id="btnAddPanelModal" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add Panel</a>
                                 <?php elseif($tableType==='system'): ?>
-                                        <a href="#" id="btnBackupDatabase" data-url="<?= base_url('admin/configurations/backup-database') ?>" class="btn btn-success">
-                                                <i class="fas fa-database me-2"></i>Download Database Backup
+                                        <a href="<?= base_url('admin/database-backup') ?>" class="btn btn-primary">
+                                                <i class="fas fa-cog me-2"></i>Manage Database Backups
                                         </a>
-                                                                                <?php
-                                                                                        // Determine current auto backup state from configurations array
-                                                                                        $autoBackupConfig = null;
-                                                                                        if (!empty($configurations) && is_array($configurations)) {
-                                                                                                foreach ($configurations as $c) {
-                                                                                                        if ($c['config_key'] === 'auto_backup_enabled') { $autoBackupConfig = $c; break; }
-                                                                                                }
-                                                                                        }
-                                                                                        $autoEnabled = ($autoBackupConfig && ($autoBackupConfig['config_type']==='boolean') && ($autoBackupConfig['config_value'] == '1' || $autoBackupConfig['config_value'] === 1 || $autoBackupConfig['config_value'] === true));
-                                                                                ?>
-                                                                                <button id="btnToggleAutoBackup" class="btn <?= $autoEnabled? 'btn-outline-danger' : 'btn-outline-primary' ?> mt-2" data-enabled="<?= $autoEnabled?1:0 ?>">
-                                                                                        <i class="fas fa-clock me-2"></i>
-                                                                                        <?= $autoEnabled? 'Disable Automatic Backups' : 'Enable Automatic Backups' ?>
-                                                                                </button>
+                                        <a href="#" id="btnBackupDatabase" data-url="<?= base_url('admin/configurations/backup-database') ?>" class="btn btn-success mt-2">
+                                                <i class="fas fa-download me-2"></i>Download Backup Now
+                                        </a>
+                                        <small class="text-muted d-block mt-2">
+                                                <i class="fas fa-info-circle"></i> To enable/disable automatic backups, click "Edit Value" on the <strong>auto_backup_enabled</strong> setting. Then go to "Manage Database Backups" to set the time.
+                                        </small>
                                 <?php else: ?>
                                         <a href="<?= base_url('admin/configurations/new?type='.$tableType) ?>" id="btnAdd" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add <?= ucfirst(rtrim($tableType,'s')) ?></a>
                                 <?php endif; ?>

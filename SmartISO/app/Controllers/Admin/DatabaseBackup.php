@@ -89,7 +89,8 @@ class DatabaseBackup extends BaseController
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => 'Backup created successfully',
-                    'filename' => $result['filename']
+                    'filename' => $result['filename'],
+                    'csrfHash' => csrf_hash()
                 ]);
             }
             
@@ -131,7 +132,18 @@ class DatabaseBackup extends BaseController
             throw new \Exception('Failed to create backup file');
         }
 
-        fwrite($fp, "-- Database Backup\n-- Generated: " . date('c') . "\n\n");
+        // Write header with SQL settings
+        fwrite($fp, "-- Database Backup\n");
+        fwrite($fp, "-- Generated: " . date('c') . "\n");
+        fwrite($fp, "-- Database: " . $db->database . "\n\n");
+        fwrite($fp, "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n");
+        fwrite($fp, "SET AUTOCOMMIT = 0;\n");
+        fwrite($fp, "START TRANSACTION;\n");
+        fwrite($fp, "SET time_zone = \"+00:00\";\n\n");
+        fwrite($fp, "/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;\n");
+        fwrite($fp, "/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;\n");
+        fwrite($fp, "/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;\n");
+        fwrite($fp, "/*!40101 SET NAMES utf8mb4 */;\n\n");
 
         // Get all tables
         $tablesResult = $db->query('SHOW TABLES');
@@ -173,6 +185,12 @@ class DatabaseBackup extends BaseController
             
             fflush($fp);
         }
+
+        // Write footer
+        fwrite($fp, "COMMIT;\n\n");
+        fwrite($fp, "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n");
+        fwrite($fp, "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n");
+        fwrite($fp, "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
 
         fclose($fp);
 
@@ -287,7 +305,8 @@ class DatabaseBackup extends BaseController
             if ($this->request->isAJAX()) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => 'Backup deleted successfully'
+                    'message' => 'Backup deleted successfully',
+                    'csrfHash' => csrf_hash()
                 ]);
             }
             return redirect()->to('/admin/database-backup')
@@ -373,28 +392,51 @@ class DatabaseBackup extends BaseController
 
             // Disable foreign key checks temporarily
             $db->query('SET FOREIGN_KEY_CHECKS = 0');
+            $db->query('SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO"');
+            $db->query('SET AUTOCOMMIT = 0');
+            $db->query('START TRANSACTION');
 
-            // Split SQL into individual statements and execute
-            $statements = array_filter(
-                array_map('trim', explode(';', $sql)),
-                function($stmt) {
-                    return !empty($stmt) && !str_starts_with($stmt, '--');
+            // Split SQL into individual statements
+            // Remove comments and split by semicolons
+            $lines = explode("\n", $sql);
+            $statement = '';
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                
+                // Skip empty lines and comments
+                if (empty($line) || substr($line, 0, 2) == '--' || substr($line, 0, 2) == '/*') {
+                    continue;
                 }
-            );
-
-            foreach ($statements as $statement) {
-                if (!empty($statement)) {
-                    $db->query($statement);
+                
+                $statement .= ' ' . $line;
+                
+                // If statement ends with semicolon, execute it
+                if (substr(rtrim($line), -1) == ';') {
+                    $statement = trim($statement);
+                    if (!empty($statement)) {
+                        try {
+                            $db->query($statement);
+                        } catch (\Exception $e) {
+                            // Log but continue with other statements
+                            log_message('error', 'SQL statement error: ' . $e->getMessage() . ' | Statement: ' . substr($statement, 0, 200));
+                        }
+                    }
+                    $statement = '';
                 }
             }
 
+            // Commit transaction
+            $db->query('COMMIT');
+            
             // Re-enable foreign key checks
             $db->query('SET FOREIGN_KEY_CHECKS = 1');
 
             if ($this->request->isAJAX()) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => 'Database restored successfully from ' . $filename
+                    'message' => 'Database restored successfully from ' . $filename,
+                    'csrfHash' => csrf_hash()
                 ]);
             }
 
@@ -402,6 +444,14 @@ class DatabaseBackup extends BaseController
                 ->with('message', 'Database restored successfully from ' . $filename);
         } catch (\Exception $e) {
             log_message('error', 'Restore failed: ' . $e->getMessage());
+            
+            // Rollback on error
+            try {
+                $db->query('ROLLBACK');
+                $db->query('SET FOREIGN_KEY_CHECKS = 1');
+            } catch (\Exception $rollbackEx) {
+                log_message('error', 'Rollback failed: ' . $rollbackEx->getMessage());
+            }
 
             if ($this->request->isAJAX()) {
                 return $this->response->setStatusCode(500)->setJSON([
@@ -450,7 +500,8 @@ class DatabaseBackup extends BaseController
             return $this->response->setJSON([
                 'success' => true,
                 'message' => 'Auto backup ' . ($enabled ? 'enabled' : 'disabled'),
-                'enabled' => $enabled
+                'enabled' => $enabled,
+                'csrfHash' => csrf_hash()
             ]);
         } catch (\Exception $e) {
             return $this->response->setStatusCode(500)->setJSON([
@@ -502,7 +553,8 @@ class DatabaseBackup extends BaseController
             return $this->response->setJSON([
                 'success' => true,
                 'message' => 'Backup time updated to ' . $time,
-                'time' => $time
+                'time' => $time,
+                'csrfHash' => csrf_hash()
             ]);
         } catch (\Exception $e) {
             return $this->response->setStatusCode(500)->setJSON([

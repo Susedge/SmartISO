@@ -10,6 +10,7 @@ use App\Models\DepartmentModel;
 use App\Models\UserModel;
 use App\Models\OfficeModel;
 use App\Models\PriorityConfigurationModel;
+use App\Models\ConfigurationModel;
 
 class Forms extends BaseController
 {
@@ -21,6 +22,7 @@ class Forms extends BaseController
     protected $userModel;
     protected $officeModel;
     protected $priorityModel;
+    protected $configurationModel;
     
     public function __construct()
     {
@@ -34,6 +36,30 @@ class Forms extends BaseController
         $this->userModel = new UserModel();
         $this->priorityModel = new PriorityConfigurationModel();
         $this->officeModel = new OfficeModel();
+        $this->configurationModel = new ConfigurationModel();
+    }
+    
+    /**
+     * Check if current user can act as approver
+     */
+    protected function canUserApprove()
+    {
+        $userType = session()->get('user_type');
+        
+        // Approving authorities and department admins can always approve
+        if (in_array($userType, ['approving_authority', 'department_admin'])) {
+            return true;
+        }
+        
+        // Check if admins can approve based on configuration
+        if (in_array($userType, ['admin', 'superuser'])) {
+            $adminCanApprove = (bool)$this->configurationModel->getConfig('admin_can_approve', false);
+            log_message('debug', "Admin approval check - User Type: {$userType}, admin_can_approve: " . ($adminCanApprove ? 'true' : 'false'));
+            return $adminCanApprove;
+        }
+        
+        log_message('debug', "Approval denied - User Type: {$userType} is not authorized");
+        return false;
     }
 
     /**
@@ -479,11 +505,15 @@ class Forms extends BaseController
     public function pendingApproval()
     {
         try {
-            // Only for approving_authority and admins
-            if (session()->get('user_type') !== 'approving_authority' && 
-                session()->get('user_type') !== 'admin' &&
-                session()->get('user_type') !== 'department_admin') {
-                return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
+            // Check if user can approve
+            if (!$this->canUserApprove()) {
+                $userType = session()->get('user_type');
+                $adminCanApprove = $this->configurationModel->getConfig('admin_can_approve', false);
+                
+                // Debug info
+                log_message('debug', "Pending Approval Access Denied - User Type: {$userType}, admin_can_approve: " . ($adminCanApprove ? 'true' : 'false'));
+                
+                return redirect()->to('/dashboard')->with('error', 'You do not have permission to access pending approvals. Please ensure admin approval is enabled in System Settings.');
             }
             
             $userType = session()->get('user_type');
@@ -933,8 +963,8 @@ class Forms extends BaseController
             return redirect()->to('/forms/submission/' . $id)
                             ->with('message', 'Form signed successfully and marked as completed');
                             
-        } elseif ($userType === 'approving_authority' || $userType === 'department_admin') {
-            // Approver (or department admin) can only sign forms with status 'submitted'
+        } elseif ($this->canUserApprove()) {
+            // User can approve (approving_authority, department_admin, or admin with permission)
             if ($submission['status'] !== 'submitted') {
                 return redirect()->to('/forms/pending-approval')
                                 ->with('error', 'This form cannot be signed at this time');
@@ -1058,13 +1088,13 @@ class Forms extends BaseController
     public function approveForm($submissionId)
     {
         try {
-            $userId = session()->get('user_id');
-            $userType = session()->get('user_type');
-            
-            // Allow approving authorities, department admins, and admins to approve
-            if (!in_array($userType, ['approving_authority', 'department_admin', 'admin'])) {
+            // Check if user can approve
+            if (!$this->canUserApprove()) {
                 return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
             }
+            
+            $userId = session()->get('user_id');
+            $userType = session()->get('user_type');
             
             // Get submission details
             $submission = $this->formSubmissionModel->find($submissionId);
@@ -1446,6 +1476,11 @@ class Forms extends BaseController
      */
     public function approvedByMe()
     {
+        // Check if user can approve
+        if (!$this->canUserApprove()) {
+            return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
+        }
+        
         $userId = session()->get('user_id');
         
         // Get submissions approved by the current user
@@ -1496,13 +1531,13 @@ class Forms extends BaseController
      */
     public function rejectedByMe()
     {
-        $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        
-        // Allow approving_authority, department_admin, admin, and superuser
-        if (!in_array($userType, ['approving_authority', 'department_admin', 'admin', 'superuser'])) {
+        // Check if user can approve
+        if (!$this->canUserApprove()) {
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
+        
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
         
         // Get forms rejected by this user with query builder for department filtering
         $builder = $this->formSubmissionModel->builder();
@@ -1540,13 +1575,13 @@ class Forms extends BaseController
      */
     public function submitApproval()
     {
-        $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        
-        // Allow approving authorities, department admins, and admins to approve
-        if (!in_array($userType, ['approving_authority', 'department_admin', 'admin'])) {
+        // Check if user can approve
+        if (!$this->canUserApprove()) {
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
+        
+        $userId = session()->get('user_id');
+        $userType = session()->get('user_type');
         
         $submissionId = $this->request->getPost('submission_id');
         $action = $this->request->getPost('action');

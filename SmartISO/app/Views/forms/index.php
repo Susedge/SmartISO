@@ -6,29 +6,6 @@
         <div class="d-flex justify-content-between flex-wrap align-items-center">
             <div>
                 <h3 class="h5 mb-1 fw-semibold"><?= $title ?></h3>
-                <?php 
-                $userType = session()->get('user_type');
-                $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-                $isDepartmentAdmin = session()->get('is_department_admin');
-                $userDepartmentId = session()->get('department_id');
-                
-                if (!$isGlobalAdmin && $selectedDepartment): 
-                    $deptName = '';
-                    foreach ($departments as $d) {
-                        if ($d['id'] == $selectedDepartment) {
-                            $deptName = $d['description'];
-                            break;
-                        }
-                    }
-                ?>
-                    <div class="mt-1">
-                        <span class="badge bg-primary">
-                            <i class="fas fa-building me-1"></i>
-                            <?= esc($deptName) ?>
-                        </span>
-                        <small class="text-muted ms-2">Department restricted</small>
-                    </div>
-                <?php endif; ?>
             </div>
             <div class="d-flex flex-column align-items-end">
                 <div class="small text-muted mb-1" id="resultsMeta">
@@ -38,10 +15,17 @@
         </div>
     </div>
     <div class="card-body pt-2">
+        <?php 
+        $userType = session()->get('user_type');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $isDepartmentAdmin = session()->get('is_department_admin');
+        $userDepartmentId = session()->get('department_id');
+        ?>
         <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end mb-3">
+            <?php if ($isGlobalAdmin || $isDepartmentAdmin): ?>
             <div class="col-sm-4 col-md-3">
                 <label class="form-label mb-1 fw-semibold">Department</label>
-                <select name="department" id="departmentSelect" class="form-select form-select-sm" <?= (!$isGlobalAdmin && $userDepartmentId) ? 'disabled' : '' ?>>
+                <select name="department" id="departmentSelect" class="form-select form-select-sm">
                     <option value="">All Departments</option>
                     <?php foreach ($departments as $dept): ?>
                         <option value="<?= esc($dept['id']) ?>" <?= ($selectedDepartment == $dept['id']) ? 'selected' : '' ?>>
@@ -49,10 +33,12 @@
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <?php if (!$isGlobalAdmin && $userDepartmentId): ?>
+            </div>
+            <?php else: ?>
+                <?php if ($userDepartmentId): ?>
                     <input type="hidden" name="department" value="<?= esc($selectedDepartment) ?>">
                 <?php endif; ?>
-            </div>
+            <?php endif; ?>
             <div class="col-sm-4 col-md-3">
                 <label class="form-label mb-1 fw-semibold">Office</label>
                 <select name="office" id="officeSelect" class="form-select form-select-sm">

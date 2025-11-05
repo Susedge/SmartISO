@@ -114,7 +114,12 @@
                                id="backup-time" 
                                value="<?= esc($backupTime) ?>"
                                <?= !$autoBackupEnabled ? 'disabled' : '' ?>>
-                        <div class="form-text">Daily backup will run at this time (24-hour format)</div>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Changes are saved automatically when you select a time
+                        </div>
+                        <div id="time-save-status" class="mt-1" style="display:none;">
+                            <small class="text-success"><i class="fas fa-check-circle"></i> <span id="time-save-msg"></span></small>
+                        </div>
                     </div>
 
                     <hr>
@@ -173,10 +178,20 @@
     </div>
 </div>
 
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
 <script>
 $(document).ready(function() {
-    const csrfName = '<?= csrf_token() ?>';
-    const csrfHash = '<?= csrf_hash() ?>';
+    let csrfName = '<?= csrf_token() ?>';
+    let csrfHash = '<?= csrf_hash() ?>';
+
+    // Function to update CSRF token from response
+    function updateCsrfToken(response) {
+        if (response && response.csrfHash) {
+            csrfHash = response.csrfHash;
+        }
+    }
 
     // Create backup
     $('#btn-create-backup').on('click', function() {
@@ -189,6 +204,7 @@ $(document).ready(function() {
             data: { [csrfName]: csrfHash },
             dataType: 'json',
             success: function(response) {
+                updateCsrfToken(response);
                 if (response.success) {
                     toastr.success(response.message);
                     setTimeout(() => location.reload(), 1000);
@@ -220,6 +236,7 @@ $(document).ready(function() {
             },
             dataType: 'json',
             success: function(response) {
+                updateCsrfToken(response);
                 if (response.success) {
                     toastr.success(response.message);
                     timeInput.prop('disabled', !enabled);
@@ -239,6 +256,12 @@ $(document).ready(function() {
     // Update backup time
     $('#backup-time').on('change', function() {
         const time = $(this).val();
+        const statusDiv = $('#time-save-status');
+        const statusMsg = $('#time-save-msg');
+
+        // Show saving indicator
+        statusDiv.show();
+        statusMsg.html('Saving...').removeClass('text-success text-danger').addClass('text-muted');
 
         $.ajax({
             url: '<?= base_url('admin/database-backup/update-backup-time') ?>',
@@ -249,15 +272,21 @@ $(document).ready(function() {
             },
             dataType: 'json',
             success: function(response) {
+                updateCsrfToken(response);
                 if (response.success) {
                     toastr.success(response.message);
+                    statusMsg.html('Saved at ' + time).removeClass('text-muted text-danger').addClass('text-success');
+                    // Hide the status after 3 seconds
+                    setTimeout(() => statusDiv.fadeOut(), 3000);
                 } else {
                     toastr.error(response.message || 'Failed to update time');
+                    statusMsg.html('Failed to save').removeClass('text-muted text-success').addClass('text-danger');
                 }
             },
             error: function(xhr) {
                 const response = xhr.responseJSON;
                 toastr.error(response?.message || 'Error updating time');
+                statusMsg.html('Error saving').removeClass('text-muted text-success').addClass('text-danger');
             }
         });
     });
@@ -279,6 +308,7 @@ $(document).ready(function() {
             data: { [csrfName]: csrfHash },
             dataType: 'json',
             success: function(response) {
+                updateCsrfToken(response);
                 if (response.success) {
                     toastr.success(response.message);
                     $('[data-filename="' + filename + '"]').fadeOut(300, function() {
@@ -320,6 +350,7 @@ $(document).ready(function() {
             data: { [csrfName]: csrfHash },
             dataType: 'json',
             success: function(response) {
+                updateCsrfToken(response);
                 if (response.success) {
                     toastr.success(response.message);
                     $('#restore-confirm-modal').modal('hide');
@@ -344,5 +375,4 @@ $(document).ready(function() {
     });
 });
 </script>
-
 <?= $this->endSection() ?>

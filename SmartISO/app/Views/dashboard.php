@@ -38,8 +38,8 @@
                     </a>
                 </div>
                 
-                <?php elseif(session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
-                <!-- Approving Authority and Department Admin Quick Actions -->
+                <?php elseif(in_array(session()->get('user_type'), ['approving_authority', 'department_admin', 'superuser'])): ?>
+                <!-- Approving Authority, Department Admin, and Superuser Quick Actions -->
                 <div class="d-grid gap-2">
                     <a href="<?= base_url('forms/pending-approval') ?>" class="btn btn-outline-warning">
                         <i class="fas fa-clipboard-check me-2"></i> Forms Pending Approval
