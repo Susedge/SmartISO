@@ -38,8 +38,8 @@
                     </a>
                 </div>
                 
-                <?php elseif(session()->get('user_type') === 'approving_authority'): ?>
-                <!-- Approving Authority Quick Actions -->
+                <?php elseif(session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
+                <!-- Approving Authority and Department Admin Quick Actions -->
                 <div class="d-grid gap-2">
                     <a href="<?= base_url('forms/pending-approval') ?>" class="btn btn-outline-warning">
                         <i class="fas fa-clipboard-check me-2"></i> Forms Pending Approval
@@ -50,6 +50,14 @@
                     <a href="<?= base_url('forms/completed') ?>" class="btn btn-outline-success">
                         <i class="fas fa-check-circle me-2"></i> Completed Forms
                     </a>
+                    <?php if(session()->get('user_type') === 'department_admin'): ?>
+                    <a href="<?= base_url('forms/department-submissions') ?>" class="btn btn-outline-info">
+                        <i class="fas fa-folder-open me-2"></i> Department Submissions
+                    </a>
+                    <a href="<?= base_url('admin/dynamicforms') ?>" class="btn btn-outline-secondary">
+                        <i class="fas fa-file-alt me-2"></i> Forms Management
+                    </a>
+                    <?php endif; ?>
                 </div>
                 
                 <?php elseif(session()->get('user_type') === 'service_staff'): ?>
@@ -63,26 +71,6 @@
                     </a>
                     <a href="<?= base_url('forms/completed') ?>" class="btn btn-outline-success">
                         <i class="fas fa-check-circle me-2"></i> Completed Forms
-                    </a>
-                </div>
-                
-                <?php elseif(session()->get('user_type') === 'department_admin'): ?>
-                <!-- Department Admin Quick Actions -->
-                <div class="d-grid gap-2">
-                    <a href="<?= base_url('forms/department-submissions') ?>" class="btn btn-outline-primary">
-                        <i class="fas fa-folder-open me-2"></i> Department Submissions
-                    </a>
-                    <a href="<?= base_url('feedback') ?>" class="btn btn-outline-info">
-                        <i class="fas fa-comments me-2"></i> Department Feedback
-                    </a>
-                    <a href="<?= base_url('admin/dynamicforms') ?>" class="btn btn-outline-success">
-                        <i class="fas fa-file-alt me-2"></i> Forms Management
-                    </a>
-                    <a href="<?= base_url('admin/users') ?>" class="btn btn-outline-warning">
-                        <i class="fas fa-users me-2"></i> User Management
-                    </a>
-                    <a href="<?= base_url('analytics') ?>" class="btn btn-outline-dark">
-                        <i class="fas fa-chart-line me-2"></i> Analytics
                     </a>
                 </div>
                 
@@ -153,7 +141,7 @@
                             </div>
                         </div>
                     </div>
-                    <?php elseif(session()->get('user_type') === 'approving_authority'): ?>
+                    <?php elseif(session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
                     <div class="col-md-3">
                         <div class="card bg-warning text-white mb-3">
                             <div class="card-body text-center">
@@ -208,39 +196,6 @@
                             <div class="card-body text-center">
                                 <h5>Rejected</h5>
                                 <h2><?= $statusSummary['rejected'] ?? 0 ?></h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-info text-white mb-3">
-                            <div class="card-body text-center">
-                                <h5>Completed</h5>
-                                <h2><?= $statusSummary['completed'] ?? 0 ?></h2>
-                            </div>
-                        </div>
-                    </div>
-                    <?php elseif(session()->get('user_type') === 'department_admin'): ?>
-                    <div class="col-md-3">
-                        <div class="card bg-primary text-white mb-3">
-                            <div class="card-body text-center">
-                                <h5>Total Submissions</h5>
-                                <h2><?= $statusSummary['total'] ?? 0 ?></h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-warning text-white mb-3">
-                            <div class="card-body text-center">
-                                <h5>Pending</h5>
-                                <h2><?= $statusSummary['submitted'] ?? 0 ?></h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-success text-white mb-3">
-                            <div class="card-body text-center">
-                                <h5>Approved</h5>
-                                <h2><?= $statusSummary['approved'] ?? 0 ?></h2>
                             </div>
                         </div>
                     </div>

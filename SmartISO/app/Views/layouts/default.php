@@ -177,8 +177,8 @@
                             </a>
                         <?php endif; ?>
                         
-                        <!-- For approving authority -->
-                        <?php if(session()->get('user_type') === 'approving_authority'): ?>
+                        <!-- For approving authority and department admins -->
+                        <?php if(session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
                             <div class="sidebar-heading">APPROVALS</div>
 
                             <a class="nav-link d-flex align-items-center <?= uri_string() == 'forms/pending-approval' ? 'active' : '' ?>" href="<?= base_url('forms/pending-approval') ?>">

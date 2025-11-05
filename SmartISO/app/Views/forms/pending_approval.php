@@ -10,6 +10,7 @@
         <div class="row mb-4">
             <div class="col-md-6">
                 <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
+                    <?php if (!isset($isDepartmentAdmin) || !$isDepartmentAdmin): ?>
                     <div class="col-md-5">
                         <label for="department_filter" class="form-label">Filter by Department</label>
                         <select name="department" id="department_filter" class="form-select" <?= (isset($isDepartmentFiltered) && $isDepartmentFiltered) ? 'disabled' : '' ?>>
@@ -28,6 +29,7 @@
                             <small class="text-muted">Department restricted</small>
                         <?php endif; ?>
                     </div>
+                    <?php endif; ?>
                         <div class="col-md-3">
                             <label for="office_filter" class="form-label">Filter by Office</label>
                             <select name="office" id="office_filter" class="form-select">

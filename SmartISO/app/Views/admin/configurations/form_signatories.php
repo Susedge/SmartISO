@@ -68,13 +68,19 @@
             
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label for="user_id" class="form-label">Select Approving Authority</label>
+                    <label for="user_id" class="form-label">Select Approver</label>
                     <select name="user_id" id="user_id" class="form-select" required>
                         <option value="">-- Select User --</option>
                         <?php foreach ($availableApprovers as $approver): ?>
-                            <option value="<?= $approver['id'] ?>"><?= esc($approver['full_name']) ?> (<?= esc($approver['email']) ?>)</option>
+                            <option value="<?= $approver['id'] ?>">
+                                <?= esc($approver['full_name']) ?> (<?= esc($approver['email']) ?>)
+                                <?php if (isset($approver['user_type']) && $approver['user_type'] === 'department_admin'): ?>
+                                    - Dept Admin
+                                <?php endif; ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
+                    <small class="text-muted">Approving authorities and department admins can be assigned as approvers</small>
                 </div>
                 <div class="col-md-4">
                     <label for="order_position" class="form-label">Position Order</label>

@@ -13,7 +13,7 @@
                     <a href="<?= base_url('forms/my-submissions') ?>" class="btn btn-sm btn-secondary me-2" title="Back to My Submissions">
                         <i class="bi bi-arrow-left"></i>
                     </a>
-                <?php elseif (session()->get('user_type') === 'approving_authority'): ?>
+                <?php elseif (session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
                     <a href="<?= base_url('forms/pending-approval') ?>" class="btn btn-sm btn-secondary me-2" title="Back to Pending Approvals">
                         <i class="bi bi-arrow-left"></i>
                     </a>

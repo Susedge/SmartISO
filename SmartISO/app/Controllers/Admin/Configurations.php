@@ -51,7 +51,8 @@ class Configurations extends BaseController
         }
         
         $signatories = $this->formSignatoryModel->getFormSignatories($formId);
-        $availableApprovers = $this->userModel->where('user_type', 'approving_authority')
+        // Include both approving authorities and department admins as potential approvers
+        $availableApprovers = $this->userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
                                              ->where('active', 1)
                                              ->findAll();
         if ($this->request->isAJAX() || $this->request->getGet('ajax')) {
@@ -59,7 +60,14 @@ class Configurations extends BaseController
                 'success' => true,
                 'form' => [ 'id'=>$form['id'], 'code'=>$form['code'], 'description'=>$form['description'] ],
                 'signatories' => $signatories,
-                'availableApprovers' => array_map(function($u){ return [ 'id'=>$u['id'], 'full_name'=>$u['full_name'], 'email'=>$u['email'] ]; }, $availableApprovers)
+                'availableApprovers' => array_map(function($u){ 
+                    return [ 
+                        'id'=>$u['id'], 
+                        'full_name'=>$u['full_name'], 
+                        'email'=>$u['email'],
+                        'user_type'=>$u['user_type'] ?? ''
+                    ]; 
+                }, $availableApprovers)
             ]);
         }
         $data = [
@@ -145,9 +153,9 @@ class Configurations extends BaseController
         }
         
         $user = $this->userModel->find($userId);
-        if (!$user || $user['user_type'] !== 'approving_authority') {
+        if (!$user || !in_array($user['user_type'], ['approving_authority', 'department_admin'])) {
             return redirect()->to('/admin/users')
-                ->with('error', 'User not found or not an approving authority');
+                ->with('error', 'User not found or not an approver');
         }
         
         $data = [
@@ -209,6 +217,17 @@ class Configurations extends BaseController
         $configurations = ($tableType === 'system') ? $configQ->orderBy('config_key','ASC')->findAll() : [];
     // panels list for Panels tab
     $panels = (new \App\Models\DbpanelModel())->getPanels();
+    
+    // For department admins, filter panels by their scoped department
+    if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {
+        $scopedDeptId = session()->get('scoped_department_id');
+        $panels = array_filter($panels, function($p) use ($scopedDeptId) {
+            return !empty($p['department_id']) && (string)$p['department_id'] === (string)$scopedDeptId;
+        });
+        // Re-index array after filtering
+        $panels = array_values($panels);
+    }
+    
     // Always provide complete lists for assignment modals (independent of selected tab)
     $allOfficesList = $this->officeModel->orderBy('code','ASC')->findAll();
     $allFormsList = $this->formModel->orderBy('code','ASC')->findAll();

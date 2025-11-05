@@ -2111,15 +2111,27 @@ class FormBuilder {
         let opts=[];
         console.log('[OptionsManager] Opening for field:', field.id, 'field.options:', field.options, 'field.default_value:', field.default_value);
         if(field.options && Array.isArray(field.options)) {
-            opts=field.options.slice();
-            console.log('[OptionsManager] Using field.options:', opts);
+            // Deep copy to avoid modifying the original field's options
+            opts = field.options.map(o => {
+                if (typeof o === 'object' && o !== null) {
+                    return { ...o };
+                }
+                return o;
+            });
+            console.log('[OptionsManager] Using field.options (deep copied):', opts);
         }
         else if(field.default_value){ 
             try{ 
                 const parsed=JSON.parse(field.default_value); 
                 if(Array.isArray(parsed)) {
-                    opts=parsed;
-                    console.log('[OptionsManager] Parsed from default_value:', opts);
+                    // Deep copy parsed options
+                    opts = parsed.map(o => {
+                        if (typeof o === 'object' && o !== null) {
+                            return { ...o };
+                        }
+                        return o;
+                    });
+                    console.log('[OptionsManager] Parsed from default_value (deep copied):', opts);
                 }
             }catch(e){ 
                 opts=String(field.default_value).split('\n').map(o=>o.trim()).filter(o=>o.length>0);
@@ -2319,33 +2331,45 @@ class FormBuilder {
             // CRITICAL FIX: Preserve options array for checkbox/dropdown fields
             // The options are already decoded from JSON by the PHP controller
             const fieldType = field.type || field.field_type;
-            let options = field.options || [];
+            let options = [];
             
-            console.log(`[FormBuilder] Field "${cleanLabel}" (type: ${fieldType}):`, {
-                hasOptions: !!field.options,
-                optionsLength: (field.options || []).length,
-                optionsValue: field.options,
-                defaultValue: field.default_value
-            });
-            
-            // If options doesn't exist but this is a field type that needs options, check if they exist elsewhere
-            if (!options || options.length === 0) {
-                if (['dropdown', 'radio', 'checkbox', 'checkboxes'].includes(fieldType)) {
-                    // Options might be in default_value if not already decoded
-                    if (field.default_value && typeof field.default_value === 'string') {
-                        try {
-                            const parsed = JSON.parse(field.default_value);
-                            if (Array.isArray(parsed)) {
-                                options = parsed;
-                                console.log(`[FormBuilder] Parsed options from default_value for "${cleanLabel}":`, options);
-                            }
-                        } catch (e) {
-                            // Not JSON, ignore
-                            console.warn(`[FormBuilder] Could not parse default_value as JSON for "${cleanLabel}":`, e);
+            // IMPORTANT: Always create a NEW array to avoid reference sharing between fields!
+            if (field.options && Array.isArray(field.options) && field.options.length > 0) {
+                // Deep copy the options array to prevent reference sharing
+                options = field.options.map(opt => {
+                    if (typeof opt === 'object' && opt !== null) {
+                        return { ...opt }; // Clone object
+                    }
+                    return opt; // Primitive value
+                });
+            } else if (['dropdown', 'radio', 'checkbox', 'checkboxes'].includes(fieldType)) {
+                // If options doesn't exist but this is a field type that needs options, check default_value
+                if (field.default_value && typeof field.default_value === 'string') {
+                    try {
+                        const parsed = JSON.parse(field.default_value);
+                        if (Array.isArray(parsed)) {
+                            // Deep copy parsed options
+                            options = parsed.map(opt => {
+                                if (typeof opt === 'object' && opt !== null) {
+                                    return { ...opt };
+                                }
+                                return opt;
+                            });
+                            console.log(`[FormBuilder] Parsed options from default_value for "${cleanLabel}":`, options);
                         }
+                    } catch (e) {
+                        // Not JSON, ignore
+                        console.warn(`[FormBuilder] Could not parse default_value as JSON for "${cleanLabel}":`, e);
                     }
                 }
             }
+            
+            console.log(`[FormBuilder] Field "${cleanLabel}" (type: ${fieldType}):`, {
+                hasOptions: options.length > 0,
+                optionsLength: options.length,
+                optionsValue: options,
+                defaultValue: field.default_value
+            });
             
             return { 
                 ...field, 
@@ -2356,7 +2380,7 @@ class FormBuilder {
                 field_label: cleanLabel, 
                 name: cleanName, 
                 field_name: cleanName,
-                options: options // Preserve the options!
+                options: options // Assign the cloned options array!
             };
         });
         const seenIds = new Set(); const seenNames = new Set();
