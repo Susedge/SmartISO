@@ -120,33 +120,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = document.getElementById('filterStatus');
     const form = document.getElementById('filtersForm');
 
-    function filterOffices() {
-        const dept = deptSel.value;
-        Array.from(officeSel.options).forEach(opt => {
-            if (opt.value === '') { opt.hidden = false; return; }
-            const oDept = opt.getAttribute('data-dept') || '';
-            const show = !dept || dept === oDept;
-            opt.hidden = !show;
+    // Only run department filtering logic if department select exists
+    if (deptSel && officeSel) {
+        function filterOffices() {
+            const dept = deptSel.value;
+            Array.from(officeSel.options).forEach(opt => {
+                if (opt.value === '') { opt.hidden = false; return; }
+                const oDept = opt.getAttribute('data-dept') || '';
+                const show = !dept || dept === oDept;
+                opt.hidden = !show;
+            });
+            const current = officeSel.options[officeSel.selectedIndex];
+            if (current && current.hidden) officeSel.value='';
+        }
+
+        function toggleReset(){ 
+            if (resetBtn) {
+                (deptSel.value||officeSel.value) ? resetBtn.classList.remove('d-none') : resetBtn.classList.add('d-none'); 
+            }
+        }
+
+        deptSel.addEventListener('change', ()=>{ 
+            filterOffices(); 
+            toggleReset(); 
+            // Auto-submit on change
+            form.submit();
         });
-        const current = officeSel.options[officeSel.selectedIndex];
-        if (current && current.hidden) officeSel.value='';
-    }
-
-        function toggleReset(){ (deptSel.value||officeSel.value)?resetBtn.classList.remove('d-none'):resetBtn.classList.add('d-none'); }
-
-            deptSel.addEventListener('change', ()=>{ 
+        
+        officeSel.addEventListener('change', ()=>{ 
+            toggleReset(); 
+            // Auto-submit on change
+            form.submit();
+        });
+        
+        if (resetBtn) {
+            resetBtn.addEventListener('click', ()=>{ 
+                deptSel.value=''; 
+                officeSel.value=''; 
                 filterOffices(); 
                 toggleReset(); 
-                // Auto-submit on change
-                form.submit();
+                form.submit(); 
             });
-            officeSel.addEventListener('change', ()=>{ 
+        }
+        
+        filterOffices(); 
+        toggleReset();
+    } else if (officeSel) {
+        // Only office filter exists (for non-admin users)
+        function toggleReset(){ 
+            if (resetBtn) {
+                officeSel.value ? resetBtn.classList.remove('d-none') : resetBtn.classList.add('d-none'); 
+            }
+        }
+        
+        officeSel.addEventListener('change', ()=>{ 
+            toggleReset(); 
+            form.submit();
+        });
+        
+        if (resetBtn) {
+            resetBtn.addEventListener('click', ()=>{ 
+                officeSel.value=''; 
                 toggleReset(); 
-                // Auto-submit on change
-                form.submit();
+                form.submit(); 
             });
-            resetBtn.addEventListener('click', ()=>{ deptSel.value=''; officeSel.value=''; filterOffices(); toggleReset(); form.submit(); });
-            filterOffices(); toggleReset();
+        }
+        
+        toggleReset();
+    }
 });
 </script>
 
@@ -206,8 +247,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const officeSel = document.getElementById('officeSelect');
 
     function applyFilters() {
-        const deptVal = deptSel.value || '';
-        const officeVal = officeSel.value || '';
+        const deptVal = deptSel ? (deptSel.value || '') : '';
+        const officeVal = officeSel ? (officeSel.value || '') : '';
         // dept_id is column index 4 (hidden), office_id is index 5
         if (deptVal) {
             dt.column(4).search('^' + deptVal + '$', true, false).draw();
@@ -225,20 +266,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (meta) { meta.textContent = (info.recordsDisplay || 0) + ' form' + ((info.recordsDisplay||0)===1?'':'s') + ' found'; }
     }
 
-    deptSel.addEventListener('change', () => {
-        // filter offices shown to user
-        const d = deptSel.value;
-        Array.from(officeSel.options).forEach(opt => {
-            if (!opt.value) { opt.hidden = false; return; }
-            const oDept = opt.getAttribute('data-dept') || '';
-            opt.hidden = d && (d !== oDept);
+    if (deptSel) {
+        deptSel.addEventListener('change', () => {
+            // filter offices shown to user
+            const d = deptSel.value;
+            if (officeSel) {
+                Array.from(officeSel.options).forEach(opt => {
+                    if (!opt.value) { opt.hidden = false; return; }
+                    const oDept = opt.getAttribute('data-dept') || '';
+                    opt.hidden = d && (d !== oDept);
+                });
+                // clear office if currently hidden
+                const cur = officeSel.options[officeSel.selectedIndex];
+                if (cur && cur.hidden) officeSel.value = '';
+            }
+            applyFilters();
         });
-        // clear office if currently hidden
-        const cur = officeSel.options[officeSel.selectedIndex];
-        if (cur && cur.hidden) officeSel.value = '';
-        applyFilters();
-    });
-    officeSel.addEventListener('change', applyFilters);
+    }
+    
+    if (officeSel) {
+        officeSel.addEventListener('change', applyFilters);
+    }
 
     // Apply initial filters using server-provided selected values
     applyFilters();

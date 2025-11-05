@@ -124,10 +124,16 @@
 
                     <hr>
 
-                    <div class="alert alert-info mb-0">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Retention Policy:</strong><br>
-                        The system automatically keeps the last 14 backup files and deletes older ones.
+                    <!-- Auto Backup Status -->
+                    <div id="auto-backup-status-container">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Auto Backup Status</strong>
+                        </div>
+                        <div id="auto-backup-status-content">
+                            <div class="text-center text-muted py-2 small">
+                                <i class="fas fa-spinner fa-spin"></i> Checking...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -372,6 +378,195 @@ $(document).ready(function() {
     // Refresh list
     $('#btn-refresh-list').on('click', function() {
         location.reload();
+    });
+
+    // Auto backup checker - runs periodically while admin is logged in
+    let autoBackupCheckInterval = null;
+    
+    function checkAndBackup() {
+        // Only check if auto backup is enabled
+        if (!$('#auto-backup-toggle').is(':checked')) {
+            displayAutoBackupStatus({
+                enabled: false,
+                message: 'Auto backup is disabled'
+            });
+            return;
+        }
+        
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/check-and-backup') ?>',
+            type: 'POST',
+            data: { [csrfName]: csrfHash },
+            dataType: 'json',
+            success: function(response) {
+                updateCsrfToken(response);
+                
+                if (response.backupCreated) {
+                    // Backup was created
+                    toastr.success(response.message);
+                    displayAutoBackupStatus({
+                        enabled: true,
+                        backupCreated: true,
+                        message: response.message,
+                        reason: response.reason,
+                        filename: response.filename
+                    });
+                    
+                    // Reload the backup list after a short delay
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    // No backup needed
+                    displayAutoBackupStatus({
+                        enabled: true,
+                        backupCreated: false,
+                        message: response.message,
+                        lastBackup: response.lastBackup,
+                        nextCheck: response.nextCheck
+                    });
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                displayAutoBackupStatus({
+                    enabled: true,
+                    error: true,
+                    message: response?.message || 'Failed to check backup status'
+                });
+            }
+        });
+    }
+    
+    function displayAutoBackupStatus(data) {
+        const container = $('#auto-backup-status-content');
+        let html = '';
+        
+        if (!data.enabled) {
+            html = '<div class="alert alert-secondary mb-0 small">';
+            html += '<i class="fas fa-info-circle me-1"></i> ';
+            html += data.message || 'Auto backup is disabled';
+            html += '</div>';
+        } else if (data.error) {
+            html = '<div class="alert alert-danger mb-0 small">';
+            html += '<i class="fas fa-exclamation-triangle me-1"></i> ';
+            html += data.message;
+            html += '</div>';
+        } else if (data.backupCreated) {
+            html = '<div class="alert alert-success mb-0 small">';
+            html += '<i class="fas fa-check-circle me-1"></i> ';
+            html += '<strong>' + data.message + '</strong><br>';
+            html += '<small>' + data.reason + '</small>';
+            html += '</div>';
+        } else {
+            html = '<div class="alert alert-info mb-0 small">';
+            html += '<i class="fas fa-clock me-1"></i> ';
+            html += '<div class="mb-1"><strong>Status:</strong> ' + data.message + '</div>';
+            if (data.lastBackup) {
+                html += '<div><strong>Last Backup:</strong><br>' + data.lastBackup + '</div>';
+            }
+            html += '</div>';
+        }
+        
+        container.html(html);
+    }
+    
+    function startAutoBackupChecker() {
+        // Check immediately on load
+        checkAndBackup();
+        
+        // Then check every 5 minutes (300000 ms)
+        autoBackupCheckInterval = setInterval(checkAndBackup, 300000);
+    }
+    
+    function stopAutoBackupChecker() {
+        if (autoBackupCheckInterval) {
+            clearInterval(autoBackupCheckInterval);
+            autoBackupCheckInterval = null;
+        }
+    }
+
+    // Start the auto backup checker
+    startAutoBackupChecker();
+
+    // Update backup time - update status display
+    $('#backup-time').off('change').on('change', function() {
+        const time = $(this).val();
+        const statusDiv = $('#time-save-status');
+        const statusMsg = $('#time-save-msg');
+
+        statusDiv.show();
+        statusMsg.html('Saving...').removeClass('text-success text-danger').addClass('text-muted');
+
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/update-backup-time') ?>',
+            type: 'POST',
+            data: { 
+                [csrfName]: csrfHash,
+                time: time 
+            },
+            dataType: 'json',
+            success: function(response) {
+                updateCsrfToken(response);
+                if (response.success) {
+                    toastr.success(response.message);
+                    statusMsg.html('Saved at ' + time).removeClass('text-muted text-danger').addClass('text-success');
+                    setTimeout(() => statusDiv.fadeOut(), 3000);
+                } else {
+                    toastr.error(response.message || 'Failed to update time');
+                    statusMsg.html('Failed to save').removeClass('text-muted text-success').addClass('text-danger');
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                toastr.error(response?.message || 'Error updating time');
+                statusMsg.html('Error saving').removeClass('text-muted text-success').addClass('text-danger');
+            }
+        });
+    });
+
+    // Toggle auto backup - restart checker when enabled
+    $('#auto-backup-toggle').off('change').on('change', function() {
+        const enabled = $(this).is(':checked');
+        const timeInput = $('#backup-time');
+
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/toggle-auto-backup') ?>',
+            type: 'POST',
+            data: { 
+                [csrfName]: csrfHash,
+                enabled: enabled 
+            },
+            dataType: 'json',
+            success: function(response) {
+                updateCsrfToken(response);
+                if (response.success) {
+                    toastr.success(response.message);
+                    timeInput.prop('disabled', !enabled);
+                    
+                    // Restart checker if enabled, stop if disabled
+                    if (enabled) {
+                        checkAndBackup(); // Check immediately
+                    } else {
+                        displayAutoBackupStatus({
+                            enabled: false,
+                            message: 'Auto backup is disabled'
+                        });
+                    }
+                } else {
+                    toastr.error(response.message || 'Failed to update setting');
+                    $('#auto-backup-toggle').prop('checked', !enabled);
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                toastr.error(response?.message || 'Error updating setting');
+                $('#auto-backup-toggle').prop('checked', !enabled);
+            }
+        });
+    });
+
+    // Stop checker when page is about to unload
+    $(window).on('beforeunload', function() {
+        stopAutoBackupChecker();
     });
 });
 </script>

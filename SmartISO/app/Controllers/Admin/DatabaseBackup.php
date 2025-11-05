@@ -194,6 +194,14 @@ class DatabaseBackup extends BaseController
 
         fclose($fp);
 
+        // Update last backup timestamp
+        $this->configurationModel->setConfig(
+            'last_backup_time',
+            date('Y-m-d H:i:s'),
+            'Timestamp of the last successful backup',
+            'string'
+        );
+
         // Rotate backups - keep last 14 files
         $files = glob($backupDir . 'db_backup_*.sql');
         usort($files, function($a, $b) {
@@ -560,6 +568,114 @@ class DatabaseBackup extends BaseController
             return $this->response->setStatusCode(500)->setJSON([
                 'success' => false,
                 'message' => 'Failed to update time: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Check if backup is due and create one if needed
+     * This is called periodically by JavaScript while admin is logged in
+     */
+    public function checkAndBackup()
+    {
+        // Only allow admins and superusers
+        $userType = session()->get('user_type');
+        if (!in_array($userType, ['admin', 'superuser'])) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false,
+                'message' => 'Unauthorized access'
+            ]);
+        }
+
+        if (!$this->request->isAJAX()) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false,
+                'message' => 'Invalid request'
+            ]);
+        }
+
+        // Check if auto backup is enabled
+        $autoBackupEnabled = (bool)$this->configurationModel->getConfig('auto_backup_enabled', false);
+        
+        if (!$autoBackupEnabled) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Auto backup is disabled',
+                'backupCreated' => false,
+                'csrfHash' => csrf_hash()
+            ]);
+        }
+
+        // Get configured backup time (HH:MM format)
+        $backupTime = $this->configurationModel->getConfig('backup_time', '02:00');
+        
+        // Get last backup timestamp
+        $lastBackupTime = $this->configurationModel->getConfig('last_backup_time', null);
+        
+        // Check if we should create a backup
+        $shouldBackup = false;
+        $reason = '';
+        
+        if ($lastBackupTime === null) {
+            // No backup has been created yet
+            $shouldBackup = true;
+            $reason = 'No previous backup found';
+        } else {
+            // Parse last backup time
+            $lastBackup = strtotime($lastBackupTime);
+            $now = time();
+            
+            // Get today's scheduled backup time
+            list($hour, $minute) = explode(':', $backupTime);
+            $todayScheduled = strtotime(date('Y-m-d') . " $hour:$minute:00");
+            $yesterdayScheduled = strtotime(date('Y-m-d', strtotime('-1 day')) . " $hour:$minute:00");
+            
+            // Check if:
+            // 1. We're past today's scheduled time AND last backup was before today's scheduled time
+            // OR
+            // 2. Last backup was more than 24 hours ago
+            if ($now >= $todayScheduled && $lastBackup < $todayScheduled) {
+                $shouldBackup = true;
+                $reason = "Scheduled backup time ($backupTime) has passed";
+            } elseif (($now - $lastBackup) >= 86400) { // 24 hours
+                $shouldBackup = true;
+                $reason = 'More than 24 hours since last backup';
+            }
+        }
+
+        if (!$shouldBackup) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Backup not needed yet',
+                'backupCreated' => false,
+                'lastBackup' => $lastBackupTime,
+                'nextCheck' => date('Y-m-d H:i:s', strtotime('+5 minutes')),
+                'csrfHash' => csrf_hash()
+            ]);
+        }
+
+        // Create backup
+        try {
+            $result = $this->performBackup();
+            
+            log_message('info', "Auto backup created: {$result['filename']} - Reason: $reason");
+            
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => "Backup created: {$result['filename']}",
+                'backupCreated' => true,
+                'filename' => $result['filename'],
+                'reason' => $reason,
+                'csrfHash' => csrf_hash()
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'Auto backup failed: ' . $e->getMessage());
+            
+            return $this->response->setStatusCode(500)->setJSON([
+                'success' => false,
+                'message' => 'Backup failed: ' . $e->getMessage(),
+                'backupCreated' => false,
+                'csrfHash' => csrf_hash()
             ]);
         }
     }

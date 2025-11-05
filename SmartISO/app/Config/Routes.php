@@ -262,6 +262,7 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->post('database-backup/restore/(:segment)', 'Admin\DatabaseBackup::restore/$1');
     $routes->post('database-backup/toggle-auto-backup', 'Admin\DatabaseBackup::toggleAutoBackup');
     $routes->post('database-backup/update-backup-time', 'Admin\DatabaseBackup::updateBackupTime');
+    $routes->post('database-backup/check-and-backup', 'Admin\DatabaseBackup::checkAndBackup');
     
     // Office management routes (replaces departments)
     $routes->get('office', 'Admin\Office::index');

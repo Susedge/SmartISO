@@ -72,7 +72,8 @@ SmartISO is a comprehensive service request management and approval workflow sys
 ## 📋 Complete System Documentation
 
 For detailed workflow processes, technical architecture, and API documentation, see:
-**[SYSTEM_WORKFLOW.md](SYSTEM_WORKFLOW.md)**
+- **[SYSTEM_WORKFLOW.md](SYSTEM_WORKFLOW.md)** - Complete workflow processes and system architecture
+- **[AUTO_BACKUP_SYSTEM.md](AUTO_BACKUP_SYSTEM.md)** - Automatic database backup system (client-side)
 
 ## Quick Start
 
