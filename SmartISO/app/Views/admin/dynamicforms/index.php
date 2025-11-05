@@ -40,6 +40,7 @@
                     <?php endforeach; ?>
                 </select>
             </div>
+            <?php if (!session()->get('is_department_admin')): ?>
             <div class="col-md-2 col-sm-6">
                 <label class="form-label small mb-1">Department</label>
                 <select name="department" id="filterDepartment" class="form-select form-select-sm">
@@ -49,6 +50,7 @@
                     <?php endforeach; ?>
                 </select>
             </div>
+            <?php endif; ?>
             <div class="col-md-2 col-sm-6">
                 <label class="form-label small mb-1">Office</label>
                 <select name="office" id="filterOffice" class="form-select form-select-sm">

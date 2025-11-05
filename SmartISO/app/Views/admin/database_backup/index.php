@@ -1,0 +1,348 @@
+<?= $this->extend('layouts/default') ?>
+<?= $this->section('content') ?>
+
+<style>
+.backup-layout{display:flex;gap:1.5rem;align-items:flex-start;}
+.backup-table-wrap{flex:1 1 auto;min-width:0;}
+.backup-settings-panel{width:320px;position:sticky;top:12px;align-self:flex-start;}
+@media (max-width:992px){.backup-layout{flex-direction:column;}.backup-settings-panel{width:100%;position:static;}}
+.backup-card{border:1px solid #dee2e6;border-radius:8px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.backup-card-header{background:#f8f9fa;border-bottom:1px solid #dee2e6;padding:1rem 1.25rem;border-radius:8px 8px 0 0;}
+.backup-card-body{padding:1.25rem;}
+.backup-switch{display:flex;align-items:center;justify-content:space-between;padding:0.75rem 0;}
+.backup-time-input{margin-top:0.75rem;}
+.backup-actions{display:flex;gap:0.5rem;justify-content:flex-start;flex-wrap:wrap;}
+.backup-file-item{padding:0.75rem;border:1px solid #e9ecef;border-radius:6px;margin-bottom:0.75rem;transition:all 0.2s;}
+.backup-file-item:hover{background:#f8f9fa;border-color:#0d6efd;}
+.backup-file-name{font-weight:600;color:#212529;margin-bottom:0.25rem;}
+.backup-file-meta{font-size:0.875rem;color:#6c757d;}
+.backup-file-actions{margin-top:0.5rem;display:flex;gap:0.5rem;}
+</style>
+
+<div class="card p-3">
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <h4 class="mb-0"><i class="fas fa-database me-2"></i><?= esc($title) ?></h4>
+        <button type="button" class="btn btn-primary" id="btn-create-backup">
+            <i class="fas fa-plus me-1"></i>Create Backup Now
+        </button>
+    </div>
+
+    <div class="backup-layout">
+        <!-- Backup List -->
+        <div class="backup-table-wrap">
+            <div class="backup-card">
+                <div class="backup-card-header">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Backup Files</h5>
+                </div>
+                <div class="backup-card-body">
+                    <?php if (empty($backups)): ?>
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle me-2"></i>No backup files found. Create your first backup to get started.
+                        </div>
+                    <?php else: ?>
+                        <div id="backup-files-list">
+                            <?php foreach ($backups as $backup): ?>
+                                <div class="backup-file-item" data-filename="<?= esc($backup['filename']) ?>">
+                                    <div class="backup-file-name">
+                                        <i class="fas fa-file-archive text-primary me-2"></i>
+                                        <?= esc($backup['filename']) ?>
+                                    </div>
+                                    <div class="backup-file-meta">
+                                        <span class="me-3">
+                                            <i class="fas fa-clock me-1"></i><?= esc($backup['date']) ?>
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-hdd me-1"></i><?= number_format($backup['size'] / 1024 / 1024, 2) ?> MB
+                                        </span>
+                                    </div>
+                                    <div class="backup-file-actions">
+                                        <a href="<?= base_url('admin/database-backup/download/' . urlencode($backup['filename'])) ?>" 
+                                           class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-download me-1"></i>Download
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-success btn-restore-backup" 
+                                                data-filename="<?= esc($backup['filename']) ?>">
+                                            <i class="fas fa-undo me-1"></i>Restore
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-danger btn-delete-backup" 
+                                                data-filename="<?= esc($backup['filename']) ?>">
+                                            <i class="fas fa-trash me-1"></i>Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="backup-settings-panel">
+            <div class="backup-card">
+                <div class="backup-card-header">
+                    <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Backup Settings</h5>
+                </div>
+                <div class="backup-card-body">
+                    <!-- Auto Backup Toggle -->
+                    <div class="backup-switch">
+                        <div>
+                            <strong>Automatic Backup</strong>
+                            <div class="text-muted small">Schedule daily backups</div>
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" 
+                                   type="checkbox" 
+                                   role="switch" 
+                                   id="auto-backup-toggle"
+                                   <?= $autoBackupEnabled ? 'checked' : '' ?>
+                                   style="width:3rem;height:1.5rem;">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Backup Time -->
+                    <div class="backup-time-input">
+                        <label for="backup-time" class="form-label">
+                            <strong>Backup Time</strong>
+                        </label>
+                        <input type="time" 
+                               class="form-control" 
+                               id="backup-time" 
+                               value="<?= esc($backupTime) ?>"
+                               <?= !$autoBackupEnabled ? 'disabled' : '' ?>>
+                        <div class="form-text">Daily backup will run at this time (24-hour format)</div>
+                    </div>
+
+                    <hr>
+
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Retention Policy:</strong><br>
+                        The system automatically keeps the last 14 backup files and deletes older ones.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="backup-card mt-3">
+                <div class="backup-card-header">
+                    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="backup-card-body">
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary" id="btn-refresh-list">
+                            <i class="fas fa-sync me-1"></i>Refresh List
+                        </button>
+                        <a href="<?= base_url('admin/configurations?type=system') ?>" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back to Settings
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Confirmation Modal -->
+<div class="modal fade" id="restore-confirm-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Confirm Restoration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Warning:</strong> This will replace the current database with the backup file.
+                    A safety backup will be created automatically before restoration.
+                </div>
+                <p>Are you sure you want to restore from <strong id="restore-filename"></strong>?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="confirm-restore-btn">
+                    <i class="fas fa-undo me-1"></i>Restore Database
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    const csrfName = '<?= csrf_token() ?>';
+    const csrfHash = '<?= csrf_hash() ?>';
+
+    // Create backup
+    $('#btn-create-backup').on('click', function() {
+        const btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Creating...');
+
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/create') ?>',
+            type: 'POST',
+            data: { [csrfName]: csrfHash },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    toastr.success(response.message);
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    toastr.error(response.message || 'Failed to create backup');
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                toastr.error(response?.message || 'Error creating backup');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-plus me-1"></i>Create Backup Now');
+            }
+        });
+    });
+
+    // Toggle auto backup
+    $('#auto-backup-toggle').on('change', function() {
+        const enabled = $(this).is(':checked');
+        const timeInput = $('#backup-time');
+
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/toggle-auto-backup') ?>',
+            type: 'POST',
+            data: { 
+                [csrfName]: csrfHash,
+                enabled: enabled 
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    toastr.success(response.message);
+                    timeInput.prop('disabled', !enabled);
+                } else {
+                    toastr.error(response.message || 'Failed to update setting');
+                    $('#auto-backup-toggle').prop('checked', !enabled);
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                toastr.error(response?.message || 'Error updating setting');
+                $('#auto-backup-toggle').prop('checked', !enabled);
+            }
+        });
+    });
+
+    // Update backup time
+    $('#backup-time').on('change', function() {
+        const time = $(this).val();
+
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/update-backup-time') ?>',
+            type: 'POST',
+            data: { 
+                [csrfName]: csrfHash,
+                time: time 
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    toastr.success(response.message);
+                } else {
+                    toastr.error(response.message || 'Failed to update time');
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                toastr.error(response?.message || 'Error updating time');
+            }
+        });
+    });
+
+    // Delete backup
+    $(document).on('click', '.btn-delete-backup', function() {
+        const filename = $(this).data('filename');
+        
+        if (!confirm('Are you sure you want to delete this backup file?')) {
+            return;
+        }
+
+        const btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Deleting...');
+
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/delete/') ?>' + encodeURIComponent(filename),
+            type: 'POST',
+            data: { [csrfName]: csrfHash },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    toastr.success(response.message);
+                    $('[data-filename="' + filename + '"]').fadeOut(300, function() {
+                        $(this).remove();
+                        if ($('.backup-file-item').length === 0) {
+                            location.reload();
+                        }
+                    });
+                } else {
+                    toastr.error(response.message || 'Failed to delete backup');
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                toastr.error(response?.message || 'Error deleting backup');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-trash me-1"></i>Delete');
+            }
+        });
+    });
+
+    // Restore backup - show modal
+    let restoreFilename = '';
+    $(document).on('click', '.btn-restore-backup', function() {
+        restoreFilename = $(this).data('filename');
+        $('#restore-filename').text(restoreFilename);
+        $('#restore-confirm-modal').modal('show');
+    });
+
+    // Confirm restore
+    $('#confirm-restore-btn').on('click', function() {
+        const btn = $(this);
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i>Restoring...');
+
+        $.ajax({
+            url: '<?= base_url('admin/database-backup/restore/') ?>' + encodeURIComponent(restoreFilename),
+            type: 'POST',
+            data: { [csrfName]: csrfHash },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    toastr.success(response.message);
+                    $('#restore-confirm-modal').modal('hide');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    toastr.error(response.message || 'Failed to restore backup');
+                }
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                toastr.error(response?.message || 'Error restoring backup');
+            },
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="fas fa-undo me-1"></i>Restore Database');
+            }
+        });
+    });
+
+    // Refresh list
+    $('#btn-refresh-list').on('click', function() {
+        location.reload();
+    });
+});
+</script>
+
+<?= $this->endSection() ?>

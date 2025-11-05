@@ -28,10 +28,24 @@
                             <small class="text-muted">Department restricted</small>
                         <?php endif; ?>
                     </div>
-                    <div class="col-md-5">
-                        <label for="priority_filter" class="form-label">Filter by Priority</label>
-                        <select name="priority" id="priority_filter" class="form-select">
-                            <option value="">All Priorities</option>
+                        <div class="col-md-3">
+                            <label for="office_filter" class="form-label">Filter by Office</label>
+                            <select name="office" id="office_filter" class="form-select">
+                                <option value="">All Offices</option>
+                                <?php if (isset($offices) && is_array($offices)): ?>
+                                    <?php foreach ($offices as $office): ?>
+                                        <option value="<?= esc($office['id']) ?>" <?= (isset($selectedOffice) && (string)$selectedOffice === (string)$office['id']) ? 'selected' : '' ?>>
+                                            <?= esc($office['description']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="priority_filter" class="form-label">Filter by Priority</label>
+                            <select name="priority" id="priority_filter" class="form-select">
+                                <option value="">All Priorities</option>
                             <?php 
                             $safePriorities = $priorities ?? [
                                 'low' => 'Low',
@@ -62,6 +76,7 @@
                                                     onsubmit="return confirm('Are you sure you want to approve all filtered forms? This action cannot be undone.')">
                                                 <?= csrf_field() ?>
                                                 <input type="hidden" name="department_filter" value="<?= esc($selectedDepartment ?? '') ?>">
+                                                <input type="hidden" name="office_filter" value="<?= esc($selectedOffice ?? '') ?>">
                                                 <input type="hidden" name="priority_filter" value="<?= esc($selectedPriority) ?>">
                         <button type="submit" class="btn btn-success">
                             <i class="fas fa-check-double me-1"></i> Approve All Filtered

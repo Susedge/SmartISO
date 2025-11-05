@@ -201,6 +201,7 @@
     window.panelName = '<?= $panel_name ?>';
     // Legacy modal relocation removed – now using SimpleModal only.
     window.panelFields = <?= json_encode($panel_fields) ?>;
+    console.log('[FormBuilder View] panel_fields passed to JavaScript:', window.panelFields);
     window.baseUrl = '<?= base_url() ?>';
 </script>
 

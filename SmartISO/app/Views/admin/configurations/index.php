@@ -188,6 +188,20 @@
                                         <a href="#" id="btnBackupDatabase" data-url="<?= base_url('admin/configurations/backup-database') ?>" class="btn btn-success">
                                                 <i class="fas fa-database me-2"></i>Download Database Backup
                                         </a>
+                                                                                <?php
+                                                                                        // Determine current auto backup state from configurations array
+                                                                                        $autoBackupConfig = null;
+                                                                                        if (!empty($configurations) && is_array($configurations)) {
+                                                                                                foreach ($configurations as $c) {
+                                                                                                        if ($c['config_key'] === 'auto_backup_enabled') { $autoBackupConfig = $c; break; }
+                                                                                                }
+                                                                                        }
+                                                                                        $autoEnabled = ($autoBackupConfig && ($autoBackupConfig['config_type']==='boolean') && ($autoBackupConfig['config_value'] == '1' || $autoBackupConfig['config_value'] === 1 || $autoBackupConfig['config_value'] === true));
+                                                                                ?>
+                                                                                <button id="btnToggleAutoBackup" class="btn <?= $autoEnabled? 'btn-outline-danger' : 'btn-outline-primary' ?> mt-2" data-enabled="<?= $autoEnabled?1:0 ?>">
+                                                                                        <i class="fas fa-clock me-2"></i>
+                                                                                        <?= $autoEnabled? 'Disable Automatic Backups' : 'Enable Automatic Backups' ?>
+                                                                                </button>
                                 <?php else: ?>
                                         <a href="<?= base_url('admin/configurations/new?type='.$tableType) ?>" id="btnAdd" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add <?= ucfirst(rtrim($tableType,'s')) ?></a>
                                 <?php endif; ?>
@@ -280,4 +294,41 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 <script src="<?= base_url('assets/js/admin-configurations.js') ?>"></script>
+<script>
+// Auto backup toggle handler
+document.addEventListener('DOMContentLoaded', function(){
+        var btn = document.getElementById('btnToggleAutoBackup');
+        if (!btn) return;
+        btn.addEventListener('click', function(e){
+                e.preventDefault();
+                var enabled = btn.getAttribute('data-enabled') === '1';
+                var confirmMsg = enabled ? 'Disable automatic database backups? Scheduled tasks will not run.' : 'Enable automatic database backups? A scheduled task must be configured separately.';
+                window.SimpleModal.confirm(confirmMsg, (enabled? 'Disable' : 'Enable') + ' Automatic Backups', enabled? 'warning' : 'info').then(function(ok){
+                        if (!ok) return;
+                        // Post AJAX to toggle endpoint
+                        var form = new FormData();
+                        // send explicit value (toggle to opposite)
+                        form.append('value', enabled ? '0' : '1');
+                        form.append('<?= csrf_token() ?>', '<?= csrf_hash() ?>');
+                        fetch('<?= base_url('admin/configurations/toggle-auto-backup') ?>', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                body: form
+                        }).then(function(r){ return r.json(); }).then(function(json){
+                                if (json && json.success) {
+                                        var newVal = json.value == 1 || json.value === true || json.value === '1';
+                                        btn.setAttribute('data-enabled', newVal ? '1' : '0');
+                                        btn.classList.toggle('btn-outline-danger', newVal);
+                                        btn.classList.toggle('btn-outline-primary', !newVal);
+                                        btn.innerHTML = '<i class="fas fa-clock me-2"></i>' + (newVal? 'Disable Automatic Backups' : 'Enable Automatic Backups');
+                                        window.SimpleModal.alert('Automatic backups ' + (newVal? 'enabled' : 'disabled') + '.', 'Automatic Backups');
+                                } else {
+                                        window.SimpleModal.alert('Failed to update setting: ' + (json && json.message ? json.message : 'Unknown error'), 'Error');
+                                }
+                        }).catch(function(err){ console.error(err); window.SimpleModal.alert('Error communicating with server'); });
+                });
+        });
+});
+</script>
 <?php $this->endSection() ?>

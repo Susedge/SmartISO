@@ -251,6 +251,17 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->get('configurations/get-offices', 'Admin\Configurations::getOffices');
     // Database backup (download SQL dump)
     $routes->get('configurations/backup-database', 'Admin\Configurations::exportDatabase');
+    // Toggle automatic backup (AJAX)
+    $routes->post('configurations/toggle-auto-backup', 'Admin\Configurations::toggleAutoBackup');
+    
+    // Database Backup Management
+    $routes->get('database-backup', 'Admin\DatabaseBackup::index');
+    $routes->post('database-backup/create', 'Admin\DatabaseBackup::create');
+    $routes->get('database-backup/download/(:segment)', 'Admin\DatabaseBackup::download/$1');
+    $routes->post('database-backup/delete/(:segment)', 'Admin\DatabaseBackup::delete/$1');
+    $routes->post('database-backup/restore/(:segment)', 'Admin\DatabaseBackup::restore/$1');
+    $routes->post('database-backup/toggle-auto-backup', 'Admin\DatabaseBackup::toggleAutoBackup');
+    $routes->post('database-backup/update-backup-time', 'Admin\DatabaseBackup::updateBackupTime');
     
     // Office management routes (replaces departments)
     $routes->get('office', 'Admin\Office::index');

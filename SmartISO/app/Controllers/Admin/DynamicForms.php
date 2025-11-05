@@ -533,7 +533,12 @@ class DynamicForms extends BaseController
                     $decoded = json_decode($pfb['default_value'], true);
                     if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
                         $pfb['options'] = $decoded;
+                        log_message('debug', "DynamicForms::formBuilder - Decoded options for field '{$pfb['field_name']}': " . json_encode($decoded));
+                    } else {
+                        log_message('debug', "DynamicForms::formBuilder - Failed to decode options for field '{$pfb['field_name']}', default_value: " . $pfb['default_value']);
                     }
+                } else {
+                    log_message('debug', "DynamicForms::formBuilder - No default_value for field '{$pfb['field_name']}' (type: {$ft})");
                 }
             }
         }
@@ -771,12 +776,17 @@ class DynamicForms extends BaseController
         
         // Consider user with ID 1 as admin if user_type isn't set
         // Adjust this based on your application's admin user ID
-        $isAdmin = (in_array($userType, ['admin', 'superuser']) || session()->get('user_id') == 1);
+        $isAdmin = (in_array($userType, ['admin', 'superuser', 'department_admin']) || session()->get('user_id') == 1);
+        
+        // Check if dept admin
+        $isDepartmentAdmin = ($userType === 'department_admin' && session()->get('department_id'));
+        $userDepartmentId = session()->get('department_id');
         
         // Debug information
         log_message('info', 'DynamicForms submissions() - User Type: ' . ($userType ?? 'null'));
         log_message('info', 'DynamicForms submissions() - User ID: ' . (session()->get('user_id') ?? 'null'));
         log_message('info', 'DynamicForms submissions() - Is Admin: ' . ($isAdmin ? 'true' : 'false'));
+        log_message('info', 'DynamicForms submissions() - Is Dept Admin: ' . ($isDepartmentAdmin ? 'true' : 'false'));
         
         // For admin, show all submissions by NOT filtering by user ID
         $userId = $isAdmin ? null : session()->get('user_id');
@@ -790,15 +800,19 @@ class DynamicForms extends BaseController
         
         // Get submissions - use this simplified approach to avoid issues
         if ($isAdmin) {
-            // For admin, get all submissions without filtering and include schedule priority data
-            $submissions = $this->db->table('form_submissions fs')
-                ->select('fs.*, f.code as form_code, f.description as form_description, u.full_name as submitted_by_name, sch.priority_level, sch.eta_days, sch.estimated_date')
+            // Build query with joins
+            $query = $this->db->table('form_submissions fs')
+                ->select('fs.*, f.code as form_code, f.description as form_description, f.department_id, u.full_name as submitted_by_name, sch.priority_level, sch.eta_days, sch.estimated_date')
                 ->join('forms f', 'f.id = fs.form_id', 'left')
                 ->join('users u', 'u.id = fs.submitted_by', 'left')
-                ->join('schedules sch', 'sch.submission_id = fs.id', 'left')
-                ->orderBy('fs.created_at', 'DESC')
-                ->get()
-                ->getResultArray();
+                ->join('schedules sch', 'sch.submission_id = fs.id', 'left');
+            
+            // For department admins, filter by department
+            if ($isDepartmentAdmin && $userDepartmentId) {
+                $query->where('f.department_id', $userDepartmentId);
+            }
+            
+            $submissions = $query->orderBy('fs.created_at', 'DESC')->get()->getResultArray();
         } else {
             // For regular users, only show their submissions
             $submissions = $this->db->table('form_submissions fs')
@@ -1005,9 +1019,16 @@ class DynamicForms extends BaseController
     
     public function updateStatus()
     {
-        // Check if user has admin permissions
-        $isAdmin = in_array(session()->get('role'), ['admin', 'superuser']);
+        // Check if user has admin permissions - fixed to use user_type instead of role
+        $userType = session()->get('user_type');
+        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
         if (!$isAdmin) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setStatusCode(403)->setJSON([
+                    'success' => false,
+                    'message' => 'You do not have permission to update submission status'
+                ]);
+            }
             return redirect()->to('/admin/dynamicforms/submissions')
                             ->with('error', 'You do not have permission to update submission status');
         }
@@ -1015,18 +1036,52 @@ class DynamicForms extends BaseController
         $submissionId = $this->request->getPost('submission_id');
         $status = $this->request->getPost('status');
         
-        if (!$submissionId || !in_array($status, ['approved', 'rejected'])) {
+        if (!$submissionId || !in_array($status, ['approved', 'rejected', 'submitted', 'pending', 'completed'])) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setStatusCode(400)->setJSON([
+                    'success' => false,
+                    'message' => 'Invalid submission ID or status'
+                ]);
+            }
             return redirect()->back()->with('error', 'Invalid submission ID or status');
         }
         
         $submission = $this->formSubmissionModel->find($submissionId);
         if (!$submission) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setStatusCode(404)->setJSON([
+                    'success' => false,
+                    'message' => 'Submission not found'
+                ]);
+            }
             return redirect()->to('/admin/dynamicforms/submissions')
                             ->with('error', 'Submission not found');
         }
         
+        // Department admins can only update submissions for their department
+        if ($userType === 'department_admin') {
+            $form = $this->formModel->find($submission['form_id']);
+            if ($form && $form['department_id'] != session()->get('department_id')) {
+                if ($this->request->isAJAX()) {
+                    return $this->response->setStatusCode(403)->setJSON([
+                        'success' => false,
+                        'message' => 'You can only update submissions for forms in your department'
+                    ]);
+                }
+                return redirect()->back()->with('error', 'You can only update submissions for forms in your department');
+            }
+        }
+        
         // Update the status
         $this->formSubmissionModel->update($submissionId, ['status' => $status]);
+        
+        if ($this->request->isAJAX()) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Submission status updated to ' . ucfirst($status),
+                'status' => $status
+            ]);
+        }
         
         return redirect()->to('/admin/dynamicforms/view-submission/' . $submissionId)
                         ->with('message', 'Submission status updated to ' . ucfirst($status));

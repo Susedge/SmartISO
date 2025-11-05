@@ -503,7 +503,7 @@ class Forms extends BaseController
                 $departmentFilter = session()->get('scoped_department_id');
             }
             
-            // Get pending submissions with department filtering
+            // Get pending submissions with department and office filtering
             try {
                 $builder = $this->formSubmissionModel->builder();
                 $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description,
@@ -514,9 +514,18 @@ class Forms extends BaseController
                         ->join('departments', 'departments.id = users.department_id', 'left')
                         ->where('form_submissions.status', 'submitted');
                 
+                // Get office filter from request
+                $officeFilter = $this->request->getGet('office');
+                $officeFilter = (is_numeric($officeFilter) && $officeFilter !== '') ? (int)$officeFilter : null;
+
                 // Apply department filter
                 if ($departmentFilter) {
                     $builder->where('users.department_id', $departmentFilter);
+                }
+
+                // Apply office filter (filter by the form's office)
+                if ($officeFilter) {
+                    $builder->where('forms.office_id', $officeFilter);
                 }
                 
                 // Apply priority filter if provided
@@ -533,7 +542,7 @@ class Forms extends BaseController
                 $submissions = [];
             }
             
-            // Get departments for filter dropdown (all for admins, only user's for others)
+            // Get departments and offices for filter dropdowns (all for admins, only user's for others)
             try {
                 $deptBuilder = $this->db->table('departments')
                     ->select('id, description')
@@ -551,6 +560,25 @@ class Forms extends BaseController
             } catch (\Exception $e) {
                 log_message('error', 'Error getting departments: ' . $e->getMessage());
                 $departments = [];
+            }
+
+            // Load offices list and optionally filter by department
+            try {
+                $allOffices = $this->officeModel->orderBy('description','ASC')->findAll();
+            } catch (\Throwable $e) {
+                log_message('error', 'Error getting offices in pendingApproval: ' . $e->getMessage());
+                $allOffices = [];
+            }
+
+            $offices = [];
+            if (!empty($departmentFilter)) {
+                foreach ($allOffices as $o) {
+                    if (!empty($o['department_id']) && (string)$o['department_id'] === (string)$departmentFilter) {
+                        $offices[] = $o;
+                    }
+                }
+            } else {
+                $offices = $allOffices;
             }
             
             // Get priority options with fallback
@@ -571,8 +599,11 @@ class Forms extends BaseController
                 'title' => 'Forms Pending Approval',
                 'submissions' => $submissions ?? [],
                 'departments' => $departments ?? [],
+                'offices' => $offices ?? [],
+                'allOffices' => $allOffices ?? [],
                 'priorities' => $priorities ?? [],
                 'selectedDepartment' => $departmentFilter ?? '',
+                'selectedOffice' => $officeFilter ?? '',
                 'selectedPriority' => $priorityFilter ?? '',
                 'isDepartmentFiltered' => !$isGlobalAdmin
             ];

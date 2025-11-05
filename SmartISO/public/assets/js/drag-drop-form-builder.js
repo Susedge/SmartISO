@@ -1430,6 +1430,7 @@ class FormBuilder {
             case 'checkboxes':
                 // compact checkbox inline list with edit affordance
                 fieldHTML += `<div class="d-flex flex-wrap gap-2 align-items-center">`;
+                console.log(`[Render] Checkboxes field "${fieldData.name}": options array length = ${fieldData.options ? fieldData.options.length : 0}`, fieldData.options);
                 if (fieldData.options && Array.isArray(fieldData.options)) {
                     fieldData.options.forEach((option, idx) => {
                         let optLabel = '';
@@ -1441,6 +1442,7 @@ class FormBuilder {
                             optLabel = String(option);
                             optValue = String(option);
                         }
+                        console.log(`[Render] Option ${idx}: label="${optLabel}", value="${optValue}"`);
                         const safeLabel = this.escapeHtml(optLabel);
                         const safeVal = this.escapeHtml(optValue);
                         fieldHTML += `<div class="form-check form-check-inline">
@@ -2107,9 +2109,30 @@ class FormBuilder {
     openOptionsManager(field){
         this._optionsManagerFieldId = field.id;
         let opts=[];
-        if(field.options && Array.isArray(field.options)) opts=field.options.slice();
-        else if(field.default_value){ try{ const parsed=JSON.parse(field.default_value); if(Array.isArray(parsed)) opts=parsed; }catch(e){ opts=String(field.default_value).split('\n').map(o=>o.trim()).filter(o=>o.length>0);} }
-        const rowsHtml = opts.map(o=>`<div class='d-flex align-items-center mb-2 option-row'><input type='text' class='form-control form-control-sm option-value' value='${(o.label||o).toString().replace(/'/g,"&#39;")}'><input type='text' class='form-control form-control-sm option-sub-field ms-2' placeholder='Option field name' value='${(o.sub_field||'').replace(/'/g,"&#39;")}'><div class='ms-2 d-flex gap-1'><button type='button' class='btn btn-outline-secondary btn-sm opt-edit' title='Focus'><i class='fas fa-pen'></i></button><button type='button' class='btn btn-outline-danger btn-sm opt-del'><i class='fas fa-trash'></i></button></div></div>`).join('');
+        console.log('[OptionsManager] Opening for field:', field.id, 'field.options:', field.options, 'field.default_value:', field.default_value);
+        if(field.options && Array.isArray(field.options)) {
+            opts=field.options.slice();
+            console.log('[OptionsManager] Using field.options:', opts);
+        }
+        else if(field.default_value){ 
+            try{ 
+                const parsed=JSON.parse(field.default_value); 
+                if(Array.isArray(parsed)) {
+                    opts=parsed;
+                    console.log('[OptionsManager] Parsed from default_value:', opts);
+                }
+            }catch(e){ 
+                opts=String(field.default_value).split('\n').map(o=>o.trim()).filter(o=>o.length>0);
+                console.log('[OptionsManager] Split from default_value string:', opts);
+            } 
+        }
+        console.log('[OptionsManager] Final options count:', opts.length);
+        const rowsHtml = opts.map((o, idx)=>{
+            const label = (o.label||o).toString();
+            const subField = (o.sub_field||'').toString();
+            console.log(`[OptionsManager] Rendering option ${idx}: label="${label}", sub_field="${subField}"`);
+            return `<div class='d-flex align-items-center mb-2 option-row'><input type='text' class='form-control form-control-sm option-value' value='${label.replace(/'/g,"&#39;")}'><input type='text' class='form-control form-control-sm option-sub-field ms-2' placeholder='Option field name' value='${subField.replace(/'/g,"&#39;")}'><div class='ms-2 d-flex gap-1'><button type='button' class='btn btn-outline-secondary btn-sm opt-edit' title='Focus'><i class='fas fa-pen'></i></button><button type='button' class='btn btn-outline-danger btn-sm opt-del'><i class='fas fa-trash'></i></button></div></div>`;
+        }).join('');
         const html = `<div id='sm_options_manager' class='small text-start'>
             <div id='optionsManagerList'>${rowsHtml||'<div class="text-muted">No options yet</div>'}</div>
             <div class='row g-2 align-items-center mt-2'>
@@ -2285,6 +2308,7 @@ class FormBuilder {
 
     loadExistingFields() {
         let existingFields = window.panelFields || [];
+        console.log('[FormBuilder] Loading existing fields from window.panelFields:', existingFields);
         existingFields = existingFields.filter(f => f && (f.field_type || f.type));
         let normalized = existingFields.map(field => {
             const rawLabel = field.label || field.field_label || 'Field';
@@ -2297,6 +2321,13 @@ class FormBuilder {
             const fieldType = field.type || field.field_type;
             let options = field.options || [];
             
+            console.log(`[FormBuilder] Field "${cleanLabel}" (type: ${fieldType}):`, {
+                hasOptions: !!field.options,
+                optionsLength: (field.options || []).length,
+                optionsValue: field.options,
+                defaultValue: field.default_value
+            });
+            
             // If options doesn't exist but this is a field type that needs options, check if they exist elsewhere
             if (!options || options.length === 0) {
                 if (['dropdown', 'radio', 'checkbox', 'checkboxes'].includes(fieldType)) {
@@ -2306,9 +2337,11 @@ class FormBuilder {
                             const parsed = JSON.parse(field.default_value);
                             if (Array.isArray(parsed)) {
                                 options = parsed;
+                                console.log(`[FormBuilder] Parsed options from default_value for "${cleanLabel}":`, options);
                             }
                         } catch (e) {
                             // Not JSON, ignore
+                            console.warn(`[FormBuilder] Could not parse default_value as JSON for "${cleanLabel}":`, e);
                         }
                     }
                 }

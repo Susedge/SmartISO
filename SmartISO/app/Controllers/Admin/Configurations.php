@@ -398,7 +398,7 @@ class Configurations extends BaseController
             'office_id' => 'permit_empty|integer',
             'department_id' => 'permit_empty|integer'
         ];
-        if ($this->validate($rules)) {
+        if ($this->validate($rules)) { 
             // Optionally accept office selection and derive department
             $officeId = $this->request->getPost('office_id') ?: null;
             // Allow saving department-only when no office selected
@@ -1453,6 +1453,41 @@ public function updateSystemConfig()
             'success' => true,
             'offices' => $offices
         ]);
+    }
+
+    /**
+     * Toggle automatic database backup setting (AJAX)
+     * Creates the config key if it doesn't exist.
+     */
+    public function toggleAutoBackup()
+    {
+        // Only admin/superuser may toggle this
+        $userType = session()->get('user_type');
+        if (!in_array($userType, ['admin', 'superuser'])) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => 'Unauthorized']);
+        }
+
+        if (!$this->request->isAJAX()) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Invalid request']);
+        }
+
+        $val = $this->request->getPost('value');
+        // Accept explicit values '1','0','true','false' or toggle when omitted
+        $existing = $this->configurationModel->where('config_key', 'auto_backup_enabled')->first();
+
+        if ($val === null) {
+            // toggle
+            $newVal = $existing ? (!((bool)$existing['config_value'])) : true;
+        } else {
+            $newVal = in_array((string)$val, ['1','true','yes'], true) ? true : false;
+        }
+
+        try {
+            $this->configurationModel->setConfig('auto_backup_enabled', $newVal, 'Enable automatic database backups', 'boolean');
+            return $this->response->setJSON(['success' => true, 'value' => (int)$newVal, 'message' => 'Auto backup ' . ($newVal ? 'enabled' : 'disabled')]);
+        } catch (\Exception $e) {
+            return $this->response->setStatusCode(500)->setJSON(['success' => false, 'message' => 'Failed to update setting: ' . $e->getMessage()]);
+        }
     }
 }
 
