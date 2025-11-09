@@ -16,50 +16,61 @@
     </div>
     <div class="card-body pt-2">
         <?php 
-        $userType = session()->get('user_type');
-        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-        $isDepartmentAdmin = session()->get('is_department_admin');
-        $userDepartmentId = session()->get('department_id');
+        $displayIsGlobalAdmin = isset($isGlobalAdmin) ? $isGlobalAdmin : false;
         ?>
-        <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end mb-3">
-            <?php if ($isGlobalAdmin || $isDepartmentAdmin): ?>
-            <div class="col-sm-4 col-md-3">
-                <label class="form-label mb-1 fw-semibold">Department</label>
-                <select name="department" id="departmentSelect" class="form-select form-select-sm">
-                    <option value="">All Departments</option>
-                    <?php foreach ($departments as $dept): ?>
-                        <option value="<?= esc($dept['id']) ?>" <?= ($selectedDepartment == $dept['id']) ? 'selected' : '' ?>>
-                            <?= esc($dept['description']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <?php else: ?>
-                <?php if ($userDepartmentId): ?>
-                    <input type="hidden" name="department" value="<?= esc($selectedDepartment) ?>">
+        
+        <?php if ($displayIsGlobalAdmin): ?>
+            <!-- Global admins can use dropdown filters -->
+            <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end mb-3">
+                <div class="col-sm-4 col-md-3">
+                    <label class="form-label mb-1 fw-semibold">Department</label>
+                    <select name="department" id="departmentSelect" class="form-select form-select-sm">
+                        <option value="">All Departments</option>
+                        <?php if (isset($departments) && is_array($departments)): ?>
+                            <?php foreach ($departments as $dept): ?>
+                                <option value="<?= esc($dept['id']) ?>" <?= (isset($selectedDepartment) && $selectedDepartment == $dept['id']) ? 'selected' : '' ?>>
+                                    <?= esc($dept['description']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                </div>
+                <div class="col-sm-4 col-md-3">
+                    <label class="form-label mb-1 fw-semibold">Office</label>
+                    <select name="office" id="officeSelect" class="form-select form-select-sm">
+                        <option value="">All Offices</option>
+                        <?php if (isset($allOffices) && is_array($allOffices)): ?>
+                            <?php foreach ($allOffices as $office): ?>
+                                <option value="<?= esc($office['id']) ?>" data-dept="<?= esc($office['department_id'] ?? '') ?>" <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
+                                    <?= esc($office['description']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </select>
+                </div>
+                <div class="col-sm-4 col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm mt-auto">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                    <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm mt-auto flex-shrink-0 <?= empty($selectedDepartment) && empty($selectedOffice) ? 'd-none':'' ?>">
+                        <i class="fas fa-redo me-1"></i> Reset
+                    </button>
+                </div>
+            </form>
+        <?php else: ?>
+            <!-- Non-admin users see their assigned department/office (read-only) -->
+            <div class="alert alert-info mb-3">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Your Access:</strong>
+                <?php if (isset($userDepartment) && $userDepartment): ?>
+                    Department: <strong><?= esc($userDepartment['description']) ?></strong>
                 <?php endif; ?>
-            <?php endif; ?>
-            <div class="col-sm-4 col-md-3">
-                <label class="form-label mb-1 fw-semibold">Office</label>
-                <select name="office" id="officeSelect" class="form-select form-select-sm">
-                    <option value="">All Offices</option>
-                    <?php foreach (($allOffices ?? []) as $office): ?>
-                        <option value="<?= esc($office['id']) ?>" data-dept="<?= esc($office['department_id']) ?>" <?= ($selectedOffice == $office['id']) ? 'selected' : '' ?>>
-                            <?= esc($office['description']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <?php if (isset($userOffice) && $userOffice): ?>
+                    | Office: <strong><?= esc($userOffice['description']) ?></strong>
+                <?php endif; ?>
+                <br><small class="text-muted">You can only view and submit forms from your assigned department/office.</small>
             </div>
-            <div class="col-sm-4 col-md-3 d-flex gap-2">
-                <button type="submit" id="applyFilters" class="btn btn-primary btn-sm mt-auto d-none">
-                    <i class="fas fa-filter me-1"></i> Filter
-                </button>
-                <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm mt-auto flex-shrink-0 <?= empty($selectedDepartment) && empty($selectedOffice) ? 'd-none':'' ?>">
-                    <i class="fas fa-redo me-1"></i> Reset
-                </button>
-                <div id="filterStatus" class="small text-muted ms-auto d-none align-self-center">Filtering...</div>
-            </div>
-        </form>
+        <?php endif; ?>
 
         <div class="table-responsive">
             <table id="formsTable" class="table table-striped table-hover table-sm w-100">

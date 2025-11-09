@@ -73,97 +73,65 @@ class Forms extends BaseController
     
     public function index()
     {
-    $req = $this->getRequest();
-    // Read raw GET values then normalize to integers where appropriate so
-    // the query builder receives consistent types (helps avoid "0"/"" problems)
-    $rawDept = $req->getGet('department');
-    $rawOffice = $req->getGet('office');
-    $selectedDepartment = (is_numeric($rawDept) && $rawDept !== '') ? (int)$rawDept : null;
-    $selectedOffice = (is_numeric($rawOffice) && $rawOffice !== '') ? (int)$rawOffice : null;
-
-        // For non-admin users, restrict to their department only
+        // Get user session data
         $userDepartmentId = session()->get('department_id');
+        $userOfficeId = session()->get('office_id');
         $userType = session()->get('user_type');
-        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         
-        // If user is not an admin and has a department, force filter to their department
-        if (!$isAdmin && $userDepartmentId) {
-            $selectedDepartment = (int)$userDepartmentId;
-        }
-
-        $departments = $this->departmentModel->findAll();
-        // Offices: load all (including inactive) so user can still filter; then optionally restrict in list
-        try {
-            $allOffices = $this->officeModel->orderBy('description','ASC')->findAll();
-        } catch (\Throwable $e) {
-            $allOffices = [];
-        }
-
-        // If both department and office were provided, ensure the selected office actually
-        // belongs to the selected department. If it doesn't, clear the selected office so
-        // we don't accidentally show forms for an unrelated office.
-        if (!empty($selectedDepartment) && !empty($selectedOffice)) {
-            $officeOk = false;
-            // Quick check against offices.department_id
-            foreach ($allOffices as $o) {
-                if ((int)($o['id'] ?? 0) === $selectedOffice) {
-                    if (!empty($o['department_id']) && (int)$o['department_id'] === $selectedDepartment) {
-                        $officeOk = true;
-                    }
-                    break;
-                }
-            }
-            // If still not matched, consult legacy pivot table department_office
-            if (!$officeOk) {
-                $db = \Config\Database::connect();
-                if ($db->tableExists('department_office')) {
-                    $row = $db->table('department_office')
-                              ->select('1')
-                              ->where('department_id', $selectedDepartment)
-                              ->where('office_id', $selectedOffice)
-                              ->get()
-                              ->getRowArray();
-                    if (!empty($row)) { $officeOk = true; }
-                }
-            }
-            if (!$officeOk) {
-                // clear the selected office to avoid showing unrelated forms
-                $selectedOffice = null;
-            }
-        }
-        // Keep both the full office list and a department-filtered list. The view
-        // prefers the full list and lets JS hide/show options, but we keep the
-        // filtered list for backward compatibility.
-        $allOffices = is_array($allOffices) ? $allOffices : [];
-        $offices = [];
-        if (!empty($selectedDepartment)) {
-            foreach ($allOffices as $o) {
-                if ((string)($o['department_id'] ?? '') === (string)$selectedDepartment) {
-                    $offices[] = $o;
-                }
-            }
+        // SECURITY: Non-admin users are automatically restricted to their department/office
+        // Only global admins can use dropdown filters
+        $selectedDepartment = null;
+        $selectedOffice = null;
+        
+        if ($isGlobalAdmin) {
+            // Global admins can filter using dropdowns
+            $req = $this->getRequest();
+            $rawDept = $req->getGet('department');
+            $rawOffice = $req->getGet('office');
+            $selectedDepartment = (is_numeric($rawDept) && $rawDept !== '') ? (int)$rawDept : null;
+            $selectedOffice = (is_numeric($rawOffice) && $rawOffice !== '') ? (int)$rawOffice : null;
         } else {
-            $offices = $allOffices;
+            // Non-admin users: enforce their department/office via WHERE clause
+            $selectedDepartment = $userDepartmentId;
+            $selectedOffice = $userOfficeId;
+            log_message('info', "User {$userType} restricted to department {$userDepartmentId}, office {$userOfficeId}");
         }
-        // Guarantee office array shape
-        if (!is_array($offices)) { $offices = []; }
 
+        // Get user's department and office info for display
+        $userDepartment = null;
+        $userOffice = null;
+        if ($userDepartmentId) {
+            $userDepartment = $this->departmentModel->find($userDepartmentId);
+        }
+        if ($userOfficeId) {
+            $userOffice = $this->officeModel->find($userOfficeId);
+        }
+
+        // For global admins, get all departments and offices for dropdowns
+        $departments = [];
+        $allOffices = [];
+        if ($isGlobalAdmin) {
+            $departments = $this->departmentModel->findAll();
+            try {
+                $allOffices = $this->officeModel->orderBy('description','ASC')->findAll();
+            } catch (\Throwable $e) {
+                $allOffices = [];
+            }
+        }
+
+        // Build forms query with automatic filtering
         $forms = [];
         if (isset($this->formModel)) {
-            // Base query: join office and departments. A form may have a department_id
-            // or rely on the office -> department relationship. Join departments
-            // from both the form (d1) and the office (d2) and use COALESCE so
-            // we display a department name when available via either path.
-            // Use form.department_id OR office.department_id (no pivot) to determine a form's department
             $builder = $this->db->table('forms f')
                 ->select('f.*, COALESCE(d1.description, d2.description) AS department_name, o.description AS office_name')
                 ->join('departments d1', 'd1.id = f.department_id', 'left')
                 ->join('offices o', 'o.id = f.office_id', 'left')
                 ->join('departments d2', 'd2.id = o.department_id', 'left');
+            
+            // SECURITY: Apply WHERE clause filtering based on user's access
             if (!empty($selectedDepartment) && !empty($selectedOffice)) {
-                // Both department and office selected: intersection semantics.
-                // Ensure the form belongs to the selected office AND that the
-                // department matches either the form.department_id or the office's department_id.
+                // Both department and office: intersection semantics
                 $builder->groupStart()
                         ->where('f.office_id', $selectedOffice)
                         ->groupEnd()
@@ -175,20 +143,17 @@ class Forms extends BaseController
                     ->groupEnd();
             } else {
                 if (!empty($selectedDepartment)) {
-                    // Match forms where department is set on the form OR inherited via the office.department_id
+                    // Match forms where department is set on the form OR inherited via office
                     $builder->groupStart()
                             ->where('f.department_id', $selectedDepartment)
                             ->orWhere('o.department_id', $selectedDepartment)
                         ->groupEnd();
                 }
-                if (!empty($selectedOffice)) { $builder->where('f.office_id', $selectedOffice); }
+                if (!empty($selectedOffice)) {
+                    $builder->where('f.office_id', $selectedOffice);
+                }
             }
-            // Capture compiled SQL for quick debugging in the view
-            try {
-                $compiled = $builder->getCompiledSelect();
-            } catch (\Throwable $e) {
-                $compiled = '';
-            }
+            
             $forms = $builder->orderBy('f.description','ASC')->get()->getResultArray();
         }
 
@@ -196,15 +161,14 @@ class Forms extends BaseController
             'title' => 'Available Forms',
             'forms' => $forms,
             'departments' => $departments,
-            // pass both full list and filtered list
-            'offices' => $offices,
             'allOffices' => $allOffices,
+            'offices' => $allOffices, // For backward compatibility
             'selectedDepartment' => $selectedDepartment,
-            'selectedOffice' => $selectedOffice
+            'selectedOffice' => $selectedOffice,
+            'isGlobalAdmin' => $isGlobalAdmin,
+            'userDepartment' => $userDepartment,
+            'userOffice' => $userOffice
         ];
-
-        // include compiled SQL for debugging (if available)
-        if (!empty($compiled)) { $data['debugSql'] = $compiled; }
 
         return view('forms/index', $data);
     }
@@ -455,17 +419,17 @@ class Forms extends BaseController
         // Department admins see only their department's submissions
         // Regular users see only their own submissions
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
+        $isDepartmentAdmin = ($userType === 'department_admin');
         
         if ($isGlobalAdmin) {
             // Global admins see everything
             $filterUserId = null;
             $filterDepartmentId = null;
             $title = 'All Form Submissions';
-        } elseif ($isDepartmentAdmin) {
+        } elseif ($isDepartmentAdmin && $userDepartmentId) {
             // Department admins see all submissions from their department
             $filterUserId = null;
-            $filterDepartmentId = session()->get('scoped_department_id');
+            $filterDepartmentId = $userDepartmentId;
             $title = 'Department Form Submissions';
         } else {
             // Regular users see only their own submissions
@@ -518,22 +482,14 @@ class Forms extends BaseController
             
             $userType = session()->get('user_type');
             $userDepartmentId = session()->get('department_id');
+            $userOfficeId = session()->get('office_id');
             $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-            $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
+            $isDepartmentAdmin = ($userType === 'department_admin');
             
-            // Get filter parameters
-            $departmentFilter = $this->request->getGet('department');
+            // Get filter parameters - only for display/priority filtering, not security filtering
             $priorityFilter = $this->request->getGet('priority');
             
-            // For non-admin users, restrict to their department
-            if (!$isGlobalAdmin && $userDepartmentId && !$departmentFilter) {
-                $departmentFilter = $userDepartmentId;
-            }
-            if ($isDepartmentAdmin && !$departmentFilter) {
-                $departmentFilter = session()->get('scoped_department_id');
-            }
-            
-            // Get pending submissions with department and office filtering
+            // Get pending submissions with automatic department and office filtering
             try {
                 $builder = $this->formSubmissionModel->builder();
                 $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description,
@@ -544,21 +500,21 @@ class Forms extends BaseController
                         ->join('departments', 'departments.id = users.department_id', 'left')
                         ->where('form_submissions.status', 'submitted');
                 
-                // Get office filter from request
-                $officeFilter = $this->request->getGet('office');
-                $officeFilter = (is_numeric($officeFilter) && $officeFilter !== '') ? (int)$officeFilter : null;
-
-                // Apply department filter
-                if ($departmentFilter) {
-                    $builder->where('users.department_id', $departmentFilter);
+                // SECURITY: Enforce department filtering for non-global admins using WHERE clause
+                // This cannot be bypassed by manipulating dropdown values
+                if (!$isGlobalAdmin && $userDepartmentId) {
+                    $builder->where('users.department_id', $userDepartmentId);
+                    log_message('info', "Non-admin user {$userType} restricted to department {$userDepartmentId}");
                 }
 
-                // Apply office filter (filter by the form's office)
-                if ($officeFilter) {
-                    $builder->where('forms.office_id', $officeFilter);
+                // SECURITY: Enforce office filtering if user has office assignment
+                // Office filtering applies to all non-global-admin users
+                if (!$isGlobalAdmin && $userOfficeId) {
+                    $builder->where('forms.office_id', $userOfficeId);
+                    log_message('info', "Non-admin user {$userType} restricted to office {$userOfficeId}");
                 }
                 
-                // Apply priority filter if provided
+                // Apply priority filter if provided (this is safe - just for sorting/display)
                 if ($priorityFilter) {
                     $builder->where('form_submissions.priority', $priorityFilter);
                 }
@@ -572,45 +528,47 @@ class Forms extends BaseController
                 $submissions = [];
             }
             
-            // Get departments and offices for filter dropdowns (all for admins, only user's for others)
+            // Get user's department and office info for display only
+            $userDepartment = null;
+            $userOffice = null;
             try {
-                $deptBuilder = $this->db->table('departments')
-                    ->select('id, description')
-                    ->where('active', 1)
-                    ->orderBy('description');
-                
-                if (!$isGlobalAdmin && $userDepartmentId) {
-                    $deptBuilder->where('id', $userDepartmentId);
+                if ($userDepartmentId) {
+                    $userDepartment = $this->db->table('departments')
+                        ->select('id, description')
+                        ->where('id', $userDepartmentId)
+                        ->get()->getRowArray();
                 }
-                if ($isDepartmentAdmin) {
-                    $deptBuilder->where('id', session()->get('scoped_department_id'));
+                if ($userOfficeId) {
+                    $userOffice = $this->db->table('offices')
+                        ->select('id, name')
+                        ->where('id', $userOfficeId)
+                        ->get()->getRowArray();
                 }
-                
-                $departments = $deptBuilder->get()->getResultArray();
             } catch (\Exception $e) {
-                log_message('error', 'Error getting departments: ' . $e->getMessage());
-                $departments = [];
+                log_message('error', 'Error getting user department/office: ' . $e->getMessage());
             }
 
-            // Load offices list and optionally filter by department
-            try {
-                $allOffices = $this->officeModel->orderBy('description','ASC')->findAll();
-            } catch (\Throwable $e) {
-                log_message('error', 'Error getting offices in pendingApproval: ' . $e->getMessage());
-                $allOffices = [];
-            }
-
+            // For global admins only, get all departments and offices for filtering dropdowns
+            $departments = [];
             $offices = [];
-            if (!empty($departmentFilter)) {
-                foreach ($allOffices as $o) {
-                    if (!empty($o['department_id']) && (string)$o['department_id'] === (string)$departmentFilter) {
-                        $offices[] = $o;
-                    }
+            if ($isGlobalAdmin) {
+                try {
+                    $departments = $this->db->table('departments')
+                        ->select('id, description')
+                        ->where('active', 1)
+                        ->orderBy('description')
+                        ->get()->getResultArray();
+                    
+                    $offices = $this->db->table('offices')
+                        ->select('id, name')
+                        ->where('active', 1)
+                        ->orderBy('name')
+                        ->get()->getResultArray();
+                } catch (\Exception $e) {
+                    log_message('error', 'Error getting departments/offices for admin: ' . $e->getMessage());
                 }
-            } else {
-                $offices = $allOffices;
             }
-            
+
             // Get priority options with fallback
             try {
                 $priorities = $this->priorityModel->getPriorityOptions();
@@ -630,13 +588,14 @@ class Forms extends BaseController
                 'submissions' => $submissions ?? [],
                 'departments' => $departments ?? [],
                 'offices' => $offices ?? [],
-                'allOffices' => $allOffices ?? [],
                 'priorities' => $priorities ?? [],
-                'selectedDepartment' => $departmentFilter ?? '',
-                'selectedOffice' => $officeFilter ?? '',
                 'selectedPriority' => $priorityFilter ?? '',
-                'isDepartmentFiltered' => !$isGlobalAdmin,
-                'isDepartmentAdmin' => $isDepartmentAdmin
+                'isGlobalAdmin' => $isGlobalAdmin,
+                'isDepartmentAdmin' => $isDepartmentAdmin,
+                'userDepartment' => $userDepartment,
+                'userOffice' => $userOffice,
+                'userDepartmentId' => $userDepartmentId,
+                'userOfficeId' => $userOfficeId
             ];
             
             return view('forms/pending_approval', $data);
@@ -653,7 +612,7 @@ class Forms extends BaseController
         $userType = session()->get('user_type');
         $userDepartmentId = session()->get('department_id');
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
+        $isDepartmentAdmin = ($userType === 'department_admin');
         
         // Get submissions pending service
         $builder = $this->formSubmissionModel->builder();
@@ -685,12 +644,9 @@ class Forms extends BaseController
         $builder->where('form_submissions.service_staff_id', $userId);
         $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
         
-        // Add department filtering for non-admin users
+        // Add department filtering for non-global-admin users
         if (!$isGlobalAdmin && $userDepartmentId) {
             $builder->where('requestor.department_id', $userDepartmentId);
-        }
-        if ($isDepartmentAdmin) {
-            $builder->where('requestor.department_id', session()->get('scoped_department_id'));
         }
         
         $builder->orderBy('form_submissions.approved_at', 'DESC');
@@ -798,9 +754,9 @@ class Forms extends BaseController
             $builder->where('fs.approver_id', $userId);
             
             // For department admins, also filter by department
-            $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
-            if ($isDepartmentAdmin) {
-                $builder->where('requestor.department_id', session()->get('scoped_department_id'));
+            $userDepartmentId = session()->get('department_id');
+            if ($userType === 'department_admin' && $userDepartmentId) {
+                $builder->where('requestor.department_id', $userDepartmentId);
             }
         }
         
@@ -1104,13 +1060,17 @@ class Forms extends BaseController
                             ->with('error', 'Submission not found');
             }
             
-            // Department verification for non-admin approvers
+            // Department verification for non-global-admin approvers
             $userDepartmentId = session()->get('department_id');
-            $isAdmin = in_array($userType, ['admin', 'superuser']);
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+            
+            // Department admins and approving authorities need department validation
+            $needsDepartmentCheck = in_array($userType, ['department_admin', 'approving_authority']);
 
-            if (!$isAdmin && $userDepartmentId) {
+            if ($needsDepartmentCheck && $userDepartmentId) {
                 $requestor = $this->userModel->find($submission['submitted_by']);
                 if (!$requestor || $requestor['department_id'] != $userDepartmentId) {
+                    log_message('warning', "User {$userId} ({$userType}) attempted to approve submission {$submissionId} from different department");
                     return redirect()->to('/forms/pending-approval')
                         ->with('error', 'You can only approve submissions from your department');
                 }
@@ -1139,15 +1099,16 @@ class Forms extends BaseController
             // Get available service staff - filtered by department for non-admins
             $userModel = new \App\Models\UserModel();
             $userDepartmentId = session()->get('department_id');
-            $isAdmin = in_array(session()->get('user_type'), ['admin', 'superuser']);
+            $userType = session()->get('user_type');
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
 
-            if ($isAdmin) {
-                // Admins can assign any service staff
+            if ($isGlobalAdmin) {
+                // Global admins (admin/superuser) can assign any service staff
                 $serviceStaff = $userModel->where('user_type', 'service_staff')
                                           ->where('active', 1)
                                           ->findAll();
             } else if ($userDepartmentId) {
-                // Non-admins can only assign service staff from their department
+                // Department admins and approving authorities can only assign service staff from their department
                 $serviceStaff = $userModel->where('user_type', 'service_staff')
                                           ->where('active', 1)
                                           ->where('department_id', $userDepartmentId)
@@ -1509,9 +1470,10 @@ class Forms extends BaseController
         $builder->where('form_submissions.approver_id', $userId);
         
         // Department filtering for department admins
-        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
-        if ($isDepartmentAdmin) {
-            $builder->where('requestor.department_id', session()->get('scoped_department_id'));
+        $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        if ($userType === 'department_admin' && $userDepartmentId) {
+            $builder->where('requestor.department_id', $userDepartmentId);
         }
         
         $builder->orderBy('form_submissions.approved_at', 'DESC');
@@ -1553,9 +1515,10 @@ class Forms extends BaseController
         $builder->where('form_submissions.status', 'rejected');
         
         // Department filtering for department admins
-        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
-        if ($isDepartmentAdmin) {
-            $builder->where('requestor.department_id', session()->get('scoped_department_id'));
+        $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        if ($userType === 'department_admin' && $userDepartmentId) {
+            $builder->where('requestor.department_id', $userDepartmentId);
         }
         
         $builder->orderBy('form_submissions.updated_at', 'DESC');
@@ -1594,6 +1557,20 @@ class Forms extends BaseController
         if (!$submission) {
             return redirect()->to('/forms/pending-approval')
                         ->with('error', 'Submission not found');
+        }
+        
+        // Department verification for non-global-admin approvers
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $needsDepartmentCheck = in_array($userType, ['department_admin', 'approving_authority']);
+
+        if ($needsDepartmentCheck && $userDepartmentId) {
+            $requestor = $this->userModel->find($submission['submitted_by']);
+            if (!$requestor || $requestor['department_id'] != $userDepartmentId) {
+                log_message('warning', "User {$userId} ({$userType}) attempted to approve submission {$submissionId} from different department");
+                return redirect()->to('/forms/pending-approval')
+                    ->with('error', 'You can only approve submissions from your department');
+            }
         }
         
         // Update submission based on action
@@ -1723,16 +1700,39 @@ class Forms extends BaseController
         try {
             $userId = session()->get('user_id');
             $userType = session()->get('user_type');
+            $userDepartmentId = session()->get('department_id');
+            $userOfficeId = session()->get('office_id');
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
             
-            if (!in_array($userType, ['approving_authority', 'admin'])) {
+            if (!$this->canUserApprove()) {
                 return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
             }
             
-            $departmentFilter = $this->request->getPost('department_filter');
             $priorityFilter = $this->request->getPost('priority_filter');
             
-            // Use the same method as pendingApproval to get submissions
-            $pendingSubmissions = $this->formSubmissionModel->getPendingApprovalsWithFilters($departmentFilter, $priorityFilter);
+            // Build query with automatic department/office filtering (same as pendingApproval)
+            $builder = $this->formSubmissionModel->builder();
+            $builder->select('form_submissions.*, forms.code as form_code')
+                    ->join('forms', 'forms.id = form_submissions.form_id')
+                    ->join('users', 'users.id = form_submissions.submitted_by')
+                    ->where('form_submissions.status', 'submitted');
+            
+            // SECURITY: Enforce department filtering for non-global admins
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $builder->where('users.department_id', $userDepartmentId);
+            }
+            
+            // SECURITY: Enforce office filtering if user has office assignment
+            if (!$isGlobalAdmin && $userOfficeId) {
+                $builder->where('forms.office_id', $userOfficeId);
+            }
+            
+            // Apply priority filter if provided
+            if ($priorityFilter) {
+                $builder->where('form_submissions.priority', $priorityFilter);
+            }
+            
+            $pendingSubmissions = $builder->get()->getResultArray();
             
             if (empty($pendingSubmissions)) {
                 return redirect()->to('/forms/pending-approval')
@@ -2257,10 +2257,12 @@ class Forms extends BaseController
         
         // Get filter parameters
         $statusFilter = $this->request->getGet('status');
-        $officeFilter = $this->request->getGet('office');
         $searchQuery = $this->request->getGet('q');
         $page = (int)($this->request->getGet('page') ?? 1);
         $perPage = 20;
+        
+        // Get user's office for automatic filtering
+        $userOfficeId = session()->get('office_id');
         
         // Get all users from the department
         $deptUserIds = $this->userModel
@@ -2289,8 +2291,10 @@ class Forms extends BaseController
             $builder->where('form_submissions.status', $statusFilter);
         }
         
-        if (!empty($officeFilter)) {
-            $builder->where('users.office_id', (int)$officeFilter);
+        // SECURITY: Enforce office filtering if user has office assignment
+        if (!empty($userOfficeId)) {
+            $builder->where('users.office_id', (int)$userOfficeId);
+            log_message('info', "Department admin restricted to office {$userOfficeId}");
         }
         
         if (!empty($searchQuery)) {
@@ -2340,7 +2344,7 @@ class Forms extends BaseController
             'offices' => $deptOffices,
             'stats' => $stats,
             'statusFilter' => $statusFilter,
-            'officeFilter' => $officeFilter,
+            'userOfficeId' => $userOfficeId,
             'searchQuery' => $searchQuery,
             'currentPage' => $page,
             'totalPages' => ceil($totalCount / $perPage),

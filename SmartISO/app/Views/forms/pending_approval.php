@@ -9,73 +9,93 @@
         <!-- Filters and Actions -->
         <div class="row mb-4">
             <div class="col-md-6">
-                <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
-                    <?php if (!isset($isDepartmentAdmin) || !$isDepartmentAdmin): ?>
-                    <div class="col-md-5">
-                        <label for="department_filter" class="form-label">Filter by Department</label>
-                        <select name="department" id="department_filter" class="form-select">
-                            <option value="">All Departments</option>
-                            <?php if (isset($departments) && is_array($departments)): ?>
-                                <?php foreach ($departments as $dept): ?>
-                                    <option value="<?= esc(is_array($dept) ? $dept['id'] : $dept) ?>" 
-                                            <?= ($selectedDepartment == (is_array($dept) ? $dept['id'] : $dept)) ? 'selected' : '' ?>>
-                                        <?= esc(is_array($dept) ? $dept['description'] : $dept) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </select>
-                    </div>
-                    <?php endif; ?>
-                        <div class="col-md-3">
-                            <label for="office_filter" class="form-label">Filter by Office</label>
-                            <select name="office" id="office_filter" class="form-select">
-                                <option value="">All Offices</option>
-                                <?php if (isset($offices) && is_array($offices)): ?>
-                                    <?php foreach ($offices as $office): ?>
-                                        <option value="<?= esc($office['id']) ?>" <?= (isset($selectedOffice) && (string)$selectedOffice === (string)$office['id']) ? 'selected' : '' ?>>
-                                            <?= esc($office['description']) ?>
+                <?php if (isset($isGlobalAdmin) && $isGlobalAdmin): ?>
+                    <!-- Global admins can use dropdown filters -->
+                    <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="department_filter" class="form-label">Filter by Department</label>
+                            <select name="department" id="department_filter" class="form-select">
+                                <option value="">All Departments</option>
+                                <?php if (isset($departments) && is_array($departments)): ?>
+                                    <?php foreach ($departments as $dept): ?>
+                                        <option value="<?= esc($dept['id']) ?>">
+                                            <?= esc($dept['description']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                             </select>
                         </div>
-
                         <div class="col-md-4">
-                            <label for="priority_filter" class="form-label">Filter by Priority</label>
-                            <select name="priority" id="priority_filter" class="form-select">
-                                <option value="">All Priorities</option>
-                            <?php 
-                            $safePriorities = $priorities ?? [
-                                'low' => 'Low',
-                                'normal' => 'Normal',
-                                'high' => 'High',
-                                'urgent' => 'Urgent',
-                                'critical' => 'Critical'
-                            ];
-                            foreach ($safePriorities as $priority_key => $priority_label): 
-                            ?>
-                                <option value="<?= esc($priority_key) ?>" <?= ($selectedPriority === $priority_key) ? 'selected' : '' ?>>
-                                    <?= esc($priority_label) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                            <label for="office_filter" class="form-label">Filter by Office</label>
+                            <select name="office" id="office_filter" class="form-select">
+                                <option value="">All Offices</option>
+                                <?php if (isset($offices) && is_array($offices)): ?>
+                                    <?php foreach ($offices as $office): ?>
+                                        <option value="<?= esc($office['id']) ?>">
+                                            <?= esc($office['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <button type="submit" class="btn btn-outline-primary d-block">
+                                <i class="fas fa-filter me-1"></i> Filter
+                            </button>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <!-- Non-admin users see their assigned department/office (read-only) -->
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Your Access:</strong>
+                        <?php if (isset($userDepartment) && $userDepartment): ?>
+                            Department: <strong><?= esc($userDepartment['description']) ?></strong>
+                        <?php endif; ?>
+                        <?php if (isset($userOffice) && $userOffice): ?>
+                            | Office: <strong><?= esc($userOffice['name']) ?></strong>
+                        <?php endif; ?>
+                        <br><small class="text-muted">You can only approve forms from your assigned department/office.</small>
                     </div>
-                    <div class="col-md-2">
-                        <label class="form-label">&nbsp;</label>
-                        <button type="submit" class="btn btn-outline-primary d-block">
-                            <i class="fas fa-filter me-1"></i> Filter
-                        </button>
-                    </div>
-                </form>
+                <?php endif; ?>
+                
+                <!-- Priority filter available to all users -->
+                <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="priority_filter" class="form-label">Filter by Priority</label>
+                        <select name="priority" id="priority_filter" class="form-select">
+                            <option value="">All Priorities</option>
+                        <?php 
+                        $safePriorities = $priorities ?? [
+                            'low' => 'Low',
+                            'normal' => 'Normal',
+                            'high' => 'High',
+                            'urgent' => 'Urgent',
+                            'critical' => 'Critical'
+                        ];
+                        foreach ($safePriorities as $priority_key => $priority_label): 
+                        ?>
+                            <option value="<?= esc($priority_key) ?>" <?= (isset($selectedPriority) && $selectedPriority === $priority_key) ? 'selected' : '' ?>>
+                                <?= esc($priority_label) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="submit" class="btn btn-outline-primary d-block">
+                        <i class="fas fa-filter me-1"></i> Filter
+                    </button>
+                </div>
+            </form>
             </div>
             <div class="col-md-6 text-end">
                 <?php if (!empty($submissions)): ?>
-                                        <form method="post" action="<?= base_url('forms/approve-all') ?>" style="display: inline;" 
-                                                    onsubmit="return confirm('Are you sure you want to approve all filtered forms? This action cannot be undone.')">
-                                                <?= csrf_field() ?>
-                                                <input type="hidden" name="department_filter" value="<?= esc($selectedDepartment ?? '') ?>">
-                                                <input type="hidden" name="office_filter" value="<?= esc($selectedOffice ?? '') ?>">
-                                                <input type="hidden" name="priority_filter" value="<?= esc($selectedPriority) ?>">
+                    <form method="post" action="<?= base_url('forms/approve-all') ?>" style="display: inline;" 
+                          onsubmit="return confirm('Are you sure you want to approve all filtered forms? This action cannot be undone.')">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="priority_filter" value="<?= esc($selectedPriority ?? '') ?>">
                         <button type="submit" class="btn btn-success">
                             <i class="fas fa-check-double me-1"></i> Approve All Filtered
                         </button>

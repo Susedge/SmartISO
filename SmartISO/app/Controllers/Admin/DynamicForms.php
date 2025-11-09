@@ -529,16 +529,42 @@ class DynamicForms extends BaseController
         foreach ($panelFields as &$pfb) {
             $ft = $pfb['field_type'] ?? '';
             if (in_array($ft, ['dropdown','radio','checkbox','checkboxes'])) {
-                if (!empty($pfb['default_value'])) {
-                    $decoded = json_decode($pfb['default_value'], true);
-                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
-                        $pfb['options'] = $decoded;
-                        log_message('debug', "DynamicForms::formBuilder - Decoded options for field '{$pfb['field_name']}': " . json_encode($decoded));
-                    } else {
-                        log_message('debug', "DynamicForms::formBuilder - Failed to decode options for field '{$pfb['field_name']}', default_value: " . $pfb['default_value']);
+                $decoded = null;
+                
+                // Try to decode from options column first (legacy), then default_value
+                if (!empty($pfb['options'])) {
+                    if (is_string($pfb['options'])) {
+                        $decoded = json_decode($pfb['options'], true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                            log_message('debug', "DynamicForms::formBuilder - Decoded options from 'options' column for field '{$pfb['field_name']}': " . json_encode($decoded));
+                        } else {
+                            $decoded = null;
+                        }
+                    } elseif (is_array($pfb['options'])) {
+                        $decoded = $pfb['options'];
+                        log_message('debug', "DynamicForms::formBuilder - Using array options for field '{$pfb['field_name']}'");
                     }
+                }
+                
+                // If not found in options column, try default_value
+                if (empty($decoded) && !empty($pfb['default_value'])) {
+                    if (is_string($pfb['default_value'])) {
+                        $decoded = json_decode($pfb['default_value'], true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && !empty($decoded)) {
+                            log_message('debug', "DynamicForms::formBuilder - Decoded options from 'default_value' column for field '{$pfb['field_name']}': " . json_encode($decoded));
+                        } else {
+                            $decoded = null;
+                            log_message('warning', "DynamicForms::formBuilder - Failed to decode default_value for field '{$pfb['field_name']}', value: " . substr($pfb['default_value'], 0, 100));
+                        }
+                    }
+                }
+                
+                // Set options array for JavaScript
+                if (!empty($decoded)) {
+                    $pfb['options'] = $decoded;
                 } else {
-                    log_message('debug', "DynamicForms::formBuilder - No default_value for field '{$pfb['field_name']}' (type: {$ft})");
+                    log_message('warning', "DynamicForms::formBuilder - No valid options found for selectable field '{$pfb['field_name']}' (type: {$ft})");
+                    $pfb['options'] = [];
                 }
             }
         }
