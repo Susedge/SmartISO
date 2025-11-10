@@ -51,8 +51,8 @@ class Configurations extends BaseController
         }
         
         $signatories = $this->formSignatoryModel->getFormSignatories($formId);
-        // Include approving authorities, department admins, and superusers as potential approvers
-        $availableApprovers = $this->userModel->whereIn('user_type', ['approving_authority', 'department_admin', 'superuser'])
+        // Include both approving authorities and department admins as potential approvers
+        $availableApprovers = $this->userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
                                              ->where('active', 1)
                                              ->findAll();
         if ($this->request->isAJAX() || $this->request->getGet('ajax')) {
@@ -153,7 +153,7 @@ class Configurations extends BaseController
         }
         
         $user = $this->userModel->find($userId);
-        if (!$user || !in_array($user['user_type'], ['approving_authority', 'department_admin', 'superuser'])) {
+        if (!$user || !in_array($user['user_type'], ['approving_authority', 'department_admin'])) {
             return redirect()->to('/admin/users')
                 ->with('error', 'User not found or not an approver');
         }
@@ -1139,6 +1139,23 @@ public function uploadTemplate($formId = null)
             ->with('error', 'Form not found');
     }
     
+    // AUTHORIZATION: Department admins can only upload templates for forms in their department
+    $userType = session()->get('user_type');
+    if ($userType === 'department_admin') {
+        $userDepartmentId = session()->get('department_id');
+        
+        if (empty($userDepartmentId)) {
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'Your account is not assigned to a department');
+        }
+        
+        if ($form['department_id'] != $userDepartmentId) {
+            log_message('warning', "Department admin user {session()->get('user_id')} attempted to upload template for form {$formId} outside their department");
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'You can only upload templates for forms in your department');
+        }
+    }
+    
     // Validate file upload
     $validationRules = [
         'template' => [
@@ -1222,6 +1239,23 @@ public function downloadTemplate($formId = null)
             ->with('error', 'Form not found');
     }
     
+    // AUTHORIZATION: Department admins can only download templates for forms in their department
+    $userType = session()->get('user_type');
+    if ($userType === 'department_admin') {
+        $userDepartmentId = session()->get('department_id');
+        
+        if (empty($userDepartmentId)) {
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'Your account is not assigned to a department');
+        }
+        
+        if ($form['department_id'] != $userDepartmentId) {
+            log_message('warning', "Department admin user " . session()->get('user_id') . " attempted to download template for form {$formId} outside their department");
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'You can only download templates for forms in your department');
+        }
+    }
+    
     $templatePath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
     if (!file_exists($templatePath)) {
         return redirect()->back()->with('error', 'Template file not found');
@@ -1244,6 +1278,23 @@ public function deleteTemplate($formId = null)
     if (!$form) {
         return redirect()->to('/admin/configurations?type=forms')
             ->with('error', 'Form not found');
+    }
+    
+    // AUTHORIZATION: Department admins can only delete templates for forms in their department
+    $userType = session()->get('user_type');
+    if ($userType === 'department_admin') {
+        $userDepartmentId = session()->get('department_id');
+        
+        if (empty($userDepartmentId)) {
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'Your account is not assigned to a department');
+        }
+        
+        if ($form['department_id'] != $userDepartmentId) {
+            log_message('warning', "Department admin user " . session()->get('user_id') . " attempted to delete template for form {$formId} outside their department");
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'You can only delete templates for forms in your department');
+        }
     }
     
     $templatePath = FCPATH . 'templates/docx/' . $form['code'] . '_template.docx';
