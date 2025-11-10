@@ -2321,7 +2321,9 @@ class FormBuilder {
     loadExistingFields() {
         let existingFields = window.panelFields || [];
         console.log('[FormBuilder] Loading existing fields from window.panelFields:', existingFields);
+        console.log('[FormBuilder] Total fields loaded:', existingFields.length);
         existingFields = existingFields.filter(f => f && (f.field_type || f.type));
+        console.log('[FormBuilder] After filtering invalid fields:', existingFields.length);
         let normalized = existingFields.map(field => {
             const rawLabel = field.label || field.field_label || 'Field';
             const cleanLabel = rawLabel.replace(/\s+/g,' ').trim();
@@ -2371,11 +2373,22 @@ class FormBuilder {
                 defaultValue: field.default_value
             });
             
+            // CRITICAL FIX: Auto-convert 'radio' to 'checkboxes' if it has multiple options
+            // The UI uses value="radio" with label="Checkboxes" which causes confusion
+            // If a field has type 'radio' but has options array with multiple items, it should be 'checkboxes'
+            let finalType = fieldType;
+            if (fieldType === 'radio' && options.length > 0) {
+                // If it has options, it's meant to be a multi-select checkbox group, not exclusive radio
+                finalType = 'checkboxes';
+                console.log(`[FormBuilder] Auto-converted field "${cleanLabel}" from 'radio' to 'checkboxes' (has ${options.length} options)`);
+            }
+            
             return { 
                 ...field, 
                 id: field.id || 'field_' + Date.now() + '_' + Math.random(), 
                 width: field.width || 12, 
-                type: fieldType, 
+                type: finalType, 
+                field_type: finalType,
                 label: cleanLabel, 
                 field_label: cleanLabel, 
                 name: cleanName, 
@@ -2383,10 +2396,47 @@ class FormBuilder {
                 options: options // Assign the cloned options array!
             };
         });
+        console.log('[FormBuilder] After normalization and type conversion:', normalized.length, 'fields');
+        normalized.forEach(f => console.log(`  - ${f.label} (${f.name}): type=${f.type}, options=${f.options?.length || 0}`));
+        
         const seenIds = new Set(); const seenNames = new Set();
-        normalized = normalized.filter(f => { if (seenIds.has(f.id)) return false; if (f.name && seenNames.has(f.name)) return false; seenIds.add(f.id); if (f.name) seenNames.add(f.name); return true; });
+        const beforeIdFilter = normalized.length;
+        normalized = normalized.filter(f => { 
+            if (seenIds.has(f.id)) {
+                console.log(`[FormBuilder] REMOVED duplicate ID: ${f.id} (${f.label})`);
+                return false; 
+            }
+            if (f.name && seenNames.has(f.name)) {
+                console.log(`[FormBuilder] REMOVED duplicate name: ${f.name} (${f.label})`);
+                return false; 
+            }
+            seenIds.add(f.id); 
+            if (f.name) seenNames.add(f.name); 
+            return true; 
+        });
+        console.log('[FormBuilder] After ID/name dedup:', normalized.length, '(removed', (beforeIdFilter - normalized.length), ')');
+        
         const comboSeen = new Set();
-        normalized = normalized.filter(f => { const type = f.type || f.field_type || ''; const nk = (f.name||'')+'::'+type; const lk = (f.label||'')+'::'+type; if (comboSeen.has(nk) || comboSeen.has(lk)) return false; comboSeen.add(nk); comboSeen.add(lk); return true; });
+        const beforeComboFilter = normalized.length;
+        normalized = normalized.filter(f => { 
+            const type = f.type || f.field_type || ''; 
+            const nk = (f.name||'')+'::'+type; 
+            const lk = (f.label||'')+'::'+type; 
+            if (comboSeen.has(nk)) {
+                console.log(`[FormBuilder] REMOVED duplicate name::type combo: ${nk}`);
+                return false;
+            }
+            if (comboSeen.has(lk)) {
+                console.log(`[FormBuilder] REMOVED duplicate label::type combo: ${lk}`);
+                return false;
+            }
+            comboSeen.add(nk); 
+            comboSeen.add(lk); 
+            return true; 
+        });
+        console.log('[FormBuilder] After combo dedup:', normalized.length, '(removed', (beforeComboFilter - normalized.length), ')');
+        console.log('[FormBuilder] Final fields to render:', normalized);
+        
         normalized.forEach((f,i)=> f.field_order = i+1);
         this.fields = normalized; // assign
         this.reorganizeFormLayout();

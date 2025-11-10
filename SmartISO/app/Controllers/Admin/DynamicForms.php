@@ -1169,9 +1169,9 @@ class DynamicForms extends BaseController
             return $this->response->setStatusCode(405)->setJSON(['error' => 'Method not allowed']);
         }
 
-        // Basic permission: only admin or superuser can import into builder
+        // Basic permission: admin, superuser, and department_admin can import into builder
         $userType = session()->get('user_type');
-        if (!in_array($userType, ['admin', 'superuser'])) {
+        if (!in_array($userType, ['admin', 'superuser', 'department_admin'])) {
             return $this->response->setStatusCode(403)->setJSON(['error' => 'Unauthorized']);
         }
 
@@ -1406,6 +1406,11 @@ class DynamicForms extends BaseController
             // Start transaction
             $this->db->transStart();
 
+            // Preserve existing panel's department_id and office_id before deleting
+            $existingPanelField = $this->dbpanelModel->where('panel_name', $panelName)->first();
+            $departmentId = $existingPanelField['department_id'] ?? null;
+            $officeId = $existingPanelField['office_id'] ?? null;
+
             // Delete existing fields for this panel
             $this->dbpanelModel->where('panel_name', $panelName)->delete();
 
@@ -1425,7 +1430,9 @@ class DynamicForms extends BaseController
                     'field_order' => isset($field['field_order']) ? (int)$field['field_order'] : ($index + 1),
                     'bump_next_field' => isset($field['bump_next_field']) ? (int)$field['bump_next_field'] : 0,
                     'code_table' => $field['code_table'] ?? '',
-                    'length' => $field['length'] ?? ''
+                    'length' => $field['length'] ?? '',
+                    'department_id' => $departmentId,
+                    'office_id' => $officeId
                 ];
 
                 // Add default_value only if the column is allowed in the model
