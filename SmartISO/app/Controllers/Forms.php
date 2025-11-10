@@ -500,6 +500,14 @@ class Forms extends BaseController
                         ->join('departments', 'departments.id = users.department_id', 'left')
                         ->where('form_submissions.status', 'submitted');
                 
+                // CRITICAL: For approving authorities, only show forms they're assigned to approve via form_signatories
+                if ($userType === 'approving_authority') {
+                    $userId = session()->get('user_id');
+                    $builder->join('form_signatories fsig', 'fsig.form_id = forms.id', 'inner');
+                    $builder->where('fsig.user_id', $userId);
+                    log_message('info', "Approving authority {$userId} restricted to assigned forms via form_signatories");
+                }
+                
                 // SECURITY: Enforce department filtering for non-global admins using WHERE clause
                 // This cannot be bypassed by manipulating dropdown values
                 if (!$isGlobalAdmin && $userDepartmentId) {
@@ -540,7 +548,7 @@ class Forms extends BaseController
                 }
                 if ($userOfficeId) {
                     $userOffice = $this->db->table('offices')
-                        ->select('id, name')
+                        ->select('id, description')
                         ->where('id', $userOfficeId)
                         ->get()->getRowArray();
                 }
@@ -560,9 +568,9 @@ class Forms extends BaseController
                         ->get()->getResultArray();
                     
                     $offices = $this->db->table('offices')
-                        ->select('id, name')
+                        ->select('id, description')
                         ->where('active', 1)
-                        ->orderBy('name')
+                        ->orderBy('description')
                         ->get()->getResultArray();
                 } catch (\Exception $e) {
                     log_message('error', 'Error getting departments/offices for admin: ' . $e->getMessage());

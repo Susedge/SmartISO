@@ -32,7 +32,7 @@
                                 <?php if (isset($offices) && is_array($offices)): ?>
                                     <?php foreach ($offices as $office): ?>
                                         <option value="<?= esc($office['id']) ?>">
-                                            <?= esc($office['name']) ?>
+                                            <?= esc($office['description']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -54,7 +54,7 @@
                             Department: <strong><?= esc($userDepartment['description']) ?></strong>
                         <?php endif; ?>
                         <?php if (isset($userOffice) && $userOffice): ?>
-                            | Office: <strong><?= esc($userOffice['name']) ?></strong>
+                            | Office: <strong><?= esc($userOffice['description']) ?></strong>
                         <?php endif; ?>
                         <br><small class="text-muted">You can only approve forms from your assigned department/office.</small>
                     </div>
