@@ -42,24 +42,55 @@ class Forms extends BaseController
     /**
      * Check if current user can act as approver
      */
+    /**
+     * Check if user can access approval-related pages (viewing)
+     * This allows access to pending approvals, approved/rejected lists
+     * Actual approval permission is verified separately via isAssignedApprover()
+     */
     protected function canUserApprove()
     {
+        $userId = session()->get('user_id');
         $userType = session()->get('user_type');
         
-        // Approving authorities and department admins can always approve
-        if (in_array($userType, ['approving_authority', 'department_admin'])) {
+        log_message('info', "===== CAN USER APPROVE CHECK =====");
+        log_message('info', "User ID: " . ($userId ?: 'NULL') . ", User Type: " . ($userType ?: 'NULL'));
+        
+        if (!$userId) {
+            log_message('warning', "Approval access denied - No user ID in session");
+            return false;
+        }
+        
+        // Allow access to approval pages for authorized user types
+        // They will only see forms they are assigned to (filtering done in queries)
+        $authorizedTypes = ['admin', 'superuser', 'department_admin', 'approving_authority'];
+        
+        if (in_array($userType, $authorizedTypes)) {
+            log_message('info', "User {$userId} ({$userType}) granted access to approval pages");
             return true;
         }
         
-        // Check if admins can approve based on configuration
-        if (in_array($userType, ['admin', 'superuser'])) {
-            $adminCanApprove = (bool)$this->configurationModel->getConfig('admin_can_approve', false);
-            log_message('debug', "Admin approval check - User Type: {$userType}, admin_can_approve: " . ($adminCanApprove ? 'true' : 'false'));
-            return $adminCanApprove;
-        }
-        
-        log_message('debug', "Approval denied - User Type: {$userType} is not authorized");
+        log_message('warning', "User {$userId} ({$userType}) does not have authorization to access approval pages");
         return false;
+    }
+    
+    /**
+     * Verify if user is assigned as approver for a specific form
+     * This is used to enforce approval permissions (not just viewing)
+     */
+    protected function isAssignedApprover($formId, $userId)
+    {
+        try {
+            $formSignatoryModel = new \App\Models\FormSignatoryModel();
+            $isAssigned = $formSignatoryModel
+                ->where('form_id', $formId)
+                ->where('user_id', $userId)
+                ->first();
+            
+            return !empty($isAssigned);
+        } catch (\Exception $e) {
+            log_message('error', "Error checking specific approver assignment: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -469,60 +500,49 @@ class Forms extends BaseController
     public function pendingApproval()
     {
         try {
-            // Check if user can approve
+            $userId = session()->get('user_id');
+            $userType = session()->get('user_type');
+            
+            log_message('info', "===== PENDING APPROVAL ACCESS ATTEMPT =====");
+            log_message('info', "User ID: {$userId}, User Type: {$userType}");
+            
+            // Check if user can view approval pages
             if (!$this->canUserApprove()) {
-                $userType = session()->get('user_type');
-                $adminCanApprove = $this->configurationModel->getConfig('admin_can_approve', false);
-                
-                // Debug info
-                log_message('debug', "Pending Approval Access Denied - User Type: {$userType}, admin_can_approve: " . ($adminCanApprove ? 'true' : 'false'));
-                
-                return redirect()->to('/dashboard')->with('error', 'You do not have permission to access pending approvals. Please ensure admin approval is enabled in System Settings.');
+                $errorMsg = 'You do not have permission to access approval pages.';
+                log_message('warning', "Pending Approval Access Denied - User not authorized");
+                log_message('info', "Redirecting to dashboard with error message");
+                return redirect()->to('/dashboard')->with('error', $errorMsg);
             }
             
-            $userType = session()->get('user_type');
+            log_message('info', "User {$userId} passed canUserApprove check");
+            
             $userDepartmentId = session()->get('department_id');
             $userOfficeId = session()->get('office_id');
             $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
             $isDepartmentAdmin = ($userType === 'department_admin');
             
-            // Get filter parameters - only for display/priority filtering, not security filtering
+            log_message('info', "Department ID: {$userDepartmentId}, Office ID: {$userOfficeId}, Is Global Admin: " . ($isGlobalAdmin ? 'yes' : 'no'));
+            
+            // Get filter parameters
             $priorityFilter = $this->request->getGet('priority');
             
-            // Get pending submissions with automatic department and office filtering
+            // Get pending submissions
             try {
                 $builder = $this->formSubmissionModel->builder();
                 $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description,
-                                 users.full_name as requestor_name, users.department_id,
+                                 users.full_name as submitted_by_name, users.department_id,
                                  departments.description as department_name')
                         ->join('forms', 'forms.id = form_submissions.form_id')
                         ->join('users', 'users.id = form_submissions.submitted_by')
                         ->join('departments', 'departments.id = users.department_id', 'left')
                         ->where('form_submissions.status', 'submitted');
                 
-                // CRITICAL: For approving authorities, only show forms they're assigned to approve via form_signatories
-                if ($userType === 'approving_authority') {
-                    $userId = session()->get('user_id');
-                    $builder->join('form_signatories fsig', 'fsig.form_id = forms.id', 'inner');
-                    $builder->where('fsig.user_id', $userId);
-                    log_message('info', "Approving authority {$userId} restricted to assigned forms via form_signatories");
-                }
+                // CRITICAL: ALL users (including admin, department_admin) must be assigned via form_signatories
+                $builder->join('form_signatories fsig', 'fsig.form_id = forms.id', 'inner');
+                $builder->where('fsig.user_id', $userId);
+                log_message('info', "User {$userId} ({$userType}) restricted to assigned forms via form_signatories");
                 
-                // SECURITY: Enforce department filtering for non-global admins using WHERE clause
-                // This cannot be bypassed by manipulating dropdown values
-                if (!$isGlobalAdmin && $userDepartmentId) {
-                    $builder->where('users.department_id', $userDepartmentId);
-                    log_message('info', "Non-admin user {$userType} restricted to department {$userDepartmentId}");
-                }
-
-                // SECURITY: Enforce office filtering if user has office assignment
-                // Office filtering applies to all non-global-admin users
-                if (!$isGlobalAdmin && $userOfficeId) {
-                    $builder->where('forms.office_id', $userOfficeId);
-                    log_message('info', "Non-admin user {$userType} restricted to office {$userOfficeId}");
-                }
-                
-                // Apply priority filter if provided (this is safe - just for sorting/display)
+                // Apply priority filter if provided
                 if ($priorityFilter) {
                     $builder->where('form_submissions.priority', $priorityFilter);
                 }
@@ -556,27 +576,6 @@ class Forms extends BaseController
                 log_message('error', 'Error getting user department/office: ' . $e->getMessage());
             }
 
-            // For global admins only, get all departments and offices for filtering dropdowns
-            $departments = [];
-            $offices = [];
-            if ($isGlobalAdmin) {
-                try {
-                    $departments = $this->db->table('departments')
-                        ->select('id, description')
-                        ->where('active', 1)
-                        ->orderBy('description')
-                        ->get()->getResultArray();
-                    
-                    $offices = $this->db->table('offices')
-                        ->select('id, description')
-                        ->where('active', 1)
-                        ->orderBy('description')
-                        ->get()->getResultArray();
-                } catch (\Exception $e) {
-                    log_message('error', 'Error getting departments/offices for admin: ' . $e->getMessage());
-                }
-            }
-
             // Get priority options with fallback
             try {
                 $priorities = $this->priorityModel->getPriorityOptions();
@@ -591,11 +590,17 @@ class Forms extends BaseController
                 ];
             }
             
+            // Priority options for filtering
+            $priorities = [
+                'low' => 'Low',
+                'medium' => 'Medium',
+                'high' => 'High',
+                'critical' => 'Critical'
+            ];
+            
             $data = [
                 'title' => 'Forms Pending Approval',
                 'submissions' => $submissions ?? [],
-                'departments' => $departments ?? [],
-                'offices' => $offices ?? [],
                 'priorities' => $priorities ?? [],
                 'selectedPriority' => $priorityFilter ?? '',
                 'isGlobalAdmin' => $isGlobalAdmin,
@@ -1052,13 +1057,12 @@ class Forms extends BaseController
     public function approveForm($submissionId)
     {
         try {
-            // Check if user can approve
+            // Check if user can access approval pages
             if (!$this->canUserApprove()) {
                 return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
             }
             
             $userId = session()->get('user_id');
-            $userType = session()->get('user_type');
             
             // Get submission details
             $submission = $this->formSubmissionModel->find($submissionId);
@@ -1068,21 +1072,14 @@ class Forms extends BaseController
                             ->with('error', 'Submission not found');
             }
             
-            // Department verification for non-global-admin approvers
-            $userDepartmentId = session()->get('department_id');
-            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-            
-            // Department admins and approving authorities need department validation
-            $needsDepartmentCheck = in_array($userType, ['department_admin', 'approving_authority']);
-
-            if ($needsDepartmentCheck && $userDepartmentId) {
-                $requestor = $this->userModel->find($submission['submitted_by']);
-                if (!$requestor || $requestor['department_id'] != $userDepartmentId) {
-                    log_message('warning', "User {$userId} ({$userType}) attempted to approve submission {$submissionId} from different department");
-                    return redirect()->to('/forms/pending-approval')
-                        ->with('error', 'You can only approve submissions from your department');
-                }
+            // CRITICAL: Verify user is assigned as approver for this specific form
+            if (!$this->isAssignedApprover($submission['form_id'], $userId)) {
+                log_message('warning', "User {$userId} attempted to view approval form for submission {$submissionId} but is not assigned as approver for form {$submission['form_id']}");
+                return redirect()->to('/forms/pending-approval')
+                    ->with('error', 'You are not assigned as an approver for this form. Only assigned signatories can approve.');
             }
+            
+            log_message('info', "User {$userId} verified as assigned approver for form {$submission['form_id']}");
             
             // Get form details
             $form = $this->formModel->find($submission['form_id']);
@@ -1104,26 +1101,11 @@ class Forms extends BaseController
             // Get panel fields
             $panelFields = $this->dbpanelModel->getPanelFields($submission['panel_name']);
             
-            // Get available service staff - filtered by department for non-admins
+            // Get available service staff - all active service staff
             $userModel = new \App\Models\UserModel();
-            $userDepartmentId = session()->get('department_id');
-            $userType = session()->get('user_type');
-            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-
-            if ($isGlobalAdmin) {
-                // Global admins (admin/superuser) can assign any service staff
-                $serviceStaff = $userModel->where('user_type', 'service_staff')
-                                          ->where('active', 1)
-                                          ->findAll();
-            } else if ($userDepartmentId) {
-                // Department admins and approving authorities can only assign service staff from their department
-                $serviceStaff = $userModel->where('user_type', 'service_staff')
-                                          ->where('active', 1)
-                                          ->where('department_id', $userDepartmentId)
-                                          ->findAll();
-            } else {
-                $serviceStaff = [];
-            }
+            $serviceStaff = $userModel->where('user_type', 'service_staff')
+                                      ->where('active', 1)
+                                      ->findAll();
             
             // Check if user has a signature
             $currentUser = $this->userModel->find($userId);
@@ -1134,8 +1116,8 @@ class Forms extends BaseController
                 'submission' => $submission,
                 'form' => $form,
                 'requestor' => $requestor,
-                'submission_data' => $submissionData ?? [],  // Safe fallback
-                'panel_fields' => $panelFields ?? [],        // Safe fallback
+                'submission_data' => $submissionData ?? [],
+                'panel_fields' => $panelFields ?? [],
                 'serviceStaff' => $serviceStaff ?? [],
                 'hasSignature' => $hasSignature,
                 'current_user' => $currentUser
@@ -1475,14 +1457,10 @@ class Forms extends BaseController
         $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
         $builder->join('users as service_staff', 'service_staff.id = form_submissions.service_staff_id', 'left'); // Left join to include submissions without service staff
         $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
-        $builder->where('form_submissions.approver_id', $userId);
         
-        // Department filtering for department admins
-        $userType = session()->get('user_type');
-        $userDepartmentId = session()->get('department_id');
-        if ($userType === 'department_admin' && $userDepartmentId) {
-            $builder->where('requestor.department_id', $userDepartmentId);
-        }
+        // Only show forms approved by this user AND where they were assigned as approver
+        $builder->where('form_submissions.approver_id', $userId);
+        $builder->join('form_signatories fsig', 'fsig.form_id = forms.id AND fsig.user_id = ' . $userId, 'inner');
         
         $builder->orderBy('form_submissions.approved_at', 'DESC');
         
@@ -1522,6 +1500,9 @@ class Forms extends BaseController
         $builder->where('form_submissions.approver_id', $userId);
         $builder->where('form_submissions.status', 'rejected');
         
+        // Only show forms where user was assigned as approver
+        $builder->join('form_signatories fsig', 'fsig.form_id = forms.id AND fsig.user_id = ' . $userId, 'inner');
+        
         // Department filtering for department admins
         $userType = session()->get('user_type');
         $userDepartmentId = session()->get('department_id');
@@ -1546,18 +1527,16 @@ class Forms extends BaseController
      */
     public function submitApproval()
     {
-        // Check if user can approve
+        // Check if user can access approval pages
         if (!$this->canUserApprove()) {
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
         $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        
         $submissionId = $this->request->getPost('submission_id');
         $action = $this->request->getPost('action');
         $comments = $this->request->getPost('comments');
-        $serviceStaffId = $this->request->getPost('service_staff_id'); // NEW: Get selected service staff
+        $serviceStaffId = $this->request->getPost('service_staff_id');
         
         // Get the submission
         $submission = $this->formSubmissionModel->find($submissionId);
@@ -1567,19 +1546,14 @@ class Forms extends BaseController
                         ->with('error', 'Submission not found');
         }
         
-        // Department verification for non-global-admin approvers
-        $userDepartmentId = session()->get('department_id');
-        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-        $needsDepartmentCheck = in_array($userType, ['department_admin', 'approving_authority']);
-
-        if ($needsDepartmentCheck && $userDepartmentId) {
-            $requestor = $this->userModel->find($submission['submitted_by']);
-            if (!$requestor || $requestor['department_id'] != $userDepartmentId) {
-                log_message('warning', "User {$userId} ({$userType}) attempted to approve submission {$submissionId} from different department");
-                return redirect()->to('/forms/pending-approval')
-                    ->with('error', 'You can only approve submissions from your department');
-            }
+        // CRITICAL: Verify user is assigned as approver for this specific form
+        if (!$this->isAssignedApprover($submission['form_id'], $userId)) {
+            log_message('warning', "User {$userId} attempted to approve submission {$submissionId} but is not assigned as approver for form {$submission['form_id']}");
+            return redirect()->to('/forms/pending-approval')
+                ->with('error', 'You are not assigned as an approver for this form. Only assigned signatories can approve.');
         }
+        
+        log_message('info', "User {$userId} verified as assigned approver for form {$submission['form_id']}");
         
         // Update submission based on action
         if ($action === 'approve') {
@@ -1707,10 +1681,6 @@ class Forms extends BaseController
     {
         try {
             $userId = session()->get('user_id');
-            $userType = session()->get('user_type');
-            $userDepartmentId = session()->get('department_id');
-            $userOfficeId = session()->get('office_id');
-            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
             
             if (!$this->canUserApprove()) {
                 return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
@@ -1718,22 +1688,13 @@ class Forms extends BaseController
             
             $priorityFilter = $this->request->getPost('priority_filter');
             
-            // Build query with automatic department/office filtering (same as pendingApproval)
+            // Build query - only get forms the user is assigned to approve
             $builder = $this->formSubmissionModel->builder();
-            $builder->select('form_submissions.*, forms.code as form_code')
+            $builder->select('form_submissions.*, forms.code as form_code, forms.id as form_id')
                     ->join('forms', 'forms.id = form_submissions.form_id')
-                    ->join('users', 'users.id = form_submissions.submitted_by')
-                    ->where('form_submissions.status', 'submitted');
-            
-            // SECURITY: Enforce department filtering for non-global admins
-            if (!$isGlobalAdmin && $userDepartmentId) {
-                $builder->where('users.department_id', $userDepartmentId);
-            }
-            
-            // SECURITY: Enforce office filtering if user has office assignment
-            if (!$isGlobalAdmin && $userOfficeId) {
-                $builder->where('forms.office_id', $userOfficeId);
-            }
+                    ->join('form_signatories fsig', 'fsig.form_id = forms.id', 'inner')
+                    ->where('form_submissions.status', 'submitted')
+                    ->where('fsig.user_id', $userId);
             
             // Apply priority filter if provided
             if ($priorityFilter) {
@@ -1744,7 +1705,7 @@ class Forms extends BaseController
             
             if (empty($pendingSubmissions)) {
                 return redirect()->to('/forms/pending-approval')
-                            ->with('error', 'No forms found matching the criteria');
+                            ->with('error', 'No forms found matching the criteria that you are assigned to approve');
             }
             
             $approvedCount = 0;
@@ -1752,6 +1713,12 @@ class Forms extends BaseController
             
             foreach ($pendingSubmissions as $submission) {
                 try {
+                    // Double-check user is assigned as approver for this specific form
+                    if (!$this->isAssignedApprover($submission['form_id'], $userId)) {
+                        log_message('warning', "Skipping submission {$submission['id']} - user {$userId} not assigned as approver");
+                        continue;
+                    }
+                    
                     $updateData = [
                         'status' => 'pending_service',
                         'approver_id' => $userId,
@@ -2258,9 +2225,13 @@ class Forms extends BaseController
         $userType = session()->get('user_type');
         $userDeptId = session()->get('department_id');
         
+        // Debug logging
+        log_message('info', "departmentSubmissions access attempt - User Type: {$userType}, Department ID: {$userDeptId}");
+        
         // Only accessible to department admins
         if ($userType !== 'department_admin' || !$userDeptId) {
-            return redirect()->to('/dashboard')->with('error', 'Access denied');
+            log_message('warning', "departmentSubmissions access denied - User Type: {$userType}, Department ID: " . ($userDeptId ?: 'NULL'));
+            return redirect()->to('/dashboard')->with('error', 'Access denied. Only department administrators can view department submissions.');
         }
         
         // Get filter parameters
