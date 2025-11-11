@@ -144,7 +144,7 @@ document.querySelectorAll('.panel-rename-form').forEach(form => {
                     
                     <div class="mb-3">
                         <label for="department_id" class="form-label">Department</label>
-                        <select class="form-select" id="department_id" name="department_id">
+                        <select class="form-select" id="department_id" name="department_id" onchange="filterOfficesByDepartment()">
                             <option value="">Select Department</option>
                             <?php if (!empty($departments)): ?>
                                 <?php foreach ($departments as $dept): ?>
@@ -158,10 +158,14 @@ document.querySelectorAll('.panel-rename-form').forEach(form => {
                     <div class="mb-3">
                         <label for="office_id" class="form-label">Office</label>
                         <select class="form-select" id="office_id" name="office_id">
-                            <option value="">Select Office</option>
+                            <option value="">Select Department First</option>
                             <?php if (!empty($offices)): ?>
                                 <?php foreach ($offices as $office): ?>
-                                    <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
+                                    <option value="<?= esc($office['id']) ?>" 
+                                            data-department-id="<?= esc($office['department_id']) ?>"
+                                            style="display:none;">
+                                        <?= esc($office['description']) ?>
+                                    </option>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>
@@ -283,6 +287,47 @@ function deletePanel(panelName) {
 
 <script>
 // DOCX import removed: no handler needed
+
+// Filter offices based on selected department
+function filterOfficesByDepartment() {
+    const departmentSelect = document.getElementById('department_id');
+    const officeSelect = document.getElementById('office_id');
+    const selectedDeptId = departmentSelect.value;
+    
+    // Reset office select
+    officeSelect.innerHTML = '<option value="">Select Office</option>';
+    
+    if (!selectedDeptId) {
+        officeSelect.innerHTML = '<option value="">Select Department First</option>';
+        return;
+    }
+    
+    // Get all office options and filter by department
+    const allOptions = officeSelect.querySelectorAll('option[data-department-id]');
+    let hasOffices = false;
+    
+    allOptions.forEach(option => {
+        if (option.getAttribute('data-department-id') === selectedDeptId) {
+            const newOption = option.cloneNode(true);
+            newOption.style.display = '';
+            officeSelect.appendChild(newOption);
+            hasOffices = true;
+        }
+    });
+    
+    if (!hasOffices) {
+        const noOfficeOption = document.createElement('option');
+        noOfficeOption.value = '';
+        noOfficeOption.textContent = 'No offices in this department';
+        officeSelect.appendChild(noOfficeOption);
+    }
+}
+
+// Initialize on modal show
+document.getElementById('newPanelModal').addEventListener('show.bs.modal', function() {
+    document.getElementById('department_id').value = '';
+    document.getElementById('office_id').innerHTML = '<option value="">Select Department First</option>';
+});
 </script>
 
 <?= $this->endSection() ?>
