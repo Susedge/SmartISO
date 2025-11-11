@@ -209,9 +209,15 @@ class DynamicForms extends BaseController
     
     public function panelConfig()
     {
+        // Get all departments and offices for the create panel modal
+        $departmentModel = new \App\Models\DepartmentModel();
+        $officeModel = new \App\Models\OfficeModel();
+        
         $data = [
             'title' => 'Panels',
-            'panels' => $this->dbpanelModel->getPanels()
+            'panels' => $this->dbpanelModel->getPanels(),
+            'departments' => $departmentModel->orderBy('description', 'ASC')->findAll(),
+            'offices' => $officeModel->orderBy('description', 'ASC')->findAll()
         ];
         
         return view('admin/dynamicforms/panel_config', $data);

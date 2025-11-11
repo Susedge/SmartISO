@@ -856,7 +856,13 @@ class Forms extends BaseController
         }
         
         // Determine if current user can take action on this form
-        $canApprove = ($userType === 'approving_authority' && $submission['status'] === 'submitted');
+        // CRITICAL: Only show approve buttons if user is assigned as approver for this specific form
+        $canApprove = false;
+        if ($submission['status'] === 'submitted') {
+            // Check if user is assigned as approver in form_signatories
+            $canApprove = $this->isAssignedApprover($submission['form_id'], $userId);
+        }
+        
         // Allow service staff to service when status is either 'pending_service' or legacy 'approved'
         $canService = (
             $userType === 'service_staff'

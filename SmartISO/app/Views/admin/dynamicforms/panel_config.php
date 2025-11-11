@@ -137,9 +137,35 @@ document.querySelectorAll('.panel-rename-form').forEach(form => {
                 <?= csrf_field() ?>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="panel_name" class="form-label">Panel Name</label>
+                        <label for="panel_name" class="form-label">Panel Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="panel_name" name="panel_name" required>
                         <small class="text-muted">Create a new empty panel. Use the Panel Builder to add fields.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="department_id" class="form-label">Department</label>
+                        <select class="form-select" id="department_id" name="department_id">
+                            <option value="">Select Department</option>
+                            <?php if (!empty($departments)): ?>
+                                <?php foreach ($departments as $dept): ?>
+                                    <option value="<?= esc($dept['id']) ?>"><?= esc($dept['description']) ?></option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                        <small class="text-muted">Optional: Associate this panel with a department</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="office_id" class="form-label">Office</label>
+                        <select class="form-select" id="office_id" name="office_id">
+                            <option value="">Select Office</option>
+                            <?php if (!empty($offices)): ?>
+                                <?php foreach ($offices as $office): ?>
+                                    <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                        <small class="text-muted">Optional: Associate this panel with an office</small>
                     </div>
                     <!-- DOCX import removed per request -->
                 </div>
