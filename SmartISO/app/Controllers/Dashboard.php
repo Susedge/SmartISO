@@ -139,8 +139,8 @@ class Dashboard extends BaseController
                 $builder->where('users.department_id', session()->get('scoped_department_id'));
             }
             
-            $statusSummary['total_submissions'] = (clone $builder)->countAllResults();
-            $statusSummary['pending_approval'] = (clone $builder)
+            $statusSummary['total'] = (clone $builder)->countAllResults();
+            $statusSummary['submitted'] = (clone $builder)
                                                         ->where('form_submissions.status', 'submitted')
                                                         ->countAllResults();
             $statusSummary['approved'] = (clone $builder)

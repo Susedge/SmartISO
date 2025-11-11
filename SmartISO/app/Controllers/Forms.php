@@ -2352,6 +2352,7 @@ class Forms extends BaseController
             'offices' => $deptOffices,
             'stats' => $stats,
             'statusFilter' => $statusFilter,
+            'officeFilter' => $this->request->getGet('office'),
             'userOfficeId' => $userOfficeId,
             'searchQuery' => $searchQuery,
             'currentPage' => $page,

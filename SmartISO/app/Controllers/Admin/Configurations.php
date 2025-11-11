@@ -51,8 +51,8 @@ class Configurations extends BaseController
         }
         
         $signatories = $this->formSignatoryModel->getFormSignatories($formId);
-        // Include both approving authorities and department admins as potential approvers
-        $availableApprovers = $this->userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
+        // Include approving authorities, department admins, and super admins as potential approvers
+        $availableApprovers = $this->userModel->whereIn('user_type', ['approving_authority', 'department_admin', 'superuser', 'admin'])
                                              ->where('active', 1)
                                              ->findAll();
         if ($this->request->isAJAX() || $this->request->getGet('ajax')) {
@@ -153,7 +153,7 @@ class Configurations extends BaseController
         }
         
         $user = $this->userModel->find($userId);
-        if (!$user || !in_array($user['user_type'], ['approving_authority', 'department_admin'])) {
+        if (!$user || !in_array($user['user_type'], ['approving_authority', 'department_admin', 'superuser', 'admin'])) {
             return redirect()->to('/admin/users')
                 ->with('error', 'User not found or not an approver');
         }
