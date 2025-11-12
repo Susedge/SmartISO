@@ -909,6 +909,15 @@ class Forms extends BaseController
         
         if ($userType === 'admin' || $userType === 'approving_authority' || $userType === 'service_staff') {
             $canView = true;
+        } else if ($userType === 'department_admin') {
+            // Department admins can view submissions from their department
+            $userDepartmentId = session()->get('department_id');
+            if ($userDepartmentId) {
+                $submitter = $this->userModel->find($submission['submitted_by']);
+                if ($submitter && $submitter['department_id'] == $userDepartmentId) {
+                    $canView = true;
+                }
+            }
         } else if ($userType === 'requestor' && $submission['submitted_by'] == $userId) {
             $canView = true;
         }
@@ -2350,11 +2359,12 @@ class Forms extends BaseController
         
         // Get filter parameters
         $statusFilter = $this->request->getGet('status');
+        $officeFilter = $this->request->getGet('office');
         $searchQuery = $this->request->getGet('q');
         $page = (int)($this->request->getGet('page') ?? 1);
         $perPage = 20;
         
-        // Get user's office for automatic filtering
+        // Get user's office for display purposes only (not for filtering)
         $userOfficeId = session()->get('office_id');
         
         // Get all users from the department
@@ -2366,7 +2376,7 @@ class Forms extends BaseController
             $deptUserIds = [0]; // No users, return empty result
         }
         
-        // Build query
+        // Build query - department-based only, disregarding office restrictions
         $builder = $this->formSubmissionModel->builder();
         $builder->select('form_submissions.*, forms.description as form_description, 
                          users.full_name as requestor_name, users.username as requestor_username,
@@ -2386,10 +2396,10 @@ class Forms extends BaseController
             $builder->where('form_submissions.status', $statusFilter);
         }
         
-        // SECURITY: Enforce office filtering if user has office assignment
-        if (!empty($userOfficeId)) {
-            $builder->where('users.office_id', (int)$userOfficeId);
-            log_message('info', "Department admin restricted to office {$userOfficeId}");
+        // Apply optional office filter (user-selected, not enforced)
+        if (!empty($officeFilter)) {
+            $builder->where('users.office_id', (int)$officeFilter);
+            log_message('info', "Department submissions filtered by office {$officeFilter}");
         }
         
         if (!empty($searchQuery)) {
@@ -2415,14 +2425,15 @@ class Forms extends BaseController
         // Calculate statistics with correct status values
         // Status values: 'submitted', 'approved', 'pending_service', 'rejected', 'completed'
         
-        // Helper function to build stats query with office filtering
-        $buildStatsQuery = function() use ($deptUserIds, $userOfficeId) {
+        // Helper function to build stats query - department-based only
+        $buildStatsQuery = function() use ($deptUserIds, $officeFilter) {
             $builder = $this->formSubmissionModel->builder();
-            if (!empty($userOfficeId)) {
+            $builder->whereIn('submitted_by', $deptUserIds);
+            
+            // Apply office filter to stats if selected
+            if (!empty($officeFilter)) {
                 $builder->join('users su', 'su.id = form_submissions.submitted_by')
-                       ->where('su.office_id', (int)$userOfficeId);
-            } else {
-                $builder->whereIn('submitted_by', $deptUserIds);
+                       ->where('su.office_id', (int)$officeFilter);
             }
             return $builder;
         };

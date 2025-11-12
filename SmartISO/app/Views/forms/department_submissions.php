@@ -189,7 +189,7 @@
                                                 <small><?= date('M d, Y', strtotime($submission['created_at'])) ?></small>
                                             </td>
                                             <td>
-                                                <a href="<?= base_url('forms/view/' . $submission['id']) ?>" 
+                                                <a href="<?= base_url('forms/submission/' . $submission['id']) ?>" 
                                                    class="btn btn-sm btn-primary" 
                                                    title="View Details">
                                                     <i class="fas fa-eye"></i>
