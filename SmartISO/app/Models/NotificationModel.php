@@ -186,7 +186,7 @@ class NotificationModel extends Model
     }
 
     /**
-     * Create notification for new submission - notify only assigned approvers
+     * Create notification for new submission - notify assigned approvers AND admins
      */
     public function createSubmissionNotification($submissionId, $formCode)
     {
@@ -208,24 +208,39 @@ class NotificationModel extends Model
         // If no specific approvers assigned, fall back to approving authorities FROM THE SAME DEPARTMENT
         if (empty($assignedApprovers)) {
             if ($submitterDepartment) {
-                // Include approving authorities, department admins, and superusers from the same department
-                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin', 'superuser'])
+                // Include both approving authorities and department admins from the same department
+                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
                                                ->where('department_id', $submitterDepartment)
                                                ->where('active', 1)
                                                ->findAll();
             } else {
                 // No department - notify all approvers (legacy support for data without departments)
-                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin', 'superuser'])
+                $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
                                                ->where('active', 1)
                                                ->findAll();
             }
         }
         
-        $title = 'New Service Request Requires Approval';
-        $message = "A new {$formCode} request has been submitted by " . ($submission['submitted_by_name'] ?? 'a user') . " and requires your approval.";
+        // ALWAYS notify global admins regardless of department
+        $globalAdmins = $userModel->whereIn('user_type', ['admin', 'superuser'])
+                                  ->where('active', 1)
+                                  ->findAll();
         
-        foreach ($assignedApprovers as $approver) {
-            $userId = isset($approver['user_id']) ? $approver['user_id'] : $approver['id'];
+        // Merge approvers and admins, removing duplicates
+        $allNotifyUsers = array_merge($assignedApprovers, $globalAdmins);
+        $notifiedUserIds = [];
+        
+        $title = 'New Service Request Requires Approval';
+        $message = "A new {$formCode} request has been submitted by " . ($submitter['full_name'] ?? 'a user') . " and requires approval.";
+        
+        foreach ($allNotifyUsers as $user) {
+            $userId = isset($user['user_id']) ? $user['user_id'] : $user['id'];
+            
+            // Skip if already notified (avoid duplicates)
+            if (in_array($userId, $notifiedUserIds)) {
+                continue;
+            }
+            $notifiedUserIds[] = $userId;
 
             // Insert only columns that exist in the current notifications table.
             $this->insert([

@@ -144,8 +144,8 @@ document.querySelectorAll('.panel-rename-form').forEach(form => {
                     
                     <div class="mb-3">
                         <label for="department_id" class="form-label">Department</label>
-                        <select class="form-select" id="department_id" name="department_id" onchange="filterOfficesByDepartment()">
-                            <option value="">Select Department</option>
+                        <select class="form-select" id="department_id" name="department_id">
+                            <option value="">Select Department (Optional)</option>
                             <?php if (!empty($departments)): ?>
                                 <?php foreach ($departments as $dept): ?>
                                     <option value="<?= esc($dept['id']) ?>"><?= esc($dept['description']) ?></option>
@@ -158,10 +158,26 @@ document.querySelectorAll('.panel-rename-form').forEach(form => {
                     <div class="mb-3">
                         <label for="office_id" class="form-label">Office</label>
                         <select class="form-select" id="office_id" name="office_id">
-                            <option value="">Select Department First</option>
+                            <option value="">Select Office (Optional)</option>
                             <?php if (!empty($offices)): ?>
                                 <?php foreach ($offices as $office): ?>
-                                    <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
+                                    <option value="<?= esc($office['id']) ?>">
+                                        <?= esc($office['description']) ?>
+                                        <?php if (!empty($office['department_id']) && !empty($departments)): ?>
+                                            <?php 
+                                            $deptName = '';
+                                            foreach ($departments as $d) {
+                                                if ($d['id'] == $office['department_id']) {
+                                                    $deptName = $d['description'];
+                                                    break;
+                                                }
+                                            }
+                                            ?>
+                                            <?php if ($deptName): ?>
+                                                - <?= esc($deptName) ?>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </option>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>

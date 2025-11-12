@@ -133,19 +133,23 @@
                             <td><?= esc($submission['department_name'] ?? 'N/A') ?></td>
                             <td>
                                 <?php 
-                                // Use calendar-based priority from schedule or form_submission_data
-                                $priority = $submission['priority_level'] ?? '';
+                                // Priority can come from schedules.priority_level OR form_submissions.priority
+                                // Prefer schedule priority if available
+                                $priority = $submission['priority_level'] ?? $submission['priority'] ?? '';
                                 
-                                // Map priority levels to labels and colors (calendar-based)
+                                // Map priority levels to labels and colors
                                 $priorityMap = [
-                                    'high' => ['label' => 'High', 'color' => 'danger', 'days' => 3],
-                                    'medium' => ['label' => 'Medium', 'color' => 'warning', 'days' => 5],
-                                    'low' => ['label' => 'Low', 'color' => 'success', 'days' => 7]
+                                    'low' => ['label' => 'Low', 'color' => 'success'],
+                                    'normal' => ['label' => 'Normal', 'color' => 'info'],
+                                    'medium' => ['label' => 'Medium', 'color' => 'warning'],
+                                    'high' => ['label' => 'High', 'color' => 'danger'],
+                                    'urgent' => ['label' => 'Urgent', 'color' => 'danger'],
+                                    'critical' => ['label' => 'Critical', 'color' => 'dark']
                                 ];
                                 
                                 $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
                                 $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
-                                $etaDays = $submission['eta_days'] ?? ($priorityMap[$priority]['days'] ?? null);
+                                $etaDays = $submission['eta_days'] ?? null;
                                 ?>
                                 
                                 <span class="badge bg-<?= $priorityColor ?>">

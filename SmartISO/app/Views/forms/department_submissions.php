@@ -31,15 +31,15 @@
                     <div class="card text-white bg-primary">
                         <div class="card-body">
                             <h6 class="card-title"><i class="fas fa-clipboard-list me-1"></i> Total</h6>
-                            <h3 class="mb-0"><?= number_format($stats['total']) ?></h3>
+                            <h3 class="mb-0"><?= number_format($stats['total'] ?? 0) ?></h3>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3 col-sm-6 mb-3">
                     <div class="card text-white bg-warning">
                         <div class="card-body">
-                            <h6 class="card-title"><i class="fas fa-clock me-1"></i> Pending</h6>
-                            <h3 class="mb-0"><?= number_format($stats['pending']) ?></h3>
+                            <h6 class="card-title"><i class="fas fa-clock me-1"></i> Submitted</h6>
+                            <h3 class="mb-0"><?= number_format($stats['submitted'] ?? 0) ?></h3>
                         </div>
                     </div>
                 </div>
@@ -47,15 +47,15 @@
                     <div class="card text-white bg-success">
                         <div class="card-body">
                             <h6 class="card-title"><i class="fas fa-check-circle me-1"></i> Approved</h6>
-                            <h3 class="mb-0"><?= number_format($stats['approved']) ?></h3>
+                            <h3 class="mb-0"><?= number_format($stats['approved'] ?? 0) ?></h3>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3 col-sm-6 mb-3">
                     <div class="card text-white bg-info">
                         <div class="card-body">
-                            <h6 class="card-title"><i class="fas fa-tools me-1"></i> Serviced</h6>
-                            <h3 class="mb-0"><?= number_format($stats['serviced']) ?></h3>
+                            <h6 class="card-title"><i class="fas fa-star me-1"></i> Completed</h6>
+                            <h3 class="mb-0"><?= number_format($stats['completed'] ?? 0) ?></h3>
                         </div>
                     </div>
                 </div>
@@ -73,10 +73,10 @@
                             <label class="form-label">Status</label>
                             <select name="status" class="form-select">
                                 <option value="">All Statuses</option>
-                                <option value="pending" <?= ($statusFilter ?? '') === 'pending' ? 'selected' : '' ?>>Pending</option>
+                                <option value="submitted" <?= ($statusFilter ?? '') === 'submitted' ? 'selected' : '' ?>>Submitted</option>
                                 <option value="approved" <?= ($statusFilter ?? '') === 'approved' ? 'selected' : '' ?>>Approved</option>
+                                <option value="pending_service" <?= ($statusFilter ?? '') === 'pending_service' ? 'selected' : '' ?>>Pending Service</option>
                                 <option value="rejected" <?= ($statusFilter ?? '') === 'rejected' ? 'selected' : '' ?>>Rejected</option>
-                                <option value="serviced" <?= ($statusFilter ?? '') === 'serviced' ? 'selected' : '' ?>>Serviced</option>
                                 <option value="completed" <?= ($statusFilter ?? '') === 'completed' ? 'selected' : '' ?>>Completed</option>
                             </select>
                         </div>
@@ -143,16 +143,16 @@
                                             <td>
                                                 <?php
                                                 $statusBadge = [
-                                                    'pending' => 'warning',
+                                                    'submitted' => 'warning',
                                                     'approved' => 'success',
+                                                    'pending_service' => 'info',
                                                     'rejected' => 'danger',
-                                                    'serviced' => 'info',
                                                     'completed' => 'primary'
                                                 ];
                                                 $badge = $statusBadge[$submission['status']] ?? 'secondary';
                                                 ?>
                                                 <span class="badge bg-<?= $badge ?>">
-                                                    <?= ucfirst(esc($submission['status'])) ?>
+                                                    <?= ucfirst(str_replace('_', ' ', esc($submission['status']))) ?>
                                                 </span>
                                             </td>
                                             <td>

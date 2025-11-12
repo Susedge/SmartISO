@@ -543,15 +543,17 @@ class Forms extends BaseController
             // Get filter parameters
             $priorityFilter = $this->request->getGet('priority');
             
-            // Get pending submissions
+            // Get pending submissions with schedule/priority information
             try {
                 $builder = $this->formSubmissionModel->builder();
                 $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description,
                                  users.full_name as submitted_by_name, users.department_id,
-                                 departments.description as department_name')
+                                 departments.description as department_name,
+                                 schedules.priority_level, schedules.eta_days, schedules.estimated_date')
                         ->join('forms', 'forms.id = form_submissions.form_id')
                         ->join('users', 'users.id = form_submissions.submitted_by')
                         ->join('departments', 'departments.id = users.department_id', 'left')
+                        ->join('schedules', 'schedules.submission_id = form_submissions.id', 'left')
                         ->where('form_submissions.status', 'submitted');
                 
                 // CRITICAL: ALL users (including admin, department_admin) must be assigned via form_signatories
@@ -559,12 +561,16 @@ class Forms extends BaseController
                 $builder->where('fsig.user_id', $userId);
                 log_message('info', "User {$userId} ({$userType}) restricted to assigned forms via form_signatories");
                 
-                // Apply priority filter if provided
+                // Apply priority filter if provided - check both form_submissions.priority and schedules.priority_level
                 if ($priorityFilter) {
-                    $builder->where('form_submissions.priority', $priorityFilter);
+                    $builder->groupStart()
+                            ->where('form_submissions.priority', $priorityFilter)
+                            ->orWhere('schedules.priority_level', $priorityFilter)
+                            ->groupEnd();
                 }
                 
-                $builder->orderBy('form_submissions.priority', 'DESC')
+                // Order by priority (prefer schedule priority, fallback to submission priority)
+                $builder->orderBy('COALESCE(schedules.priority_level, form_submissions.priority)', 'DESC')
                         ->orderBy('form_submissions.updated_at', 'ASC');
                 
                 $submissions = $builder->get()->getResultArray();
@@ -2319,24 +2325,33 @@ class Forms extends BaseController
             ->orderBy('description', 'ASC')
             ->findAll();
         
-        // Calculate statistics
+        // Calculate statistics with correct status values
+        // Status values: 'submitted', 'approved', 'pending_service', 'rejected', 'completed'
+        $statsBuilder = $this->formSubmissionModel->builder();
+        
+        // Apply office filtering to stats if user has office assignment
+        if (!empty($userOfficeId)) {
+            $statsBuilder->join('users su', 'su.id = form_submissions.submitted_by')
+                        ->where('su.office_id', (int)$userOfficeId);
+        }
+        
         $stats = [
             'total' => $totalCount,
-            'pending' => $this->formSubmissionModel->builder()
+            'submitted' => $this->formSubmissionModel->builder()
                 ->whereIn('submitted_by', $deptUserIds)
-                ->where('status', 'pending')
+                ->where('status', 'submitted')
                 ->countAllResults(),
             'approved' => $this->formSubmissionModel->builder()
                 ->whereIn('submitted_by', $deptUserIds)
-                ->where('status', 'approved')
+                ->whereIn('status', ['approved', 'pending_service'])
                 ->countAllResults(),
             'rejected' => $this->formSubmissionModel->builder()
                 ->whereIn('submitted_by', $deptUserIds)
                 ->where('status', 'rejected')
                 ->countAllResults(),
-            'serviced' => $this->formSubmissionModel->builder()
+            'completed' => $this->formSubmissionModel->builder()
                 ->whereIn('submitted_by', $deptUserIds)
-                ->where('status', 'serviced')
+                ->where('completed', 1)
                 ->countAllResults(),
         ];
         
