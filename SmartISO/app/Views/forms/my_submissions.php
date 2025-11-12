@@ -35,26 +35,36 @@
                                 <td><?= esc($submission['form_code']) ?> - <?= esc($submission['form_description']) ?></td>
                                 <td>
                                     <?php 
-                                    // Use priority_level from schedules table (like admin)
-                                    $priority = $submission['priority_level'] ?? '';
+                                    // Priority can come from schedules.priority_level OR form_submissions.priority
+                                    // Prefer schedule priority if available (same logic as pending_approval)
+                                    $priority = $submission['priority_level'] ?? $submission['priority'] ?? '';
                                     
-                                    // Map priority levels to labels and colors (3-level system)
-                                    $priorityMap = [
-                                        'high' => ['label' => 'High', 'color' => 'danger'],
-                                        'medium' => ['label' => 'Medium', 'color' => 'warning'],
-                                        'low' => ['label' => 'Low', 'color' => 'success']
-                                    ];
-                                    
-                                    $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
-                                    $priorityColor = !empty($priority) ? ($priorityMap[$priority]['color'] ?? 'secondary') : 'secondary';
-                                    $etaDays = $submission['eta_days'] ?? null;
-                                    $estimatedDate = $submission['estimated_date'] ?? null;
+                                    if (!empty($priority)):
+                                        // Map priority levels to labels and colors (uniform across all pages)
+                                        $priorityMap = [
+                                            'low' => ['label' => 'Low', 'color' => 'success'],
+                                            'normal' => ['label' => 'Normal', 'color' => 'info'],
+                                            'medium' => ['label' => 'Medium', 'color' => 'warning'],
+                                            'high' => ['label' => 'High', 'color' => 'danger'],
+                                            'urgent' => ['label' => 'Urgent', 'color' => 'danger'],
+                                            'critical' => ['label' => 'Critical', 'color' => 'dark']
+                                        ];
+                                        
+                                        $priorityLabel = $priorityMap[$priority]['label'] ?? ucfirst($priority);
+                                        $priorityColor = $priorityMap[$priority]['color'] ?? 'secondary';
+                                        $etaDays = $submission['eta_days'] ?? null;
+                                        $estimatedDate = $submission['estimated_date'] ?? null;
                                     ?>
-                                    <span class="badge bg-<?= $priorityColor ?>">
-                                        <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
-                                    </span>
-                                    <?php if (!empty($estimatedDate)): ?>
-                                        <br><small class="text-muted">ETA: <?= date('M d, Y', strtotime($estimatedDate)) ?></small>
+                                        <span class="badge bg-<?= $priorityColor ?>">
+                                            <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
+                                        </span>
+                                        <?php if (!empty($estimatedDate)): ?>
+                                            <div class="small text-muted mt-1">
+                                                <small>ETA: <?= date('M d, Y', strtotime($estimatedDate)) ?></small>
+                                            </div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>

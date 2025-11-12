@@ -52,9 +52,17 @@ class Configurations extends BaseController
         
         $signatories = $this->formSignatoryModel->getFormSignatories($formId);
         // Include approving authorities, department admins, and super admins as potential approvers
-        $availableApprovers = $this->userModel->whereIn('user_type', ['approving_authority', 'department_admin', 'superuser', 'admin'])
-                                             ->where('active', 1)
-                                             ->findAll();
+        // For department_admin and approving_authority users, only include those from the same department as the form
+        $availableApprovers = $this->userModel
+            ->groupStart()
+                ->whereIn('user_type', ['superuser', 'admin'])
+                ->orGroupStart()
+                    ->whereIn('user_type', ['approving_authority', 'department_admin'])
+                    ->where('department_id', $form['department_id'])
+                ->groupEnd()
+            ->groupEnd()
+            ->where('active', 1)
+            ->findAll();
         if ($this->request->isAJAX() || $this->request->getGet('ajax')) {
             return $this->response->setJSON([
                 'success' => true,

@@ -10,15 +10,15 @@
         <div class="row mb-4">
             <div class="col-md-6">
                 <?php if (isset($isGlobalAdmin) && $isGlobalAdmin): ?>
-                    <!-- Global admins can use dropdown filters -->
-                    <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
+                    <!-- Global admins can filter by department, office, and priority -->
+                    <form method="get" action="<?= base_url('forms/pending-approval') ?>" id="filterForm" class="row g-3">
                         <div class="col-md-4">
                             <label for="department_filter" class="form-label">Filter by Department</label>
                             <select name="department" id="department_filter" class="form-select">
                                 <option value="">All Departments</option>
                                 <?php if (isset($departments) && is_array($departments)): ?>
                                     <?php foreach ($departments as $dept): ?>
-                                        <option value="<?= esc($dept['id']) ?>">
+                                        <option value="<?= esc($dept['id']) ?>" <?= (isset($selectedDepartment) && $selectedDepartment == $dept['id']) ? 'selected' : '' ?>>
                                             <?= esc($dept['description']) ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -31,22 +31,36 @@
                                 <option value="">All Offices</option>
                                 <?php if (isset($offices) && is_array($offices)): ?>
                                     <?php foreach ($offices as $office): ?>
-                                        <option value="<?= esc($office['id']) ?>">
+                                        <option value="<?= esc($office['id']) ?>" 
+                                                data-department="<?= esc($office['department_id']) ?>"
+                                                <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
                                             <?= esc($office['description']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label">&nbsp;</label>
-                            <button type="submit" class="btn btn-outline-primary d-block">
-                                <i class="fas fa-filter me-1"></i> Filter
-                            </button>
+                        <div class="col-md-4">
+                            <label for="priority_filter" class="form-label">Filter by Priority</label>
+                            <select name="priority" id="priority_filter" class="form-select">
+                                <option value="">All Priorities</option>
+                            <?php 
+                            $safePriorities = $priorities ?? [
+                                'low' => 'Low',
+                                'medium' => 'Medium',
+                                'high' => 'High'
+                            ];
+                            foreach ($safePriorities as $priority_key => $priority_label): 
+                            ?>
+                                <option value="<?= esc($priority_key) ?>" <?= (isset($selectedPriority) && $selectedPriority === $priority_key) ? 'selected' : '' ?>>
+                                    <?= esc($priority_label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                            </select>
                         </div>
                     </form>
-                <?php else: ?>
-                    <!-- Non-admin users see their assigned department/office (read-only) -->
+                <?php elseif (isset($isDepartmentAdmin) && $isDepartmentAdmin): ?>
+                    <!-- Department admins see their department info and can filter by office (if not assigned to specific office) and priority -->
                     <div class="alert alert-info mb-3">
                         <i class="fas fa-info-circle me-2"></i>
                         <strong>Your Access:</strong>
@@ -56,39 +70,60 @@
                         <?php if (isset($userOffice) && $userOffice): ?>
                             | Office: <strong><?= esc($userOffice['description']) ?></strong>
                         <?php endif; ?>
-                        <br><small class="text-muted">You can only approve forms from your assigned department/office.</small>
+                        <br><small class="text-muted">You can only approve forms from your assigned department<?= isset($userOffice) && $userOffice ? '/office' : '' ?>.</small>
+                    </div>
+                    
+                    <!-- Office and Priority filters for department admins -->
+                    <form method="get" action="<?= base_url('forms/pending-approval') ?>" id="filterForm" class="row g-3">
+                        <!-- Always show office filter for department admins -->
+                        <div class="col-md-6">
+                            <label for="office_filter" class="form-label">Filter by Office</label>
+                            <select name="office" id="office_filter" class="form-select">
+                                <option value="">All Offices</option>
+                                <?php if (isset($offices) && is_array($offices)): ?>
+                                    <?php foreach ($offices as $office): ?>
+                                        <option value="<?= esc($office['id']) ?>" <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
+                                            <?= esc($office['description']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="priority_filter" class="form-label">Filter by Priority</label>
+                            <select name="priority" id="priority_filter" class="form-select">
+                                <option value="">All Priorities</option>
+                            <?php 
+                            $safePriorities = $priorities ?? [
+                                'low' => 'Low',
+                                'medium' => 'Medium',
+                                'high' => 'High'
+                            ];
+                            foreach ($safePriorities as $priority_key => $priority_label): 
+                            ?>
+                                <option value="<?= esc($priority_key) ?>" <?= (isset($selectedPriority) && $selectedPriority === $priority_key) ? 'selected' : '' ?>>
+                                    <?= esc($priority_label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <!-- Regular approvers see their assigned department/office (read-only) -->
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Your Access:</strong>
+                        <?php if (isset($userDepartment) && $userDepartment): ?>
+                            Department: <strong><?= esc($userDepartment['description']) ?></strong>
+                        <?php endif; ?>
+                        <?php if (isset($userOffice) && $userOffice): ?>
+                            | Office: <strong><?= esc($userOffice['description']) ?></strong>
+                        <?php endif; ?>
+                        <br><small class="text-muted">You can only approve forms assigned to you.</small>
                     </div>
                 <?php endif; ?>
                 
-                <!-- Priority filter available to all users -->
-                <form method="get" action="<?= base_url('forms/pending-approval') ?>" class="row g-3">
-                    <div class="col-md-6">
-                        <label for="priority_filter" class="form-label">Filter by Priority</label>
-                        <select name="priority" id="priority_filter" class="form-select">
-                            <option value="">All Priorities</option>
-                        <?php 
-                        $safePriorities = $priorities ?? [
-                            'low' => 'Low',
-                            'normal' => 'Normal',
-                            'high' => 'High',
-                            'urgent' => 'Urgent',
-                            'critical' => 'Critical'
-                        ];
-                        foreach ($safePriorities as $priority_key => $priority_label): 
-                        ?>
-                            <option value="<?= esc($priority_key) ?>" <?= (isset($selectedPriority) && $selectedPriority === $priority_key) ? 'selected' : '' ?>>
-                                <?= esc($priority_label) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">&nbsp;</label>
-                    <button type="submit" class="btn btn-outline-primary d-block">
-                        <i class="fas fa-filter me-1"></i> Filter
-                    </button>
-                </div>
-            </form>
+                <!-- Priority filter removed - now part of main filter form above for admins -->
             </div>
             <div class="col-md-6 text-end">
                 <?php if (!empty($submissions)): ?>
@@ -118,6 +153,7 @@
                             <th>Form</th>
                             <th>Submitted By</th>
                             <th>Department</th>
+                            <th>Office</th>
                             <th>Priority</th>
                             <th>Submission Date</th>
                             <th>Reference File</th>
@@ -131,20 +167,18 @@
                             <td><?= esc($submission['form_code']) ?> - <?= esc($submission['form_description']) ?></td>
                             <td><?= esc($submission['submitted_by_name']) ?></td>
                             <td><?= esc($submission['department_name'] ?? 'N/A') ?></td>
+                            <td><?= esc($submission['office_name'] ?? 'N/A') ?></td>
                             <td>
                                 <?php 
                                 // Priority can come from schedules.priority_level OR form_submissions.priority
                                 // Prefer schedule priority if available
                                 $priority = $submission['priority_level'] ?? $submission['priority'] ?? '';
                                 
-                                // Map priority levels to labels and colors
+                                // Map priority levels to labels and colors (3-level system)
                                 $priorityMap = [
                                     'low' => ['label' => 'Low', 'color' => 'success'],
-                                    'normal' => ['label' => 'Normal', 'color' => 'info'],
                                     'medium' => ['label' => 'Medium', 'color' => 'warning'],
-                                    'high' => ['label' => 'High', 'color' => 'danger'],
-                                    'urgent' => ['label' => 'Urgent', 'color' => 'danger'],
-                                    'critical' => ['label' => 'Critical', 'color' => 'dark']
+                                    'high' => ['label' => 'High', 'color' => 'danger']
                                 ];
                                 
                                 $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
@@ -185,4 +219,80 @@
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filterForm = document.getElementById('filterForm');
+    if (!filterForm) return; // No filters available
+    
+    const departmentFilter = document.getElementById('department_filter');
+    const officeFilter = document.getElementById('office_filter');
+    const priorityFilter = document.getElementById('priority_filter');
+    
+    // Only process office filtering if both department and office filters exist (global admin)
+    if (departmentFilter && officeFilter) {
+        // Store all office options for filtering
+        const allOfficeOptions = Array.from(officeFilter.options).slice(1); // Exclude "All Offices" option
+        
+        // Function to filter offices based on selected department
+        function filterOfficesByDepartment(departmentId) {
+            // Clear current options except "All Offices"
+            officeFilter.innerHTML = '<option value="">All Offices</option>';
+            
+            if (!departmentId) {
+                // Show all offices if no department selected
+                allOfficeOptions.forEach(option => {
+                    officeFilter.appendChild(option.cloneNode(true));
+                });
+            } else {
+                // Show only offices for the selected department
+                allOfficeOptions.forEach(option => {
+                    if (option.dataset.department == departmentId) {
+                        officeFilter.appendChild(option.cloneNode(true));
+                    }
+                });
+            }
+        }
+        
+        // Initialize: Filter offices on page load if department is pre-selected
+        const selectedDepartment = departmentFilter.value;
+        if (selectedDepartment) {
+            filterOfficesByDepartment(selectedDepartment);
+            // Restore selected office if it was set
+            const selectedOffice = '<?= esc($selectedOffice ?? '') ?>';
+            if (selectedOffice) {
+                officeFilter.value = selectedOffice;
+            }
+        }
+        
+        // Department filter onChange - filter offices and auto-submit
+        departmentFilter.addEventListener('change', function() {
+            const departmentId = this.value;
+            filterOfficesByDepartment(departmentId);
+            // Reset office selection when department changes
+            officeFilter.value = '';
+            // Auto-submit form
+            filterForm.submit();
+        });
+        
+        // Office filter onChange - auto-submit
+        officeFilter.addEventListener('change', function() {
+            filterForm.submit();
+        });
+    } else if (officeFilter) {
+        // Department admin without fixed office - only office filter exists
+        officeFilter.addEventListener('change', function() {
+            filterForm.submit();
+        });
+    }
+    
+    // Priority filter onChange - auto-submit (available to all)
+    if (priorityFilter) {
+        priorityFilter.addEventListener('change', function() {
+            filterForm.submit();
+        });
+    }
+});
+</script>
+
 <?= $this->endSection() ?>

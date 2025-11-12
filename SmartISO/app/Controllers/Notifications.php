@@ -38,8 +38,8 @@ class Notifications extends BaseController
         // Mark as read (idempotent)
         $this->notificationModel->markAsRead($id, $userId);
 
-        // Enhanced routing: Direct approving authorities to Review & Sign page for submissions
-        if (!empty($notification['submission_id']) && in_array($userType, ['approving_authority', 'admin'])) {
+        // Enhanced routing: Direct approving authorities, admins, and dept admins to Review & Sign page for submissions
+        if (!empty($notification['submission_id']) && in_array($userType, ['approving_authority', 'admin', 'superuser', 'department_admin'])) {
             // Check if this is a submission notification that needs approval
             $submissionModel = new \App\Models\FormSubmissionModel();
             $submission = $submissionModel->find($notification['submission_id']);

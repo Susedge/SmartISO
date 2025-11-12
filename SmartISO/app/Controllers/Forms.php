@@ -86,7 +86,9 @@ class Forms extends BaseController
                 ->where('user_id', $userId)
                 ->first();
             
-            return !empty($isAssigned);
+            $result = !empty($isAssigned);
+            log_message('info', "User {$userId} " . ($result ? 'IS' : 'IS NOT') . " assigned to form {$formId} via form_signatories");
+            return $result;
         } catch (\Exception $e) {
             log_message('error', "Error checking specific approver assignment: " . $e->getMessage());
             return false;
@@ -489,10 +491,12 @@ class Forms extends BaseController
         // Get submissions with optional filters
         $builder = $this->formSubmissionModel->builder();
         $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description, 
-                         users.full_name as requestor_name, departments.description as department_name')
+                         users.full_name as requestor_name, departments.description as department_name,
+                         schedules.priority_level, schedules.eta_days, schedules.estimated_date')
                 ->join('forms', 'forms.id = form_submissions.form_id')
                 ->join('users', 'users.id = form_submissions.submitted_by')
-                ->join('departments', 'departments.id = users.department_id', 'left');
+                ->join('departments', 'departments.id = users.department_id', 'left')
+                ->join('schedules', 'schedules.submission_id = form_submissions.id', 'left');
         
         if ($filterUserId) {
             $builder->where('form_submissions.submitted_by', $filterUserId);
@@ -542,24 +546,50 @@ class Forms extends BaseController
             
             // Get filter parameters
             $priorityFilter = $this->request->getGet('priority');
+            $departmentFilter = $this->request->getGet('department');
+            $officeFilter = $this->request->getGet('office');
             
             // Get pending submissions with schedule/priority information
             try {
                 $builder = $this->formSubmissionModel->builder();
                 $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description,
-                                 users.full_name as submitted_by_name, users.department_id,
-                                 departments.description as department_name,
+                                 users.full_name as submitted_by_name, users.department_id, users.office_id,
+                                 departments.description as department_name, offices.description as office_name,
                                  schedules.priority_level, schedules.eta_days, schedules.estimated_date')
                         ->join('forms', 'forms.id = form_submissions.form_id')
                         ->join('users', 'users.id = form_submissions.submitted_by')
                         ->join('departments', 'departments.id = users.department_id', 'left')
+                        ->join('offices', 'offices.id = users.office_id', 'left')
                         ->join('schedules', 'schedules.submission_id = form_submissions.id', 'left')
                         ->where('form_submissions.status', 'submitted');
                 
-                // CRITICAL: ALL users (including admin, department_admin) must be assigned via form_signatories
+                // ALL users (including admins) must be assigned via form_signatories to see forms
                 $builder->join('form_signatories fsig', 'fsig.form_id = forms.id', 'inner');
                 $builder->where('fsig.user_id', $userId);
                 log_message('info', "User {$userId} ({$userType}) restricted to assigned forms via form_signatories");
+                
+                // DEPARTMENT ADMIN: Restrict to their department and optionally office filter
+                if ($isDepartmentAdmin && $userDepartmentId) {
+                    $builder->where('users.department_id', $userDepartmentId);
+                    log_message('info', "Department admin restricted to department {$userDepartmentId}");
+                    
+                    // Apply office filter if provided by department admin
+                    if ($officeFilter) {
+                        $builder->where('users.office_id', $officeFilter);
+                        log_message('info', "Applying office filter: {$officeFilter}");
+                    }
+                }
+                
+                // GLOBAL ADMIN: Can filter by department and office
+                if ($isGlobalAdmin && $departmentFilter) {
+                    $builder->where('users.department_id', $departmentFilter);
+                    log_message('info', "Applying department filter: {$departmentFilter}");
+                }
+                
+                if ($isGlobalAdmin && $officeFilter) {
+                    $builder->where('users.office_id', $officeFilter);
+                    log_message('info', "Applying office filter: {$officeFilter}");
+                }
                 
                 // Apply priority filter if provided - check both form_submissions.priority and schedules.priority_level
                 if ($priorityFilter) {
@@ -569,11 +599,13 @@ class Forms extends BaseController
                             ->groupEnd();
                 }
                 
-                // Order by priority (prefer schedule priority, fallback to submission priority)
-                $builder->orderBy('COALESCE(schedules.priority_level, form_submissions.priority)', 'DESC')
+                // Order by priority - use IFNULL which is simpler and works in MySQL/MariaDB
+                $builder->orderBy('IFNULL(schedules.priority_level, form_submissions.priority)', 'DESC', false)
                         ->orderBy('form_submissions.updated_at', 'ASC');
                 
                 $submissions = $builder->get()->getResultArray();
+                
+                log_message('info', "Found " . count($submissions) . " pending submissions for user {$userId}");
             } catch (\Exception $e) {
                 log_message('error', 'Error getting pending approvals: ' . $e->getMessage());
                 $submissions = [];
@@ -599,39 +631,58 @@ class Forms extends BaseController
                 log_message('error', 'Error getting user department/office: ' . $e->getMessage());
             }
 
-            // Get priority options with fallback
-            try {
-                $priorities = $this->priorityModel->getPriorityOptions();
-            } catch (\Exception $e) {
-                log_message('error', 'Error getting priorities: ' . $e->getMessage());
-                $priorities = [
-                    'low' => 'Low',
-                    'normal' => 'Normal',
-                    'high' => 'High',
-                    'urgent' => 'Urgent',
-                    'critical' => 'Critical'
-                ];
-            }
-            
-            // Priority options for filtering
+            // Get priority options - standardized 3-level system
             $priorities = [
                 'low' => 'Low',
                 'medium' => 'Medium',
-                'high' => 'High',
-                'critical' => 'Critical'
+                'high' => 'High'
             ];
+            
+            // Get departments and offices for filter dropdowns
+            $departments = [];
+            $offices = [];
+            
+            if ($isGlobalAdmin) {
+                // Global admins can see all departments and offices
+                try {
+                    $departments = $this->departmentModel->orderBy('description', 'ASC')
+                                                        ->findAll();
+                } catch (\Exception $e) {
+                    log_message('error', 'Error getting departments: ' . $e->getMessage());
+                }
+                
+                try {
+                    $offices = $this->officeModel->orderBy('description', 'ASC')
+                                                 ->findAll();
+                } catch (\Exception $e) {
+                    log_message('error', 'Error getting offices: ' . $e->getMessage());
+                }
+            } elseif ($isDepartmentAdmin && $userDepartmentId) {
+                // Department admins can filter by offices in their department (regardless of their own office assignment)
+                try {
+                    $offices = $this->officeModel->where('department_id', $userDepartmentId)
+                                                 ->orderBy('description', 'ASC')
+                                                 ->findAll();
+                } catch (\Exception $e) {
+                    log_message('error', 'Error getting offices: ' . $e->getMessage());
+                }
+            }
             
             $data = [
                 'title' => 'Forms Pending Approval',
                 'submissions' => $submissions ?? [],
                 'priorities' => $priorities ?? [],
                 'selectedPriority' => $priorityFilter ?? '',
+                'selectedDepartment' => $departmentFilter ?? '',
+                'selectedOffice' => $officeFilter ?? '',
                 'isGlobalAdmin' => $isGlobalAdmin,
                 'isDepartmentAdmin' => $isDepartmentAdmin,
                 'userDepartment' => $userDepartment,
                 'userOffice' => $userOffice,
                 'userDepartmentId' => $userDepartmentId,
-                'userOfficeId' => $userOfficeId
+                'userOfficeId' => $userOfficeId,
+                'departments' => $departments,
+                'offices' => $offices
             ];
             
             return view('forms/pending_approval', $data);
@@ -639,6 +690,40 @@ class Forms extends BaseController
         } catch (\Exception $e) {
             log_message('error', 'Error in pendingApproval: ' . $e->getMessage());
             return redirect()->to('/dashboard')->with('error', 'An error occurred while loading pending approvals. Please try again.');
+        }
+    }
+    
+    /**
+     * API endpoint to get offices by department (for dynamic filtering)
+     */
+    public function getOfficesByDepartment()
+    {
+        try {
+            $departmentId = $this->request->getGet('department_id');
+            
+            if (!$departmentId) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Department ID is required'
+                ]);
+            }
+            
+            $offices = $this->officeModel
+                ->where('department_id', $departmentId)
+                ->orderBy('description', 'ASC')
+                ->findAll();
+            
+            return $this->response->setJSON([
+                'success' => true,
+                'offices' => $offices
+            ]);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'Error getting offices by department: ' . $e->getMessage());
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'An error occurred while fetching offices'
+            ]);
         }
     }
     
@@ -2286,11 +2371,13 @@ class Forms extends BaseController
         $builder->select('form_submissions.*, forms.description as form_description, 
                          users.full_name as requestor_name, users.username as requestor_username,
                          offices.description as office_name,
-                         departments.description as department_name')
+                         departments.description as department_name,
+                         schedules.priority_level, schedules.eta_days, schedules.estimated_date')
                 ->join('forms', 'forms.id = form_submissions.form_id', 'left')
                 ->join('users', 'users.id = form_submissions.submitted_by', 'left')
                 ->join('offices', 'offices.id = users.office_id', 'left')
                 ->join('departments', 'departments.id = users.department_id', 'left')
+                ->join('schedules', 'schedules.submission_id = form_submissions.id', 'left')
                 ->whereIn('form_submissions.submitted_by', $deptUserIds)
                 ->orderBy('form_submissions.created_at', 'DESC');
         
@@ -2327,31 +2414,32 @@ class Forms extends BaseController
         
         // Calculate statistics with correct status values
         // Status values: 'submitted', 'approved', 'pending_service', 'rejected', 'completed'
-        $statsBuilder = $this->formSubmissionModel->builder();
         
-        // Apply office filtering to stats if user has office assignment
-        if (!empty($userOfficeId)) {
-            $statsBuilder->join('users su', 'su.id = form_submissions.submitted_by')
-                        ->where('su.office_id', (int)$userOfficeId);
-        }
+        // Helper function to build stats query with office filtering
+        $buildStatsQuery = function() use ($deptUserIds, $userOfficeId) {
+            $builder = $this->formSubmissionModel->builder();
+            if (!empty($userOfficeId)) {
+                $builder->join('users su', 'su.id = form_submissions.submitted_by')
+                       ->where('su.office_id', (int)$userOfficeId);
+            } else {
+                $builder->whereIn('submitted_by', $deptUserIds);
+            }
+            return $builder;
+        };
         
         $stats = [
             'total' => $totalCount,
-            'submitted' => $this->formSubmissionModel->builder()
-                ->whereIn('submitted_by', $deptUserIds)
-                ->where('status', 'submitted')
+            'submitted' => $buildStatsQuery()
+                ->where('form_submissions.status', 'submitted')
                 ->countAllResults(),
-            'approved' => $this->formSubmissionModel->builder()
-                ->whereIn('submitted_by', $deptUserIds)
-                ->whereIn('status', ['approved', 'pending_service'])
+            'approved' => $buildStatsQuery()
+                ->whereIn('form_submissions.status', ['approved', 'pending_service'])
                 ->countAllResults(),
-            'rejected' => $this->formSubmissionModel->builder()
-                ->whereIn('submitted_by', $deptUserIds)
-                ->where('status', 'rejected')
+            'rejected' => $buildStatsQuery()
+                ->where('form_submissions.status', 'rejected')
                 ->countAllResults(),
-            'completed' => $this->formSubmissionModel->builder()
-                ->whereIn('submitted_by', $deptUserIds)
-                ->where('completed', 1)
+            'completed' => $buildStatsQuery()
+                ->where('form_submissions.status', 'completed')
                 ->countAllResults(),
         ];
         

@@ -156,19 +156,31 @@
                                                 </span>
                                             </td>
                                             <td>
-                                                <?php if (!empty($submission['priority'])): ?>
-                                                    <?php
-                                                    $priorityBadge = [
-                                                        'Low' => 'secondary',
-                                                        'Medium' => 'primary',
-                                                        'High' => 'warning',
-                                                        'Urgent' => 'danger'
+                                                <?php 
+                                                // Priority can come from schedules.priority_level OR form_submissions.priority
+                                                // Prefer schedule priority if available
+                                                $priority = $submission['priority_level'] ?? $submission['priority'] ?? '';
+                                                
+                                                if (!empty($priority)):
+                                                    // Map priority levels to labels and colors (3-level system)
+                                                    $priorityMap = [
+                                                        'low' => ['label' => 'Low', 'color' => 'success'],
+                                                        'medium' => ['label' => 'Medium', 'color' => 'warning'],
+                                                        'high' => ['label' => 'High', 'color' => 'danger']
                                                     ];
-                                                    $pBadge = $priorityBadge[$submission['priority']] ?? 'secondary';
-                                                    ?>
-                                                    <span class="badge bg-<?= $pBadge ?>">
-                                                        <?= esc($submission['priority']) ?>
+                                                    
+                                                    $priorityLabel = $priorityMap[$priority]['label'] ?? ucfirst($priority);
+                                                    $priorityColor = $priorityMap[$priority]['color'] ?? 'secondary';
+                                                    $etaDays = $submission['eta_days'] ?? null;
+                                                ?>
+                                                    <span class="badge bg-<?= $priorityColor ?>">
+                                                        <?= esc($priorityLabel) ?><?= $etaDays ? " ({$etaDays}d)" : '' ?>
                                                     </span>
+                                                    <?php if (!empty($submission['estimated_date'])): ?>
+                                                    <div class="small text-muted mt-1">
+                                                        <small>ETA: <?= date('M d, Y', strtotime($submission['estimated_date'])) ?></small>
+                                                    </div>
+                                                    <?php endif; ?>
                                                 <?php else: ?>
                                                     <span class="text-muted">-</span>
                                                 <?php endif; ?>
