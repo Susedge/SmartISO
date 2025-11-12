@@ -161,7 +161,7 @@ document.querySelectorAll('.panel-rename-form').forEach(form => {
                             <option value="">Select Office</option>
                             <?php if (!empty($offices)): ?>
                                 <?php foreach ($offices as $office): ?>
-                                    <option value="<?= esc($office['id']) ?>"><?= esc($office['description']) ?></option>
+                                    <option value="<?= esc($office['id']) ?>" data-department-id="<?= esc($office['department_id'] ?? '') ?>"><?= esc($office['description']) ?></option>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>
@@ -283,6 +283,65 @@ function deletePanel(panelName) {
 
 <script>
 // DOCX import removed: no handler needed
+
+// Department change handler to filter offices
+document.addEventListener('DOMContentLoaded', function() {
+    const departmentSelect = document.getElementById('department_id');
+    const officeSelect = document.getElementById('office_id');
+    
+    if (departmentSelect && officeSelect) {
+        // Store all offices for filtering
+        const allOffices = [];
+        const officeOptions = officeSelect.querySelectorAll('option');
+        officeOptions.forEach(function(opt) {
+            if (opt.value) { // Skip the empty "Select Office" option
+                allOffices.push({
+                    id: opt.value,
+                    text: opt.textContent,
+                    departmentId: opt.getAttribute('data-department-id')
+                });
+            }
+        });
+        
+        // Handle department change
+        departmentSelect.addEventListener('change', function() {
+            const selectedDeptId = this.value;
+            
+            // Clear and reset office dropdown
+            officeSelect.innerHTML = '<option value="">Select Office</option>';
+            
+            if (!selectedDeptId) {
+                // If no department selected, show all offices
+                allOffices.forEach(function(office) {
+                    const opt = document.createElement('option');
+                    opt.value = office.id;
+                    opt.textContent = office.text;
+                    opt.setAttribute('data-department-id', office.departmentId || '');
+                    officeSelect.appendChild(opt);
+                });
+                return;
+            }
+            
+            // Fetch offices for the selected department
+            fetch('<?= base_url('admin/offices/by-department/') ?>' + selectedDeptId)
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success && data.offices) {
+                        data.offices.forEach(function(office) {
+                            const opt = document.createElement('option');
+                            opt.value = office.id;
+                            opt.textContent = office.code + ' - ' + office.description;
+                            opt.setAttribute('data-department-id', office.department_id || '');
+                            officeSelect.appendChild(opt);
+                        });
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error loading offices:', error);
+                });
+        });
+    }
+});
 </script>
 
 <?= $this->endSection() ?>
