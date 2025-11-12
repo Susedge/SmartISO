@@ -132,8 +132,24 @@ class Forms extends BaseController
         // Get user's department and office info for display
         $userDepartment = null;
         $userOffice = null;
+        $departmentOffices = []; // Offices within user's department for filtering
+        
         if ($userDepartmentId) {
             $userDepartment = $this->departmentModel->find($userDepartmentId);
+            
+            // Get all offices within user's department for filtering (non-admin users)
+            if (!$isGlobalAdmin) {
+                try {
+                    $departmentOffices = $this->officeModel
+                        ->where('department_id', $userDepartmentId)
+                        ->where('active', 1)
+                        ->orderBy('description', 'ASC')
+                        ->findAll();
+                } catch (\Throwable $e) {
+                    $departmentOffices = [];
+                    log_message('error', 'Error fetching department offices: ' . $e->getMessage());
+                }
+            }
         }
         if ($userOfficeId) {
             $userOffice = $this->officeModel->find($userOfficeId);
@@ -194,6 +210,7 @@ class Forms extends BaseController
             'departments' => $departments,
             'allOffices' => $allOffices,
             'offices' => $allOffices, // For backward compatibility
+            'departmentOffices' => $departmentOffices, // Offices within user's department
             'selectedDepartment' => $selectedDepartment,
             'selectedOffice' => $selectedOffice,
             'isGlobalAdmin' => $isGlobalAdmin,

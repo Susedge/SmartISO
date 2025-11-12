@@ -58,17 +58,41 @@
                 </div>
             </form>
         <?php else: ?>
-            <!-- Non-admin users see their assigned department/office (read-only) -->
-            <div class="alert alert-info mb-3">
-                <i class="fas fa-info-circle me-2"></i>
-                <strong>Your Access:</strong>
-                <?php if (isset($userDepartment) && $userDepartment): ?>
-                    Department: <strong><?= esc($userDepartment['description']) ?></strong>
+            <!-- Non-admin users see their assigned department (read-only) and can filter by office -->
+            <div class="mb-3">
+                <div class="alert alert-info mb-2">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Your Access:</strong>
+                    <?php if (isset($userDepartment) && $userDepartment): ?>
+                        Department: <strong><?= esc($userDepartment['description']) ?></strong>
+                    <?php endif; ?>
+                    <br><small class="text-muted">You can view and submit forms from your assigned department.</small>
+                </div>
+                
+                <?php if (isset($departmentOffices) && !empty($departmentOffices)): ?>
+                    <!-- Office filter for non-admin users -->
+                    <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end">
+                        <div class="col-sm-6 col-md-4">
+                            <label class="form-label mb-1 fw-semibold">Filter by Office</label>
+                            <select name="office" id="officeSelect" class="form-select form-select-sm">
+                                <option value="">All Offices</option>
+                                <?php foreach ($departmentOffices as $office): ?>
+                                    <option value="<?= esc($office['id']) ?>" <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
+                                        <?= esc($office['description']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-sm-6 col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-filter me-1"></i> Filter
+                            </button>
+                            <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm flex-shrink-0 <?= empty($selectedOffice) ? 'd-none':'' ?>">
+                                <i class="fas fa-redo me-1"></i> Reset
+                            </button>
+                        </div>
+                    </form>
                 <?php endif; ?>
-                <?php if (isset($userOffice) && $userOffice): ?>
-                    | Office: <strong><?= esc($userOffice['description']) ?></strong>
-                <?php endif; ?>
-                <br><small class="text-muted">You can only view and submit forms from your assigned department/office.</small>
             </div>
         <?php endif; ?>
 
@@ -186,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         officeSel.addEventListener('change', ()=>{ 
             toggleReset(); 
+            // Auto-submit on change
             form.submit();
         });
         
