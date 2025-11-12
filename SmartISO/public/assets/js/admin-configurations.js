@@ -386,6 +386,9 @@
                                     officeSelect.appendChild(opt);
                                 });
                             }
+                        })
+                        .catch(function(err){
+                            console.error('Error loading offices:', err);
                         });
                 });
             });
