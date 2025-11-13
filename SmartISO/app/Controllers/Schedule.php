@@ -574,7 +574,7 @@ class Schedule extends BaseController
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
-            ->whereIn('fs.status', ['submitted', 'approved', 'pending_service']) // Only show active submissions
+            ->whereIn('fs.status', ['submitted', 'approved', 'pending_service', 'completed']) // Include completed submissions
             ->orderBy('fs.created_at', 'DESC');
         
         $results = $builder->get()->getResultArray();
@@ -632,7 +632,7 @@ class Schedule extends BaseController
             ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
             ->where('fs.service_staff_id', $staffId)
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
-            ->whereIn('fs.status', ['approved', 'pending_service']); // Only show submissions assigned to service staff
+            ->whereIn('fs.status', ['approved', 'pending_service', 'completed']); // Include completed submissions for service staff
         
         // Add department filter if provided
         if ($departmentId) {

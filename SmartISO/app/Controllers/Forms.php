@@ -1950,15 +1950,9 @@ class Forms extends BaseController
             'status' => 'completed', // Change from 'awaiting_requestor_signature' to 'completed'
             'service_staff_signature_date' => date('Y-m-d H:i:s'),
             'service_notes' => $notes,
-            'requestor_signature_date' => date('Y-m-d H:i:s') // Add this to auto-complete the form
+            'requestor_signature_date' => date('Y-m-d H:i:s'), // Add this to auto-complete the form
+            'completion_date' => date('Y-m-d H:i:s') // Set completion date when service staff completes
         ];
-        
-        // Add completed_date if the column exists
-        if ($this->db->fieldExists('completed_date', 'form_submissions')) {
-            $updateData['completed_date'] = date('Y-m-d H:i:s');
-        } elseif ($this->db->fieldExists('completed_at', 'form_submissions')) {
-            $updateData['completed_at'] = date('Y-m-d H:i:s');
-        }
         
         $this->formSubmissionModel->update($submissionId, $updateData);
         
