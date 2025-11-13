@@ -127,6 +127,7 @@ class Analytics extends BaseController
     private function getOverviewData($filterDepartmentId = null)
     {
         // Build query with optional department filtering - use fresh builder each time
+        // Count ALL submissions regardless of status
         if ($filterDepartmentId) {
             $totalSubmissions = $this->db->table('form_submissions')
                 ->join('users', 'users.id = form_submissions.submitted_by')
@@ -147,7 +148,7 @@ class Analytics extends BaseController
             $totalForms = $this->formModel->countAll();
         }
 
-        log_message('info', "Analytics Overview - Submissions: $totalSubmissions, Users: $totalUsers, Departments: $totalDepartments, Forms: $totalForms");
+        log_message('info', "Analytics Overview - Total Submissions (all statuses): $totalSubmissions, Users: $totalUsers, Departments: $totalDepartments, Forms: $totalForms, Filter Dept: " . ($filterDepartmentId ?: 'none'));
 
         // Status distribution with department filtering
         $statusBuilder = $this->db->table('form_submissions');
@@ -172,12 +173,16 @@ class Analytics extends BaseController
         $recentSubmissions = $recentBuilder->countAllResults();
 
         // Calculate completion rate with department filtering
-        $completedBuilder = $this->db->table('form_submissions')
-                                    ->where('form_submissions.status', 'completed');
+        // Use completed flag OR status='completed' for accurate count
+        $completedBuilder = $this->db->table('form_submissions');
         if ($filterDepartmentId) {
             $completedBuilder->join('users', 'users.id = form_submissions.submitted_by')
                             ->where('users.department_id', $filterDepartmentId);
         }
+        $completedBuilder->groupStart()
+                        ->where('form_submissions.completed', 1)
+                        ->orWhere('form_submissions.status', 'completed')
+                        ->groupEnd();
         $completedForms = $completedBuilder->countAllResults();
         
         $completionRate = $totalSubmissions > 0 ? ($completedForms / $totalSubmissions) * 100 : 0;

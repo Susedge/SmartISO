@@ -125,6 +125,7 @@
                                         <th>Status</th>
                                         <th>Priority</th>
                                         <th>Submitted</th>
+                                        <th>Completed</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -187,6 +188,13 @@
                                             </td>
                                             <td>
                                                 <small><?= date('M d, Y', strtotime($submission['created_at'])) ?></small>
+                                            </td>
+                                            <td>
+                                                <?php if (!empty($submission['completion_date'])): ?>
+                                                    <small><?= date('M d, Y', strtotime($submission['completion_date'])) ?></small>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
                                             </td>
                                             <td>
                                                 <a href="<?= base_url('forms/submission/' . $submission['id']) ?>" 

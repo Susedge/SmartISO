@@ -23,7 +23,8 @@
                         <th>Form</th>
                         <th>Priority</th>
                         <th>Status</th>
-                        <th>Date</th>
+                        <th>Date Submitted</th>
+                        <th>Date Completed</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -81,6 +82,13 @@
                                     <?php endif; ?>
                                 </td>
                                 <td><?= date('M d, Y H:i', strtotime($submission['created_at'])) ?></td>
+                                <td>
+                                    <?php if (!empty($submission['completion_date'])): ?>
+                                        <?= date('M d, Y H:i', strtotime($submission['completion_date'])) ?>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <a href="<?= base_url('forms/submission/' . $submission['id']) ?>" class="btn btn-sm btn-info">
                                         <i class="fas fa-eye me-1"></i> View

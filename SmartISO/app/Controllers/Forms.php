@@ -492,7 +492,8 @@ class Forms extends BaseController
         $builder = $this->formSubmissionModel->builder();
         $builder->select('form_submissions.*, forms.code as form_code, forms.description as form_description, 
                          users.full_name as requestor_name, departments.description as department_name,
-                         schedules.priority_level, schedules.eta_days, schedules.estimated_date')
+                         schedules.priority_level, schedules.eta_days, schedules.estimated_date,
+                         form_submissions.completion_date')
                 ->join('forms', 'forms.id = form_submissions.form_id')
                 ->join('users', 'users.id = form_submissions.submitted_by')
                 ->join('departments', 'departments.id = users.department_id', 'left')
@@ -2382,7 +2383,8 @@ class Forms extends BaseController
                          users.full_name as requestor_name, users.username as requestor_username,
                          offices.description as office_name,
                          departments.description as department_name,
-                         schedules.priority_level, schedules.eta_days, schedules.estimated_date')
+                         schedules.priority_level, schedules.eta_days, schedules.estimated_date,
+                         form_submissions.completion_date')
                 ->join('forms', 'forms.id = form_submissions.form_id', 'left')
                 ->join('users', 'users.id = form_submissions.submitted_by', 'left')
                 ->join('offices', 'offices.id = users.office_id', 'left')

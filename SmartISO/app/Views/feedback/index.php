@@ -34,20 +34,11 @@
                             </td>
                             <td>
                                 <?php 
-                                // Show submission status (completed, approved, etc) not feedback status
-                                $submissionStatus = $item['submission_status'] ?? 'pending';
-                                $statusColors = [
-                                    'completed' => 'success',
-                                    'approved' => 'info',
-                                    'submitted' => 'warning',
-                                    'pending' => 'secondary',
-                                    'rejected' => 'danger',
-                                    'cancelled' => 'dark'
-                                ];
-                                $statusColor = $statusColors[$submissionStatus] ?? 'secondary';
+                                // Since feedback can only be submitted for completed submissions,
+                                // always show status as Completed
                                 ?>
-                                <span class="badge bg-<?= $statusColor ?>">
-                                    <?= esc(ucfirst(str_replace('_', ' ', $submissionStatus))) ?>
+                                <span class="badge bg-success">
+                                    Completed
                                 </span>
                             </td>
                             <td><?= esc($item['created_at']) ?></td>
@@ -63,9 +54,7 @@
                                         data-satisfaction="<?= esc($item['overall_satisfaction'] ?? 0) ?>"
                                         data-comments="<?= esc($item['comments'] ?? '') ?>"
                                         data-suggestions="<?= esc($item['suggestions'] ?? '') ?>"
-                                        data-date="<?= esc($item['created_at']) ?>"
-                                        data-submission-status="<?= esc($submissionStatus) ?>"
-                                        data-feedback-status="<?= esc($item['status'] ?? 'pending') ?>">
+                                        data-date="<?= esc($item['created_at']) ?>">
                                     <i class="fas fa-eye me-1"></i>View
                                 </button>
                             </td>
@@ -111,22 +100,6 @@ $(function(){
             return html;
         }
         
-        // Map submission status to badge color (matching submissions.php)
-        function getStatusBadge(status) {
-            const statusMap = {
-                'completed': { color: 'success', label: 'Completed' },
-                'approved': { color: 'info', label: 'Approved' },
-                'pending_service': { color: 'info', label: 'Approved' },
-                'submitted': { color: 'warning', label: 'Submitted' },
-                'pending': { color: 'secondary', label: 'Pending' },
-                'rejected': { color: 'danger', label: 'Rejected' },
-                'cancelled': { color: 'dark', label: 'Cancelled' }
-            };
-            
-            const statusInfo = statusMap[status] || { color: 'secondary', label: status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : 'Unknown' };
-            return `<span class="badge bg-${statusInfo.color}">${statusInfo.label}</span>`;
-        }
-        
         const modalContent = `
             <div class="feedback-details">
                 <div class="row mb-3">
@@ -143,7 +116,7 @@ $(function(){
                     </div>
                     <div class="col-md-6">
                         <strong>Submission Status:</strong> 
-                        ${getStatusBadge(data.submissionStatus)}
+                        <span class="badge bg-success">Completed</span>
                     </div>
                 </div>
                 <hr>
