@@ -1,5 +1,21 @@
 <?= $this->extend('layouts/default') ?>
 
+<?= $this->section('styles') ?>
+<style>
+.table thead th a {
+    display: inline-block;
+    width: 100%;
+    cursor: pointer;
+}
+.table thead th a:hover {
+    background-color: rgba(0,0,0,0.05);
+}
+.table thead th {
+    user-select: none;
+}
+</style>
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
 <div class="card">
     <div class="card-header">
@@ -149,13 +165,36 @@
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Form</th>
-                            <th>Submitted By</th>
-                            <th>Department</th>
-                            <th>Office</th>
-                            <th>Priority</th>
-                            <th>Submission Date</th>
+                            <?php
+                            // Helper function to generate sortable column header
+                            $generateSortLink = function($column, $label) use ($sortBy, $sortOrder, $selectedPriority, $selectedDepartment, $selectedOffice) {
+                                $newOrder = ($sortBy === $column && $sortOrder === 'asc') ? 'desc' : 'asc';
+                                $icon = '';
+                                if ($sortBy === $column) {
+                                    $icon = $sortOrder === 'asc' ? ' <i class="fas fa-sort-up"></i>' : ' <i class="fas fa-sort-down"></i>';
+                                } else {
+                                    $icon = ' <i class="fas fa-sort text-muted opacity-50"></i>';
+                                }
+                                
+                                $params = [
+                                    'sort_by' => $column,
+                                    'sort_order' => $newOrder
+                                ];
+                                if ($selectedPriority) $params['priority'] = $selectedPriority;
+                                if ($selectedDepartment) $params['department'] = $selectedDepartment;
+                                if ($selectedOffice) $params['office'] = $selectedOffice;
+                                
+                                $url = base_url('forms/pending-approval') . '?' . http_build_query($params);
+                                return '<a href="' . $url . '" class="text-decoration-none text-dark">' . $label . $icon . '</a>';
+                            };
+                            ?>
+                            <th><?= $generateSortLink('id', 'ID') ?></th>
+                            <th><?= $generateSortLink('form_code', 'Form') ?></th>
+                            <th><?= $generateSortLink('submitted_by_name', 'Submitted By') ?></th>
+                            <th><?= $generateSortLink('department_name', 'Department') ?></th>
+                            <th><?= $generateSortLink('office_name', 'Office') ?></th>
+                            <th><?= $generateSortLink('priority', 'Priority') ?></th>
+                            <th><?= $generateSortLink('created_at', 'Submission Date') ?></th>
                             <th>Reference File</th>
                             <th>Action</th>
                         </tr>

@@ -550,6 +550,19 @@ class Forms extends BaseController
             $departmentFilter = $this->request->getGet('department');
             $officeFilter = $this->request->getGet('office');
             
+            // Get sorting parameters (default: sort by ID ascending)
+            $sortBy = $this->request->getGet('sort_by') ?? 'id';
+            $sortOrder = $this->request->getGet('sort_order') ?? 'asc';
+            
+            // Validate sort parameters
+            $validSortFields = ['id', 'form_code', 'submitted_by_name', 'department_name', 'office_name', 'priority', 'created_at'];
+            if (!in_array($sortBy, $validSortFields)) {
+                $sortBy = 'id';
+            }
+            if (!in_array(strtolower($sortOrder), ['asc', 'desc'])) {
+                $sortOrder = 'asc';
+            }
+            
             // Get pending submissions with schedule/priority information
             try {
                 $builder = $this->formSubmissionModel->builder();
@@ -600,9 +613,24 @@ class Forms extends BaseController
                             ->groupEnd();
                 }
                 
-                // Order by priority - use IFNULL which is simpler and works in MySQL/MariaDB
-                $builder->orderBy('IFNULL(schedules.priority_level, form_submissions.priority)', 'DESC', false)
-                        ->orderBy('form_submissions.updated_at', 'ASC');
+                // Apply sorting
+                if ($sortBy === 'id') {
+                    $builder->orderBy('form_submissions.id', $sortOrder);
+                } elseif ($sortBy === 'form_code') {
+                    $builder->orderBy('forms.code', $sortOrder);
+                } elseif ($sortBy === 'submitted_by_name') {
+                    $builder->orderBy('users.full_name', $sortOrder);
+                } elseif ($sortBy === 'department_name') {
+                    $builder->orderBy('departments.description', $sortOrder);
+                } elseif ($sortBy === 'office_name') {
+                    $builder->orderBy('offices.description', $sortOrder);
+                } elseif ($sortBy === 'priority') {
+                    // Sort by priority: high > medium > low, using FIELD() for custom order
+                    $priorityOrder = $sortOrder === 'desc' ? 'high, medium, low' : 'low, medium, high';
+                    $builder->orderBy("FIELD(IFNULL(schedules.priority_level, form_submissions.priority), '{$priorityOrder}')", '', false);
+                } elseif ($sortBy === 'created_at') {
+                    $builder->orderBy('form_submissions.created_at', $sortOrder);
+                }
                 
                 $submissions = $builder->get()->getResultArray();
                 
@@ -676,6 +704,8 @@ class Forms extends BaseController
                 'selectedPriority' => $priorityFilter ?? '',
                 'selectedDepartment' => $departmentFilter ?? '',
                 'selectedOffice' => $officeFilter ?? '',
+                'sortBy' => $sortBy,
+                'sortOrder' => $sortOrder,
                 'isGlobalAdmin' => $isGlobalAdmin,
                 'isDepartmentAdmin' => $isDepartmentAdmin,
                 'userDepartment' => $userDepartment,

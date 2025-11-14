@@ -252,7 +252,8 @@ class FormSubmissionModel extends Model
             'service_staff_id' => $serviceStaffId,
             'service_staff_signature_date' => date('Y-m-d H:i:s'),
             'service_notes' => $notes,
-            'status' => 'completed'
+            'status' => 'completed',
+            'completion_date' => date('Y-m-d H:i:s')
         ]);
         
         if ($result) {
