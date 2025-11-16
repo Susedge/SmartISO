@@ -790,16 +790,30 @@ class Forms extends BaseController
         $builder->join('departments d', 'd.id = requestor.department_id', 'left');
         $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         
-        // Filter for forms assigned to this service staff.
-        // Accept both 'approved' and 'pending_service' statuses for backward compatibility
-        // (some flows set service_staff_id but leave status as 'approved')
-        $builder->where('form_submissions.service_staff_id', $userId);
-        $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
-        
-        // Add department filtering for non-global-admin users
-        if (!$isGlobalAdmin && $userDepartmentId) {
+        // Service staff should see ALL submissions assigned to them regardless of department
+        // Only apply department filter for admin/department_admin roles
+        if ($userType === 'service_staff') {
+            // Service staff sees only their assigned submissions
+            $builder->where('form_submissions.service_staff_id', $userId);
+        } elseif ($isDepartmentAdmin && $userDepartmentId) {
+            // Department admin sees submissions from their department
             $builder->where('requestor.department_id', $userDepartmentId);
+            $builder->where('form_submissions.service_staff_id', $userId);
+        } else {
+            // Global admin sees all, or filter by current user if not admin
+            if (!$isGlobalAdmin) {
+                $builder->where('form_submissions.service_staff_id', $userId);
+                if ($userDepartmentId) {
+                    $builder->where('requestor.department_id', $userDepartmentId);
+                }
+            } else {
+                // Admin can see all pending service submissions
+                $builder->where('form_submissions.service_staff_id IS NOT NULL', null, false);
+            }
         }
+        
+        // Accept both 'approved' and 'pending_service' statuses for backward compatibility
+        $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
         
         $builder->orderBy('form_submissions.approved_at', 'DESC');
         
