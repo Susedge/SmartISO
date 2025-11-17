@@ -8,16 +8,9 @@
  * Usage: php tools/check_getStaffSchedules.php [staff_id]
  */
 
-// Load CodeIgniter
-require_once dirname(__DIR__) . '/app/Config/Paths.php';
-$paths = new Config\Paths();
-require_once $paths->systemDirectory . '/bootstrap.php';
-
-$app = Config\Services::codeigniter();
-$app->initialize();
-
-// Get database connection
-$db = \Config\Database::connect();
+// Direct PDO connection
+$pdo = new PDO('mysql:host=localhost;dbname=smartiso', 'root', '');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 // Get staff ID from command line argument or default to 5
 $staffId = isset($argv[1]) ? (int)$argv[1] : 5;
@@ -30,28 +23,29 @@ echo "Date: " . date('Y-m-d H:i:s') . "\n";
 echo "=============================================================\n\n";
 
 // Build the exact same query as ScheduleModel::getStaffSchedules()
-$builder = $db->table('schedules s');
-$builder->select('s.*, fs.form_id, fs.panel_name, fs.status as submission_status,
-                  f.code as form_code, f.description as form_description,
-                  u.full_name as requestor_name, staff.full_name as assigned_staff_name')
-    ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
-    ->join('forms f', 'f.id = fs.form_id', 'left')
-    ->join('users u', 'u.id = fs.submitted_by', 'left')
-    ->join('users staff', 'staff.id = s.assigned_staff_id', 'left')
-    ->where('s.assigned_staff_id', $staffId)
-    ->orderBy('s.scheduled_date', 'ASC')
-    ->orderBy('s.scheduled_time', 'ASC');
-
-// Get the compiled SQL query
-$sql = $builder->getCompiledSelect(false);
+$sql = "SELECT s.*, 
+        fs.form_id, fs.panel_name, fs.status as submission_status,
+        f.code as form_code, f.description as form_description,
+        u.full_name as requestor_name, 
+        staff.full_name as assigned_staff_name
+FROM schedules s
+LEFT JOIN form_submissions fs ON fs.id = s.submission_id
+LEFT JOIN forms f ON f.id = fs.form_id
+LEFT JOIN users u ON u.id = fs.submitted_by
+LEFT JOIN users staff ON staff.id = s.assigned_staff_id
+WHERE s.assigned_staff_id = :staffId
+ORDER BY s.scheduled_date ASC, s.scheduled_time ASC";
 
 echo "SQL QUERY:\n";
 echo "-------------------------------------------------------------\n";
-echo $sql . "\n";
+echo str_replace(':staffId', $staffId, $sql) . "\n";
 echo "-------------------------------------------------------------\n\n";
 
 // Execute the query
-$results = $builder->get()->getResultArray();
+$stmt = $pdo->prepare($sql);
+$stmt->bindValue(':staffId', $staffId, PDO::PARAM_INT);
+$stmt->execute();
+$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 echo "RESULT COUNT: " . count($results) . "\n";
 echo "=============================================================\n\n";
@@ -60,7 +54,11 @@ if (empty($results)) {
     echo "❌ NO SCHEDULES FOUND for staff_id = {$staffId}\n\n";
     
     // Check if staff exists
-    $staffCheck = $db->table('users')->where('id', $staffId)->get()->getRowArray();
+    $staffStmt = $pdo->prepare("SELECT id, full_name, user_type FROM users WHERE id = :staffId");
+    $staffStmt->bindValue(':staffId', $staffId, PDO::PARAM_INT);
+    $staffStmt->execute();
+    $staffCheck = $staffStmt->fetch(PDO::FETCH_ASSOC);
+    
     if ($staffCheck) {
         echo "✅ Staff user exists:\n";
         echo "   - ID: {$staffCheck['id']}\n";
@@ -71,10 +69,11 @@ if (empty($results)) {
     }
     
     // Check if there are any schedules with this assigned_staff_id
-    $scheduleCount = $db->table('schedules')
-        ->where('assigned_staff_id', $staffId)
-        ->countAllResults();
-    echo "Total schedules with assigned_staff_id = {$staffId}: {$scheduleCount}\n\n";
+    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM schedules WHERE assigned_staff_id = :staffId");
+    $countStmt->bindValue(':staffId', $staffId, PDO::PARAM_INT);
+    $countStmt->execute();
+    $countRow = $countStmt->fetch(PDO::FETCH_ASSOC);
+    echo "Total schedules with assigned_staff_id = {$staffId}: {$countRow['total']}\n\n";
     
 } else {
     echo "RESULT SET:\n";
@@ -146,15 +145,19 @@ echo "=============================================================\n";
 echo "DIRECT DATABASE CHECK (RAW QUERY)\n";
 echo "=============================================================\n";
 
-$rawQuery = "SELECT COUNT(*) as total FROM schedules WHERE assigned_staff_id = {$staffId}";
-$rawResult = $db->query($rawQuery)->getRowArray();
+$rawStmt = $pdo->prepare("SELECT COUNT(*) as total FROM schedules WHERE assigned_staff_id = :staffId");
+$rawStmt->bindValue(':staffId', $staffId, PDO::PARAM_INT);
+$rawStmt->execute();
+$rawResult = $rawStmt->fetch(PDO::FETCH_ASSOC);
 echo "Raw count from schedules table: {$rawResult['total']}\n";
 
-$rawQuery2 = "SELECT id, submission_id, assigned_staff_id, status, scheduled_date, scheduled_time 
+$rawStmt2 = $pdo->prepare("SELECT id, submission_id, assigned_staff_id, status, scheduled_date, scheduled_time 
               FROM schedules 
-              WHERE assigned_staff_id = {$staffId} 
-              ORDER BY scheduled_date ASC, scheduled_time ASC";
-$rawResults = $db->query($rawQuery2)->getResultArray();
+              WHERE assigned_staff_id = :staffId 
+              ORDER BY scheduled_date ASC, scheduled_time ASC");
+$rawStmt2->bindValue(':staffId', $staffId, PDO::PARAM_INT);
+$rawStmt2->execute();
+$rawResults = $rawStmt2->fetchAll(PDO::FETCH_ASSOC);
 
 if (!empty($rawResults)) {
     echo "\nRaw schedule records:\n";
