@@ -1163,12 +1163,28 @@ class Forms extends BaseController
                         // Check if a schedule already exists for this submission to avoid duplicates
                         $existingSchedule = $scheduleModel->where('submission_id', $id)->first();
                         if (!$existingSchedule) {
+                            // Get submission priority to copy to schedule
+                            $submission = $this->formSubmissionModel->find($id);
+                            $submissionPriority = $submission['priority'] ?? 'low';
+                            
+                            // Map form_submissions.priority (low/normal/high/urgent/critical) to schedules.priority_level (low/medium/high)
+                            $priorityMapping = [
+                                'low' => 'low',
+                                'normal' => 'medium',
+                                'medium' => 'medium',
+                                'high' => 'high',
+                                'urgent' => 'high',
+                                'critical' => 'high'
+                            ];
+                            $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
+                            
                             $schedData = [
                                 'submission_id' => $id,
                                 'scheduled_date' => date('Y-m-d'),
                                 'scheduled_time' => '09:00:00',
                                 'duration_minutes' => 60,
                                 'assigned_staff_id' => $serviceStaffId,
+                                'priority_level' => $schedulePriority,
                                 'location' => '',
                                 'notes' => 'Auto-created schedule on approval via signForm',
                                 'status' => 'pending'
@@ -1771,12 +1787,28 @@ class Forms extends BaseController
                         // Check if a schedule already exists for this submission to avoid duplicates
                         $existingSchedule = $scheduleModel->where('submission_id', $submissionId)->first();
                         if (!$existingSchedule) {
+                            // Get submission priority to copy to schedule
+                            $submission = $this->formSubmissionModel->find($submissionId);
+                            $submissionPriority = $submission['priority'] ?? 'low';
+                            
+                            // Map form_submissions.priority to schedules.priority_level
+                            $priorityMapping = [
+                                'low' => 'low',
+                                'normal' => 'medium',
+                                'medium' => 'medium',
+                                'high' => 'high',
+                                'urgent' => 'high',
+                                'critical' => 'high'
+                            ];
+                            $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
+                            
                             $schedData = [
                                 'submission_id' => $submissionId,
                                 'scheduled_date' => date('Y-m-d'),
                                 'scheduled_time' => '09:00:00',
                                 'duration_minutes' => 60,
                                 'assigned_staff_id' => $serviceStaffId,
+                                'priority_level' => $schedulePriority,
                                 'location' => '',
                                 'notes' => 'Auto-created schedule on approval',
                                 'status' => 'pending'
@@ -2266,12 +2298,28 @@ class Forms extends BaseController
                         // Check if a schedule already exists for this submission to avoid duplicates
                         $existingSchedule = $scheduleModel->where('submission_id', $submissionId)->first();
                         if (!$existingSchedule) {
+                            // Get submission priority to copy to schedule
+                            $submission = $this->formSubmissionModel->find($submissionId);
+                            $submissionPriority = $submission['priority'] ?? 'low';
+                            
+                            // Map form_submissions.priority to schedules.priority_level
+                            $priorityMapping = [
+                                'low' => 'low',
+                                'normal' => 'medium',
+                                'medium' => 'medium',
+                                'high' => 'high',
+                                'urgent' => 'high',
+                                'critical' => 'high'
+                            ];
+                            $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
+                            
                             $schedData = [
                                 'submission_id' => $submissionId,
                                 'scheduled_date' => date('Y-m-d'),
                                 'scheduled_time' => '09:00:00',
                                 'duration_minutes' => 60,
                                 'assigned_staff_id' => $serviceStaffId,
+                                'priority_level' => $schedulePriority,
                                 'location' => '',
                                 'notes' => 'Auto-created schedule on service staff assignment',
                                 'status' => 'pending'

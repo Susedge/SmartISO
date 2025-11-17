@@ -28,14 +28,18 @@
                             <td><?= esc($item['requestor_name']) ?></td>
                             <td>
                                 <?php 
-                                // Use priority_level from schedules table (like admin)
-                                $priority = $item['priority_level'] ?? '';
+                                // Priority can come from schedules.priority_level OR form_submissions.priority
+                                // Prefer schedule priority if available, fallback to submission priority
+                                $priority = $item['priority_level'] ?? $item['priority'] ?? '';
                                 
                                 // Map priority levels to labels and colors (3-level system)
                                 $priorityMap = [
                                     'high' => ['label' => 'High', 'color' => 'danger'],
                                     'medium' => ['label' => 'Medium', 'color' => 'warning'],
-                                    'low' => ['label' => 'Low', 'color' => 'success']
+                                    'low' => ['label' => 'Low', 'color' => 'success'],
+                                    'normal' => ['label' => 'Normal', 'color' => 'warning'],
+                                    'urgent' => ['label' => 'Urgent', 'color' => 'danger'],
+                                    'critical' => ['label' => 'Critical', 'color' => 'danger']
                                 ];
                                 
                                 $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
