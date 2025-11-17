@@ -802,7 +802,7 @@ class Forms extends BaseController
             // Service staff should see ALL submissions assigned to them regardless of department
             // Only apply department filter for admin/department_admin roles
             if ($userType === 'service_staff') {
-                // Service staff sees only their assigned submissions
+                // Service staff sees only their assigned submissions - NO department filtering
                 $builder->where('form_submissions.service_staff_id', $userId);
                 log_message('info', "pendingService: Filtering for service_staff_id = {$userId}");
             } elseif ($isDepartmentAdmin && $userDepartmentId) {
@@ -813,10 +813,8 @@ class Forms extends BaseController
             } else {
                 // Global admin sees all, or filter by current user if not admin
                 if (!$isGlobalAdmin) {
+                    // Non-admin, non-service-staff users see their assigned submissions only
                     $builder->where('form_submissions.service_staff_id', $userId);
-                    if ($userDepartmentId) {
-                        $builder->where('requestor.department_id', $userDepartmentId);
-                    }
                     log_message('info', "pendingService: Filtering for non-admin user {$userId}");
                 } else {
                     // Admin can see all pending service submissions
@@ -934,6 +932,10 @@ class Forms extends BaseController
         // For requestors, only show their own completed forms
         if ($userType === 'requestor') {
             $builder->where('fs.submitted_by', $userId);
+        }
+        // For service staff, show all completed forms assigned to them regardless of department
+        elseif ($userType === 'service_staff') {
+            $builder->where('fs.service_staff_id', $userId);
         }
         // For approving authorities and department admins, show forms they approved
         elseif (in_array($userType, ['approving_authority', 'department_admin'])) {
@@ -1597,14 +1599,8 @@ class Forms extends BaseController
         $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         $builder->where('form_submissions.service_staff_id', $userId);
         
-        // Department filtering for non-admin service staff
-        $userDepartmentId = session()->get('department_id');
-        $userType = session()->get('user_type');
-        $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
-
-        if (!$isAdmin && $userDepartmentId) {
-            $builder->where('requestor.department_id', $userDepartmentId);
-        }
+        // Service staff sees ALL submissions assigned to them regardless of department
+        // No department filtering needed - assignment to service staff is what matters
         
         $builder->orderBy('form_submissions.updated_at', 'DESC');
         
