@@ -492,6 +492,7 @@
                             <tr>
                                 <th>Form</th>
                                 <th>Submitted By</th>
+                                <th>Department</th>
                                 <th>Date Submitted</th>
                                 <th>Date Completed</th>
                                 <th>Status</th>
@@ -503,6 +504,7 @@
                                     <tr>
                                         <td><?= esc($sub['form_name']) ?></td>
                                         <td><?= esc($sub['submitted_by']) ?></td>
+                                        <td><?= esc($sub['department_name'] ?? 'Unassigned') ?></td>
                                         <td><?= $sub['created_at'] ? date('M d, Y H:i', strtotime($sub['created_at'])) : '' ?></td>
                                         <td><?= $sub['completion_date'] ? date('M d, Y H:i', strtotime($sub['completion_date'])) : '-' ?></td>
                                         <td><span class="badge bg-secondary"><?= esc(ucfirst($sub['status'])) ?></span></td>
@@ -510,7 +512,7 @@
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">No submissions to display</td>
+                                    <td colspan="6" class="text-center text-muted py-4">No submissions to display</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
