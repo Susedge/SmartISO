@@ -34,6 +34,9 @@ $routes->get('/', 'Home::index');
 // This ensures method routing won't return 405 when called via fetch multipart POST.
 $routes->match(['GET','POST','OPTIONS'], 'forms/upload-docx/(:segment)', 'Forms::uploadDocx/$1');
 
+// Diagnostic routes
+$routes->get('session-diagnostic', 'SessionDiagnostic::index');
+
 // Auth routes
 $routes->group('auth', function ($routes) {
     $routes->get('register', 'Auth::register');
