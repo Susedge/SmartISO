@@ -1599,6 +1599,9 @@ class Forms extends BaseController
         $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
         $builder->where('form_submissions.service_staff_id', $userId);
         
+        // Only show completed forms that this service staff has serviced
+        $builder->where('form_submissions.status', 'completed');
+        
         // Service staff sees ALL submissions assigned to them regardless of department
         // No department filtering needed - assignment to service staff is what matters
         
