@@ -110,7 +110,17 @@ class ScheduleModel extends Model
         $builder->orderBy('s.scheduled_date', 'ASC')
                 ->orderBy('s.scheduled_time', 'ASC');
         
-        return $builder->get()->getResultArray();
+        // Log the query
+        $sql = $builder->getCompiledSelect(false);
+        log_message('debug', '[getStaffSchedules] Query for staff_id=' . $staffId . ' date=' . ($date ?? 'null') . ': ' . $sql);
+        
+        // Execute and get results
+        $results = $builder->get()->getResultArray();
+        
+        // Log the results
+        log_message('debug', '[getStaffSchedules] Result count: ' . count($results) . ' | Results: ' . json_encode($results));
+        
+        return $results;
     }
 
     /**
