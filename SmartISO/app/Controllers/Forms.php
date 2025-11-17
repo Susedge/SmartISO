@@ -1319,19 +1319,8 @@ class Forms extends BaseController
                     ->with('error', 'Form not found');
         }
         
-        // Department verification for non-admin service staff
-        $userDepartmentId = session()->get('department_id');
-        $isAdmin = in_array($userType, ['admin', 'superuser']);
-
-        if (!$isAdmin && $userDepartmentId) {
-            $requestor = $this->userModel->find($submission['submitted_by']);
-            if (!$requestor || $requestor['department_id'] != $userDepartmentId) {
-                return redirect()->to('/forms/pending-service')
-                    ->with('error', 'You can only service submissions from your department');
-            }
-        }
-        
         // Check if this form is assigned to the current service staff
+        // Service staff can service ANY submission assigned to them, regardless of department
         if ($userType === 'service_staff' && $submission['service_staff_id'] != $userId) {
             return redirect()->to('/forms/pending-service')
                     ->with('error', 'This form is not assigned to you');

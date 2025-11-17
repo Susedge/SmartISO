@@ -102,13 +102,17 @@ class Schedule extends BaseController
                 $schedules = [];
             }
         }
-        // Approving authority sees schedules for submissions they approved (filtered by department)
+        // Approving authority sees schedules for submissions they need to approve OR have approved (filtered by department)
         elseif ($userType === 'approving_authority') {
-            // Get submissions approved by this user
+            // Get submissions that need approval OR already approved by this user
             $builder = $this->submissionModel->builder();
             $builder->select('form_submissions.*')
                     ->join('users', 'users.id = form_submissions.submitted_by')
-                    ->where('form_submissions.approver_id', $userId);
+                    ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
+                    ->groupStart()
+                        ->where('form_submissions.status', 'submitted') // Pending approval
+                        ->orWhere('form_submissions.approver_id', $userId) // Already approved by this user
+                    ->groupEnd();
             
             // Filter by department for non-admin approvers
             if (!$isGlobalAdmin && $userDepartmentId) {
@@ -120,6 +124,10 @@ class Schedule extends BaseController
             if (!empty($submissionIds)) {
                 // Use the new method to get schedules with full details
                 $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
+                
+                // Also get submissions without schedules yet
+                $submissionsWithoutSchedules = $this->getApproverSubmissionsWithoutSchedules($userId, $userDepartmentId, $isGlobalAdmin, $submissionIds);
+                $schedules = array_merge($schedules, $submissionsWithoutSchedules);
             } else {
                 $schedules = [];
             }
@@ -487,13 +495,25 @@ class Schedule extends BaseController
                 $schedules = [];
             }
         }
-        // Approving authority sees schedules for submissions they approved
+        // Approving authority sees schedules for submissions they need to approve OR have approved
         elseif ($userType === 'approving_authority') {
-            $submissions = $this->submissionModel->where('approver_id', $userId)->findAll();
+            $builder = $this->submissionModel->builder();
+            $builder->select('form_submissions.*')
+                    ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
+                    ->groupStart()
+                        ->where('form_submissions.status', 'submitted') // Pending approval
+                        ->orWhere('form_submissions.approver_id', $userId) // Already approved
+                    ->groupEnd();
+            
+            $submissions = $builder->get()->getResultArray();
             $submissionIds = array_column($submissions, 'id');
             if (!empty($submissionIds)) {
                 // Use the new method to get schedules with full details
                 $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
+                
+                // Also get submissions without schedules yet
+                $submissionsWithoutSchedules = $this->getApproverSubmissionsWithoutSchedules($userId, null, false, $submissionIds);
+                $schedules = array_merge($schedules, $submissionsWithoutSchedules);
             } else {
                 $schedules = [];
             }
@@ -688,6 +708,75 @@ class Schedule extends BaseController
                 'eta_days' => null,
                 'estimated_date' => null,
                 'priority_level' => $priorityLevel, // Now properly set
+                'requestor_department_id' => $row['department_id']
+            ];
+        }
+        
+        return $virtualSchedules;
+    }
+
+    /**
+     * Get submissions for approver that don't have schedule entries yet
+     */
+    private function getApproverSubmissionsWithoutSchedules($userId, $departmentId = null, $isGlobalAdmin = false, $existingSubmissionIds = [])
+    {
+        $db = \Config\Database::connect();
+        
+        // Find submissions assigned to this approver that don't have schedules
+        $builder = $db->table('form_submissions fs');
+        $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          fs.created_at, fs.priority,
+                          f.code as form_code, f.description as form_description,
+                          u.full_name as requestor_name, u.department_id')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('form_signatories fsig', 'fsig.form_id = fs.form_id AND fsig.user_id = ' . $userId, 'inner')
+            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
+            ->groupStart()
+                ->where('fs.status', 'submitted') // Pending approval
+                ->orWhere('fs.approver_id', $userId) // Already approved by this user
+            ->groupEnd();
+        
+        // Filter by department if not global admin
+        if (!$isGlobalAdmin && $departmentId) {
+            $builder->where('u.department_id', $departmentId);
+        }
+        
+        // Exclude submissions that already have schedules (passed from parent)
+        if (!empty($existingSubmissionIds)) {
+            $builder->whereNotIn('fs.id', $existingSubmissionIds);
+        }
+        
+        $builder->orderBy('fs.created_at', 'DESC');
+        
+        $results = $builder->get()->getResultArray();
+        
+        // Format as virtual schedule entries
+        $virtualSchedules = [];
+        foreach ($results as $row) {
+            $createdDate = substr($row['created_at'], 0, 10);
+            
+            $virtualSchedules[] = [
+                'id' => 'sub-' . $row['submission_id'],
+                'submission_id' => $row['submission_id'],
+                'form_id' => $row['form_id'],
+                'panel_name' => $row['panel_name'],
+                'submission_status' => $row['submission_status'],
+                'form_code' => $row['form_code'],
+                'form_description' => $row['form_description'],
+                'requestor_name' => $row['requestor_name'],
+                'scheduled_date' => $createdDate,
+                'scheduled_time' => '09:00:00',
+                'duration_minutes' => 60,
+                'location' => '',
+                'notes' => 'Pending schedule assignment',
+                'status' => 'pending',
+                'assigned_staff_id' => null,
+                'assigned_staff_name' => null,
+                'priority' => $row['priority'] ?? 0,
+                'eta_days' => null,
+                'estimated_date' => null,
+                'priority_level' => null,
                 'requestor_department_id' => $row['department_id']
             ];
         }

@@ -91,22 +91,12 @@ class Dashboard extends BaseController
                                                    ->countAllResults();
         }
         elseif ($userType === 'service_staff') {
-            // For service staff - count forms assigned to them
-            // Apply department filtering for non-admin service staff
-            $builder = $this->db->table('form_submissions')
-                                ->join('users', 'users.id = form_submissions.submitted_by');
-            
-            if (!$isGlobalAdmin && $userDepartmentId) {
-                $builder->where('users.department_id', $userDepartmentId);
-            }
-            if ($isDepartmentAdmin) {
-                $builder->where('users.department_id', session()->get('scoped_department_id'));
-            }
-            
-            $statusSummary['pending_service'] = (clone $builder)
-                                                         ->where('form_submissions.service_staff_id', $userId)
-                                                         ->whereIn('form_submissions.status', ['approved', 'pending_service'])
-                                                         ->where('form_submissions.service_staff_signature_date IS NULL')
+            // For service staff - count forms assigned to them (NO department filter)
+            // Service staff should see ALL submissions assigned to them regardless of department
+            $statusSummary['pending_service'] = $this->db->table('form_submissions')
+                                                         ->where('service_staff_id', $userId)
+                                                         ->whereIn('status', ['approved', 'pending_service'])
+                                                         ->where('service_staff_signature_date IS NULL')
                                                          ->countAllResults();
                                                                
             $statusSummary['serviced_by_me'] = $this->db->table('form_submissions')
@@ -114,15 +104,9 @@ class Dashboard extends BaseController
                                                         ->where('service_staff_signature_date IS NOT NULL')
                                                         ->countAllResults();
                                                               
-            $baseBuilder = $this->db->table('form_submissions')
-                                    ->join('users', 'users.id = form_submissions.submitted_by');
-            
-            if (!$isGlobalAdmin && $userDepartmentId) {
-                $baseBuilder->where('users.department_id', $userDepartmentId);
-            }
-            
-            $statusSummary['rejected'] = (clone $baseBuilder)
-                                                  ->where('form_submissions.status', 'rejected')
+            $statusSummary['rejected'] = $this->db->table('form_submissions')
+                                                  ->where('service_staff_id', $userId)
+                                                  ->where('status', 'rejected')
                                                   ->countAllResults();
                                                         
             $statusSummary['completed'] = $this->db->table('form_submissions')
