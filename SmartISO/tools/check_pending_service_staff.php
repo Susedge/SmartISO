@@ -1,5 +1,4 @@
 <?php
-<?php
 /**
  * Diagnostic script to check pending service submissions and verify service staff assignments
  * This helps debug why submissions appear in calendar but not in pending service list

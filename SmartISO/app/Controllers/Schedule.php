@@ -461,10 +461,18 @@ class Schedule extends BaseController
 
     public function calendar()
     {
+        // Prevent browser caching to ensure fresh calendar data
+        header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        
         $userType = session()->get('user_type');
         $userId = session()->get('user_id');
         
         $data['title'] = 'Schedule Calendar';
+        
+        // Add cache-busting timestamp to force fresh data
+        $data['cache_buster'] = time();
         
         // Admin and superuser can see all schedules AND submissions without schedules
         if (in_array($userType, ['admin', 'superuser'])) {
