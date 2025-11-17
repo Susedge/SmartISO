@@ -49,19 +49,15 @@ class Schedule extends BaseController
             $submissionsWithoutSchedules = $this->getDepartmentSubmissionsWithoutSchedules(session()->get('scoped_department_id'));
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
-        // Service staff sees schedules assigned to them (filtered by department)
+        // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
             
-            // Filter by department for non-admin service staff
-            if (!$isGlobalAdmin && $userDepartmentId) {
-                $schedules = array_filter($schedules, function($schedule) use ($userDepartmentId) {
-                    return isset($schedule['requestor_department_id']) && $schedule['requestor_department_id'] == $userDepartmentId;
-                });
-            }
+            // Service staff should see ALL schedules assigned to them, regardless of department
+            // No department filtering for service staff - they are assigned to specific submissions
             
             // Also get submissions assigned to this service staff that don't have schedules yet
-            $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId, $userDepartmentId);
+            $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
         }
@@ -668,9 +664,9 @@ class Schedule extends BaseController
 
     /**
      * Get submissions assigned to a service staff member that don't have schedule entries yet
-     * This ensures service staff can see ALL submissions assigned to them
+     * This ensures service staff can see ALL submissions assigned to them regardless of department
      */
-    private function getServiceStaffSubmissionsWithoutSchedules($staffId, $departmentId = null)
+    private function getServiceStaffSubmissionsWithoutSchedules($staffId)
     {
         $db = \Config\Database::connect();
         
@@ -688,10 +684,8 @@ class Schedule extends BaseController
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->whereIn('fs.status', ['approved', 'pending_service', 'completed']); // Include completed submissions for service staff
         
-        // Add department filter if provided
-        if ($departmentId) {
-            $builder->where('u.department_id', $departmentId);
-        }
+        // Service staff should see ALL submissions assigned to them, regardless of requestor's department
+        // No department filtering - assignment to service staff is what matters
         
         $builder->orderBy('fs.created_at', 'DESC');
         
