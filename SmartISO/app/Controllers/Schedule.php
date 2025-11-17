@@ -701,7 +701,7 @@ class Schedule extends BaseController
                 'duration_minutes' => 60,
                 'location' => '',
                 'notes' => 'Pending schedule assignment',
-                'status' => 'pending',
+                'status' => $row['submission_status'], // Use actual submission status, not 'pending'
                 'assigned_staff_id' => $row['service_staff_id'],
                 'assigned_staff_name' => $staffName,
                 'priority' => $row['priority'] ?? 0,

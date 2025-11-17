@@ -766,6 +766,13 @@ class Forms extends BaseController
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         $isDepartmentAdmin = ($userType === 'department_admin');
         
+        // Access control: Only service staff, department admin, and global admin can access
+        if (!in_array($userType, ['service_staff', 'admin', 'superuser', 'department_admin'])) {
+            return redirect()->to('/dashboard')->with('error', 'You do not have permission to access this page');
+        }
+        
+        log_message('info', "pendingService: User {$userId} ({$userType}) accessing pending service page");
+        
         // Get submissions pending service
         $builder = $this->formSubmissionModel->builder();
         $builder->select('
