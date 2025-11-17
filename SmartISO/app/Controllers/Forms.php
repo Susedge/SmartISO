@@ -993,10 +993,13 @@ class Forms extends BaseController
         }
         
         // Department verification for non-admin users
+        // IMPORTANT: Service staff should be able to view ALL submissions assigned to them,
+        // regardless of department, to support cross-department service assignments
         $userDepartmentId = session()->get('department_id');
         $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
+        $isServiceStaff = ($userType === 'service_staff');
 
-        if (!$isAdmin && $userDepartmentId) {
+        if (!$isAdmin && !$isServiceStaff && $userDepartmentId) {
             // Get submitter's department
             $submitter = $this->userModel->find($submission['submitted_by']);
             if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
