@@ -568,26 +568,26 @@ class Schedule extends BaseController
             ];
         }
         
-    $data['events'] = json_encode($calendarEvents);
-    $data['events_count'] = count($calendarEvents);
-    
-    // Debug data for browser console
-    $data['debug_info'] = [
-        'user_type' => $userType,
-        'user_id' => $userId,
-        'raw_schedules_count' => isset($schedules) ? count($schedules) : 0,
-        'calendar_events_count' => count($calendarEvents),
-        'schedules_sample' => isset($schedules) ? array_slice($schedules, 0, 3) : [],
-        'session_data' => [
-            'user_type' => session()->get('user_type'),
-            'user_id' => session()->get('user_id'),
-            'department_id' => session()->get('department_id'),
-            'is_department_admin' => session()->get('is_department_admin')
-        ]
-    ];
-    
-    // DEBUG: Log final counts
-    log_message('debug', 'Calendar - Final event count: ' . count($calendarEvents) . ' for user type: ' . $userType);
+        $data['events'] = json_encode($calendarEvents);
+        $data['events_count'] = count($calendarEvents);
+        
+        // Debug data for browser console
+        $data['debug_info'] = [
+            'user_type' => $userType,
+            'user_id' => $userId,
+            'raw_schedules_count' => isset($schedules) ? count($schedules) : 0,
+            'calendar_events_count' => count($calendarEvents),
+            'schedules_sample' => isset($schedules) ? array_slice($schedules, 0, 3) : [],
+            'session_data' => [
+                'user_type' => session()->get('user_type'),
+                'user_id' => session()->get('user_id'),
+                'department_id' => session()->get('department_id'),
+                'is_department_admin' => session()->get('is_department_admin')
+            ]
+        ];
+        
+        // DEBUG: Log final counts
+        log_message('debug', 'Calendar - Final event count: ' . count($calendarEvents) . ' for user type: ' . $userType);
         
         return view('schedule/calendar', $data);
     }
