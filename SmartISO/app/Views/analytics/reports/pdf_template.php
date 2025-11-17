@@ -517,6 +517,7 @@
                     <th>ID</th>
                     <th>Form Name</th>
                     <th>Submitted By</th>
+                    <th>Department</th>
                     <th>Status</th>
                     <th>Created At</th>
                 </tr>
@@ -528,6 +529,7 @@
                             <td><?= esc($submission['id']) ?></td>
                             <td><?= esc($submission['form_name']) ?></td>
                             <td><?= esc($submission['submitted_by']) ?></td>
+                            <td><?= esc($submission['department_name'] ?? 'Unassigned') ?></td>
                             <td>
                                 <span class="<?= 
                                     $submission['status'] === 'completed' ? 'text-success' : 

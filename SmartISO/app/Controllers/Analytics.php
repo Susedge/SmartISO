@@ -335,9 +335,10 @@ class Analytics extends BaseController
     private function getSubmissionsOverview($filterDepartmentId = null)
     {
         $builder = $this->db->table('form_submissions fs')
-            ->select('fs.id, COALESCE(f.description, f.code, "Unknown Form") as form_name, fs.created_at, fs.completion_date, fs.status, COALESCE(u.full_name, "Unknown User") as submitted_by')
+            ->select('fs.id, COALESCE(f.description, f.code, "Unknown Form") as form_name, fs.created_at, fs.completion_date, fs.status, COALESCE(u.full_name, "Unknown User") as submitted_by, d.description as department_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
             ->orderBy('fs.created_at', 'DESC')
             ->limit(100);
 
@@ -526,6 +527,7 @@ class Analytics extends BaseController
             $table->addCell(1000)->addText('ID', ['bold' => true]);
             $table->addCell(3000)->addText('Form Name', ['bold' => true]);
             $table->addCell(2000)->addText('Submitted By', ['bold' => true]);
+            $table->addCell(2000)->addText('Department', ['bold' => true]);
             $table->addCell(2000)->addText('Status', ['bold' => true]);
             $table->addCell(2000)->addText('Created At', ['bold' => true]);
             
@@ -535,6 +537,7 @@ class Analytics extends BaseController
                 $table->addCell(1000)->addText($submission['id']);
                 $table->addCell(3000)->addText($submission['form_name']);
                 $table->addCell(2000)->addText($submission['submitted_by']);
+                $table->addCell(2000)->addText($submission['department_name'] ?? 'Unassigned');
                 $table->addCell(2000)->addText(ucfirst($submission['status']));
                 $table->addCell(2000)->addText(date('Y-m-d H:i', strtotime($submission['created_at'])));
             }
