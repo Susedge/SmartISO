@@ -505,6 +505,50 @@
         </table>
     </div>
 
+    <div class="page-break"></div>
+
+    <!-- Recent Submissions -->
+    <div class="section">
+        <div class="section-title">Recent Submissions (Last 100)</div>
+        
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Form Name</th>
+                    <th>Submitted By</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (!empty($recentSubmissions)): ?>
+                    <?php foreach ($recentSubmissions as $submission): ?>
+                        <tr>
+                            <td><?= esc($submission['id']) ?></td>
+                            <td><?= esc($submission['form_name']) ?></td>
+                            <td><?= esc($submission['submitted_by']) ?></td>
+                            <td>
+                                <span class="<?= 
+                                    $submission['status'] === 'completed' ? 'text-success' : 
+                                    ($submission['status'] === 'pending_service' || $submission['status'] === 'approved' ? 'text-warning' : 
+                                    ($submission['status'] === 'rejected' ? 'text-danger' : 'text-info')) 
+                                ?>">
+                                    <?= ucfirst(str_replace('_', ' ', esc($submission['status']))) ?>
+                                </span>
+                            </td>
+                            <td><?= date('M j, Y H:i', strtotime($submission['created_at'])) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: #6c757d;">No submissions available</td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
     <!-- Recommendations -->
     <div class="section">
         <div class="section-title">Recommendations & Action Items</div>

@@ -509,6 +509,36 @@ class Analytics extends BaseController
                 'height' => 300,
                 'alignment' => \PhpOffice\PhpWord\SimpleType\Jc::CENTER
             ]);
+            $section->addTextBreak();
+        }
+        
+        // Add Recent Submissions Table
+        if (!empty($data['recentSubmissions'])) {
+            $section->addTitle('Recent Submissions', 2);
+            $section->addText('Last 100 submissions');
+            $section->addTextBreak();
+            
+            $tableStyle = ['borderSize' => 6, 'borderColor' => '999999', 'cellMargin' => 80];
+            $table = $section->addTable($tableStyle);
+            
+            // Table header
+            $table->addRow();
+            $table->addCell(1000)->addText('ID', ['bold' => true]);
+            $table->addCell(3000)->addText('Form Name', ['bold' => true]);
+            $table->addCell(2000)->addText('Submitted By', ['bold' => true]);
+            $table->addCell(2000)->addText('Status', ['bold' => true]);
+            $table->addCell(2000)->addText('Created At', ['bold' => true]);
+            
+            // Table data
+            foreach ($data['recentSubmissions'] as $submission) {
+                $table->addRow();
+                $table->addCell(1000)->addText($submission['id']);
+                $table->addCell(3000)->addText($submission['form_name']);
+                $table->addCell(2000)->addText($submission['submitted_by']);
+                $table->addCell(2000)->addText(ucfirst($submission['status']));
+                $table->addCell(2000)->addText(date('Y-m-d H:i', strtotime($submission['created_at'])));
+            }
+            $section->addTextBreak();
         }
         
         $filename = 'analytics_report_' . date('Y-m-d_H-i-s') . '.docx';
@@ -540,7 +570,8 @@ class Analytics extends BaseController
             'formStats' => $this->getFormStatistics($filterDepartmentId),
             'departmentStats' => $this->getDepartmentStatistics($filterDepartmentId),
             'timelineData' => $this->getTimelineData($filterDepartmentId),
-            'performanceMetrics' => $this->getPerformanceMetrics($filterDepartmentId)
+            'performanceMetrics' => $this->getPerformanceMetrics($filterDepartmentId),
+            'recentSubmissions' => $this->getSubmissionsOverview($filterDepartmentId)
         ];
 
         return $data;
