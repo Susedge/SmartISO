@@ -42,9 +42,15 @@ class Dashboard extends BaseController
                                                    ->where('status', 'submitted')
                                                    ->countAllResults();
                                                          
+            // Approved/pending service but NOT completed
             $statusSummary['approved'] = $this->db->table('form_submissions')
                                                   ->where('submitted_by', $userId)
                                                   ->whereIn('status', ['approved', 'pending_service'])
+                                                  ->groupStart()
+                                                      ->where('completed IS NULL')
+                                                      ->orWhere('completed', 0)
+                                                  ->groupEnd()
+                                                  ->where('status !=', 'completed')
                                                   ->countAllResults();
                                                         
             $statusSummary['rejected'] = $this->db->table('form_submissions')
@@ -52,10 +58,13 @@ class Dashboard extends BaseController
                                                   ->where('status', 'rejected')
                                                   ->countAllResults();
                                                         
-            // Count completed using completion flag for consistency
+            // Count completed using completion flag OR status='completed'
             $statusSummary['completed'] = $this->db->table('form_submissions')
                                                    ->where('submitted_by', $userId)
-                                                   ->where('completed', 1)
+                                                   ->groupStart()
+                                                       ->where('completed', 1)
+                                                       ->orWhere('status', 'completed')
+                                                   ->groupEnd()
                                                    ->countAllResults();
         } 
         elseif ($userType === 'approving_authority') {
@@ -75,9 +84,15 @@ class Dashboard extends BaseController
                                                           ->where('form_submissions.status', 'submitted')
                                                           ->countAllResults();
                                                                 
+            // Approved by me but NOT completed
             $statusSummary['approved_by_me'] = $this->db->table('form_submissions')
                                                         ->where('approver_id', $userId)
-                                                        ->whereIn('status', ['approved', 'pending_service', 'completed'])
+                                                        ->whereIn('status', ['approved', 'pending_service'])
+                                                        ->groupStart()
+                                                            ->where('completed IS NULL')
+                                                            ->orWhere('completed', 0)
+                                                        ->groupEnd()
+                                                        ->where('status !=', 'completed')
                                                         ->countAllResults();
                                                               
             $statusSummary['rejected_by_me'] = $this->db->table('form_submissions')
@@ -85,9 +100,13 @@ class Dashboard extends BaseController
                                                         ->where('status', 'rejected')
                                                         ->countAllResults();
                                                               
+            // Completed: approved by me AND marked as completed
             $statusSummary['completed'] = $this->db->table('form_submissions')
                                                    ->where('approver_id', $userId)
-                                                   ->where('completed', 1)
+                                                   ->groupStart()
+                                                       ->where('completed', 1)
+                                                       ->orWhere('status', 'completed')
+                                                   ->groupEnd()
                                                    ->countAllResults();
         }
         elseif ($userType === 'service_staff') {
@@ -97,11 +116,22 @@ class Dashboard extends BaseController
                                                          ->where('service_staff_id', $userId)
                                                          ->whereIn('status', ['approved', 'pending_service'])
                                                          ->where('service_staff_signature_date IS NULL')
+                                                         ->groupStart()
+                                                             ->where('completed IS NULL')
+                                                             ->orWhere('completed', 0)
+                                                         ->groupEnd()
+                                                         ->where('status !=', 'completed')
                                                          ->countAllResults();
                                                                
+            // Serviced but not yet completed (has service signature but requestor hasn't marked complete)
             $statusSummary['serviced_by_me'] = $this->db->table('form_submissions')
                                                         ->where('service_staff_id', $userId)
                                                         ->where('service_staff_signature_date IS NOT NULL')
+                                                        ->groupStart()
+                                                            ->where('completed IS NULL')
+                                                            ->orWhere('completed', 0)
+                                                        ->groupEnd()
+                                                        ->where('status !=', 'completed')
                                                         ->countAllResults();
                                                               
             $statusSummary['rejected'] = $this->db->table('form_submissions')
@@ -109,9 +139,13 @@ class Dashboard extends BaseController
                                                   ->where('status', 'rejected')
                                                   ->countAllResults();
                                                         
+            // Completed: assigned to me AND marked as completed
             $statusSummary['completed'] = $this->db->table('form_submissions')
                                                    ->where('service_staff_id', $userId)
-                                                   ->where('completed', 1)
+                                                   ->groupStart()
+                                                       ->where('completed', 1)
+                                                       ->orWhere('status', 'completed')
+                                                   ->groupEnd()
                                                    ->countAllResults();
         }
         elseif ($isGlobalAdmin || $isDepartmentAdmin) {
@@ -127,11 +161,21 @@ class Dashboard extends BaseController
             $statusSummary['submitted'] = (clone $builder)
                                                         ->where('form_submissions.status', 'submitted')
                                                         ->countAllResults();
+            // Approved/pending service but NOT completed
             $statusSummary['approved'] = (clone $builder)
                                                 ->whereIn('form_submissions.status', ['approved', 'pending_service'])
+                                                ->groupStart()
+                                                    ->where('form_submissions.completed IS NULL')
+                                                    ->orWhere('form_submissions.completed', 0)
+                                                ->groupEnd()
+                                                ->where('form_submissions.status !=', 'completed')
                                                 ->countAllResults();
+            // Completed: using completion flag OR status='completed'
             $statusSummary['completed'] = (clone $builder)
-                                                ->where('form_submissions.completed', 1)
+                                                ->groupStart()
+                                                    ->where('form_submissions.completed', 1)
+                                                    ->orWhere('form_submissions.status', 'completed')
+                                                ->groupEnd()
                                                 ->countAllResults();
         }
         
