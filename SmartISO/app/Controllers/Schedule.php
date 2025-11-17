@@ -466,6 +466,12 @@ class Schedule extends BaseController
         
         $data['title'] = 'Schedule Calendar';
         
+        // DEBUG: Log session info
+        log_message('debug', 'Calendar accessed - User Type: ' . $userType . ', User ID: ' . $userId);
+        
+        // Initialize schedules array
+        $schedules = [];
+        
         // Admin and superuser can see all schedules AND submissions without schedules
         if (in_array($userType, ['admin', 'superuser'])) {
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
@@ -535,6 +541,10 @@ class Schedule extends BaseController
             $schedules = $this->scheduleModel->getPendingSchedules($start, $end);
         }
         
+        // DEBUG: Log schedules before formatting
+        log_message('debug', 'Calendar - Schedules count before formatting: ' . count($schedules ?? []));
+        log_message('debug', 'Calendar - Schedules data: ' . json_encode($schedules ?? []));
+        
         // Format schedules for calendar display
         $calendarEvents = [];
         foreach ($schedules as $schedule) {
@@ -565,10 +575,19 @@ class Schedule extends BaseController
     $data['debug_info'] = [
         'user_type' => $userType,
         'user_id' => $userId,
-        'raw_schedules_count' => count($schedules),
+        'raw_schedules_count' => isset($schedules) ? count($schedules) : 0,
         'calendar_events_count' => count($calendarEvents),
-        'schedules_sample' => array_slice($schedules, 0, 3) // First 3 for debugging
+        'schedules_sample' => isset($schedules) ? array_slice($schedules, 0, 3) : [],
+        'session_data' => [
+            'user_type' => session()->get('user_type'),
+            'user_id' => session()->get('user_id'),
+            'department_id' => session()->get('department_id'),
+            'is_department_admin' => session()->get('is_department_admin')
+        ]
     ];
+    
+    // DEBUG: Log final counts
+    log_message('debug', 'Calendar - Final event count: ' . count($calendarEvents) . ' for user type: ' . $userType);
         
         return view('schedule/calendar', $data);
     }

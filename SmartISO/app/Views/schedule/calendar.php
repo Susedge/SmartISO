@@ -196,6 +196,8 @@ document.addEventListener('DOMContentLoaded', function(){
 
     // DEBUG: Log getStaffSchedules results
     console.group('📅 Calendar Debug Info');
+    console.log('Current User ID:', <?= json_encode(session()->get('user_id')) ?>);
+    console.log('Current User Type:', <?= json_encode(session()->get('user_type')) ?>);
     console.log('Debug Info:', <?= json_encode($debug_info ?? []) ?>);
     console.log('Events Count:', eventsCount);
     console.log('Events Array:', events);
