@@ -760,79 +760,92 @@ class Forms extends BaseController
     
     public function pendingService()
     {
-        $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        $userDepartmentId = session()->get('department_id');
-        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-        $isDepartmentAdmin = ($userType === 'department_admin');
-        
-        // Access control: Only service staff, department admin, and global admin can access
-        if (!in_array($userType, ['service_staff', 'admin', 'superuser', 'department_admin'])) {
-            return redirect()->to('/dashboard')->with('error', 'You do not have permission to access this page');
-        }
-        
-        log_message('info', "pendingService: User {$userId} ({$userType}) accessing pending service page");
-        
-        // Get submissions pending service
-        $builder = $this->formSubmissionModel->builder();
-        $builder->select('
-            form_submissions.id, 
-            form_submissions.form_id, 
-            form_submissions.submitted_by, 
-            form_submissions.status, 
-            form_submissions.priority,
-            form_submissions.approved_at, 
-            form_submissions.updated_at,
-            forms.code as form_code, 
-            forms.description as form_description,
-            requestor.full_name as requestor_name,
-            requestor.department_id,
-            d.description as department_name,
-            sch.priority_level, 
-            sch.eta_days, 
-            sch.estimated_date
-        ');
-        $builder->join('forms', 'forms.id = form_submissions.form_id');
-        $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
-        $builder->join('departments d', 'd.id = requestor.department_id', 'left');
-        $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
-        
-        // Service staff should see ALL submissions assigned to them regardless of department
-        // Only apply department filter for admin/department_admin roles
-        if ($userType === 'service_staff') {
-            // Service staff sees only their assigned submissions
-            $builder->where('form_submissions.service_staff_id', $userId);
-        } elseif ($isDepartmentAdmin && $userDepartmentId) {
-            // Department admin sees submissions from their department
-            $builder->where('requestor.department_id', $userDepartmentId);
-            $builder->where('form_submissions.service_staff_id', $userId);
-        } else {
-            // Global admin sees all, or filter by current user if not admin
-            if (!$isGlobalAdmin) {
-                $builder->where('form_submissions.service_staff_id', $userId);
-                if ($userDepartmentId) {
-                    $builder->where('requestor.department_id', $userDepartmentId);
-                }
-            } else {
-                // Admin can see all pending service submissions
-                $builder->where('form_submissions.service_staff_id IS NOT NULL', null, false);
+        try {
+            $userId = session()->get('user_id');
+            $userType = session()->get('user_type');
+            $userDepartmentId = session()->get('department_id');
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+            $isDepartmentAdmin = ($userType === 'department_admin');
+            
+            // Access control: Only service staff, department admin, and global admin can access
+            if (!in_array($userType, ['service_staff', 'admin', 'superuser', 'department_admin'])) {
+                log_message('warning', "pendingService: Access denied for user {$userId} with user_type: {$userType}");
+                return redirect()->to('/dashboard')->with('error', 'You do not have permission to access this page');
             }
+            
+            log_message('info', "pendingService: User {$userId} ({$userType}) accessing pending service page");
+            
+            // Get submissions pending service
+            $builder = $this->formSubmissionModel->builder();
+            $builder->select('
+                form_submissions.id, 
+                form_submissions.form_id, 
+                form_submissions.submitted_by, 
+                form_submissions.status, 
+                form_submissions.priority,
+                form_submissions.approved_at, 
+                form_submissions.updated_at,
+                forms.code as form_code, 
+                forms.description as form_description,
+                requestor.full_name as requestor_name,
+                requestor.department_id,
+                d.description as department_name,
+                sch.priority_level, 
+                sch.eta_days, 
+                sch.estimated_date
+            ');
+            $builder->join('forms', 'forms.id = form_submissions.form_id');
+            $builder->join('users as requestor', 'requestor.id = form_submissions.submitted_by');
+            $builder->join('departments d', 'd.id = requestor.department_id', 'left');
+            $builder->join('schedules sch', 'sch.submission_id = form_submissions.id', 'left');
+            
+            // Service staff should see ALL submissions assigned to them regardless of department
+            // Only apply department filter for admin/department_admin roles
+            if ($userType === 'service_staff') {
+                // Service staff sees only their assigned submissions
+                $builder->where('form_submissions.service_staff_id', $userId);
+                log_message('info', "pendingService: Filtering for service_staff_id = {$userId}");
+            } elseif ($isDepartmentAdmin && $userDepartmentId) {
+                // Department admin sees submissions from their department
+                $builder->where('requestor.department_id', $userDepartmentId);
+                $builder->where('form_submissions.service_staff_id', $userId);
+                log_message('info', "pendingService: Filtering for department_admin, dept = {$userDepartmentId}");
+            } else {
+                // Global admin sees all, or filter by current user if not admin
+                if (!$isGlobalAdmin) {
+                    $builder->where('form_submissions.service_staff_id', $userId);
+                    if ($userDepartmentId) {
+                        $builder->where('requestor.department_id', $userDepartmentId);
+                    }
+                    log_message('info', "pendingService: Filtering for non-admin user {$userId}");
+                } else {
+                    // Admin can see all pending service submissions
+                    $builder->where('form_submissions.service_staff_id IS NOT NULL', null, false);
+                    log_message('info', "pendingService: Global admin viewing all pending service submissions");
+                }
+            }
+            
+            // Accept both 'approved' and 'pending_service' statuses for backward compatibility
+            $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
+            
+            $builder->orderBy('form_submissions.approved_at', 'DESC');
+            
+            $submissions = $builder->get()->getResultArray();
+            
+            log_message('info', "pendingService: Found " . count($submissions) . " submissions for user {$userId}");
+            
+            $data = [
+                'title' => 'Forms Pending Service',
+                'submissions' => $submissions,
+                'isDepartmentFiltered' => !$isGlobalAdmin
+            ];
+            
+            return view('forms/pending_service', $data);
+            
+        } catch (\Exception $e) {
+            log_message('error', 'pendingService error: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
+            return redirect()->to('/dashboard')->with('error', 'An error occurred while loading pending services. Please contact administrator.');
         }
-        
-        // Accept both 'approved' and 'pending_service' statuses for backward compatibility
-        $builder->whereIn('form_submissions.status', ['approved', 'pending_service']);
-        
-        $builder->orderBy('form_submissions.approved_at', 'DESC');
-        
-        $submissions = $builder->get()->getResultArray();
-        
-        $data = [
-            'title' => 'Forms Pending Service',
-            'submissions' => $submissions,
-            'isDepartmentFiltered' => !$isGlobalAdmin
-        ];
-        
-        return view('forms/pending_service', $data);
     }
     
     public function pendingRequestorSignature()
@@ -1995,6 +2008,18 @@ class Forms extends BaseController
         ];
         
         $this->formSubmissionModel->update($submissionId, $updateData);
+        
+        // Update schedule status to 'completed' if a schedule exists
+        try {
+            $scheduleModel = new \App\Models\ScheduleModel();
+            $schedule = $scheduleModel->where('submission_id', $submissionId)->first();
+            if ($schedule) {
+                $scheduleModel->update($schedule['id'], ['status' => 'completed']);
+                log_message('info', "Updated schedule {$schedule['id']} status to completed for submission {$submissionId}");
+            }
+        } catch (\Exception $e) {
+            log_message('error', 'Failed to update schedule status: ' . $e->getMessage());
+        }
         
         return redirect()->to('/forms/serviced-by-me')
                     ->with('message', 'Service completed and form signed successfully. The form has been marked as completed.');
