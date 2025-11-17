@@ -1,12 +1,5 @@
 <?= $this->extend('layouts/default') ?>
 
-<?= $this->section('head') ?>
-<!-- Prevent browser caching of calendar page and data -->
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate, max-age=0">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-<?= $this->endSection() ?>
-
 <?= $this->section('content') ?>
 <div class="card">
     <div class="card-header">
@@ -200,22 +193,13 @@ document.addEventListener('DOMContentLoaded', function(){
     var calendarEl = document.getElementById('calendar');
     var events = <?= $events ?? '[]' ?>;
     var eventsCount = <?= $events_count ?? 0 ?>;
-    var cacheBuster = <?= $cache_buster ?? time() ?>; // Timestamp to force fresh data
 
-    // Force clear any old cached calendar data
-    if (window.localStorage) {
-        var lastCacheBuster = localStorage.getItem('calendar_cache_buster');
-        if (lastCacheBuster && parseInt(lastCacheBuster) < cacheBuster) {
-            console.log('Calendar: Clearing old cached data');
-            // Clear any cached calendar data
-            localStorage.removeItem('calendar_events');
-            localStorage.removeItem('calendar_data');
-        }
-        localStorage.setItem('calendar_cache_buster', cacheBuster);
-    }
-    
-    console.log('Calendar: Loading ' + eventsCount + ' events (cache buster: ' + cacheBuster + ')');
-    console.log('Calendar: Events data:', events);
+    // DEBUG: Log getStaffSchedules results
+    console.group('📅 Calendar Debug Info');
+    console.log('Debug Info:', <?= json_encode($debug_info ?? []) ?>);
+    console.log('Events Count:', eventsCount);
+    console.log('Events Array:', events);
+    console.groupEnd();
 
     function escapeHtml(str){ if (!str && str !== 0) return ''; return String(str).replace(/[&<>"'`]/g, function(s){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;', '`':'&#96;'}[s]; }); }
 
@@ -561,30 +545,11 @@ document.addEventListener('DOMContentLoaded', function(){
 
         calendar.render();
         
-        // Log rendered events for debugging
-        console.log('Calendar: Rendered successfully');
-        console.log('Calendar: Total events in data:', events.length);
-        var completedEvents = events.filter(function(e) { return e.status === 'completed'; });
-        var pendingEvents = events.filter(function(e) { return e.status === 'pending' || e.status === 'pending_service'; });
-        console.log('Calendar: Completed events:', completedEvents.length, completedEvents);
-        console.log('Calendar: Pending events:', pendingEvents.length, pendingEvents);
-        
-        // Add visual indicator that data is fresh
-        var cardHeader = document.querySelector('.card-header h3');
-        if (cardHeader) {
-            var timestamp = new Date().toLocaleTimeString();
-            var freshIndicator = document.createElement('small');
-            freshIndicator.className = 'text-muted ms-2';
-            freshIndicator.style.fontSize = '0.75rem';
-            freshIndicator.innerHTML = '<i class="fas fa-sync-alt"></i> Updated: ' + timestamp;
-            cardHeader.appendChild(freshIndicator);
-        }
-        
         // Add event listener for Save button to reload page
         document.addEventListener('click', function(e) {
             if (e.target && (e.target.id === 'saveAndReloadBtn' || e.target.closest('#saveAndReloadBtn'))) {
                 e.preventDefault();
-                location.reload(true); // Force reload from server, not cache
+                location.reload();
             }
         });
     }
@@ -592,7 +557,7 @@ document.addEventListener('DOMContentLoaded', function(){
     ensureFullCalendar(function(){
         console.log('FullCalendar loader: ready');
         initCalendar();
-        console.log('Calendar: Initial load complete with ' + eventsCount + ' events');
+        console.log('Calendar events count:', eventsCount);
     });
     if (eventsCount === 0) { var cardBody = document.querySelector('.card-body'); if (cardBody) { var alert = document.createElement('div'); alert.className='alert alert-info mt-3'; alert.innerText='No scheduled services found on the calendar.'; cardBody.appendChild(alert); } }
 });

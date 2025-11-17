@@ -461,18 +461,10 @@ class Schedule extends BaseController
 
     public function calendar()
     {
-        // Prevent browser caching to ensure fresh calendar data
-        header('Cache-Control: no-cache, no-store, must-revalidate, max-age=0');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-        
         $userType = session()->get('user_type');
         $userId = session()->get('user_id');
         
         $data['title'] = 'Schedule Calendar';
-        
-        // Add cache-busting timestamp to force fresh data
-        $data['cache_buster'] = time();
         
         // Admin and superuser can see all schedules AND submissions without schedules
         if (in_array($userType, ['admin', 'superuser'])) {
@@ -486,6 +478,12 @@ class Schedule extends BaseController
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
+            
+            // Debug: Log raw schedules from database
+            log_message('debug', 'Service Staff Schedules (User ID: ' . $userId . '): ' . json_encode([
+                'count' => count($schedules),
+                'schedules' => $schedules
+            ]));
             
             // Also get submissions assigned to this service staff that don't have schedules yet
             $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
@@ -562,6 +560,15 @@ class Schedule extends BaseController
         
     $data['events'] = json_encode($calendarEvents);
     $data['events_count'] = count($calendarEvents);
+    
+    // Debug data for browser console
+    $data['debug_info'] = [
+        'user_type' => $userType,
+        'user_id' => $userId,
+        'raw_schedules_count' => count($schedules),
+        'calendar_events_count' => count($calendarEvents),
+        'schedules_sample' => array_slice($schedules, 0, 3) // First 3 for debugging
+    ];
         
         return view('schedule/calendar', $data);
     }
