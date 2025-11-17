@@ -129,60 +129,62 @@ class Analytics extends BaseController
         // Build query with optional department filtering - use fresh builder each time
         // Count ALL submissions regardless of status
         if ($filterDepartmentId) {
-            $totalSubmissions = $this->db->table('form_submissions')
-                ->join('users', 'users.id = form_submissions.submitted_by')
-                ->where('users.department_id', $filterDepartmentId)
-                ->countAllResults();
+            // Use fresh builder for each query to avoid query conflicts
+            $builder = $this->db->table('form_submissions');
+            $builder->join('users', 'users.id = form_submissions.submitted_by', 'left');
+            $builder->where('users.department_id', $filterDepartmentId);
+            $totalSubmissions = $builder->countAllResults();
         } else {
-            $totalSubmissions = $this->formSubmissionModel->countAll();
+            // Use fresh query without model caching
+            $totalSubmissions = $this->db->table('form_submissions')->countAllResults();
         }
         
         // Count users, departments and forms with optional department filtering
         if ($filterDepartmentId) {
-            $totalUsers = $this->userModel->where('department_id', $filterDepartmentId)->countAllResults();
-            $totalDepartments = $this->departmentModel->where('id', $filterDepartmentId)->countAllResults();
-            $totalForms = $this->formModel->where('department_id', $filterDepartmentId)->countAllResults();
+            $totalUsers = $this->db->table('users')->where('department_id', $filterDepartmentId)->countAllResults();
+            $totalDepartments = $this->db->table('departments')->where('id', $filterDepartmentId)->countAllResults();
+            $totalForms = $this->db->table('forms')->where('department_id', $filterDepartmentId)->countAllResults();
         } else {
-            $totalUsers = $this->userModel->countAll();
-            $totalDepartments = $this->departmentModel->countAll();
-            $totalForms = $this->formModel->countAll();
+            $totalUsers = $this->db->table('users')->countAllResults();
+            $totalDepartments = $this->db->table('departments')->countAllResults();
+            $totalForms = $this->db->table('forms')->countAllResults();
         }
 
         log_message('info', "Analytics Overview - Total Submissions (all statuses): $totalSubmissions, Users: $totalUsers, Departments: $totalDepartments, Forms: $totalForms, Filter Dept: " . ($filterDepartmentId ?: 'none'));
 
-        // Status distribution with department filtering
+        // Status distribution with department filtering - use fresh builder
         $statusBuilder = $this->db->table('form_submissions');
+        $statusBuilder->select('form_submissions.status, COUNT(*) as count');
         if ($filterDepartmentId) {
-            $statusBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                         ->where('users.department_id', $filterDepartmentId);
+            $statusBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
+            $statusBuilder->where('users.department_id', $filterDepartmentId);
         }
-        $statusCounts = $statusBuilder->select('form_submissions.status, COUNT(*) as count')
-                                     ->groupBy('form_submissions.status')
+        $statusCounts = $statusBuilder->groupBy('form_submissions.status')
                                      ->get()
                                      ->getResultArray();
 
         log_message('info', 'Status counts: ' . json_encode($statusCounts));
 
-        // Recent submissions (last 30 days) with department filtering
-        $recentBuilder = $this->db->table('form_submissions')
-                                  ->where('form_submissions.created_at >=', date('Y-m-d H:i:s', strtotime('-30 days')));
+        // Recent submissions (last 30 days) with department filtering - use fresh builder
+        $recentBuilder = $this->db->table('form_submissions');
+        $recentBuilder->where('form_submissions.created_at >=', date('Y-m-d H:i:s', strtotime('-30 days')));
         if ($filterDepartmentId) {
-            $recentBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                         ->where('users.department_id', $filterDepartmentId);
+            $recentBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
+            $recentBuilder->where('users.department_id', $filterDepartmentId);
         }
         $recentSubmissions = $recentBuilder->countAllResults();
 
-        // Calculate completion rate with department filtering
+        // Calculate completion rate with department filtering - use fresh builder
         // Use completed flag OR status='completed' for accurate count
         $completedBuilder = $this->db->table('form_submissions');
         if ($filterDepartmentId) {
-            $completedBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                            ->where('users.department_id', $filterDepartmentId);
+            $completedBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
+            $completedBuilder->where('users.department_id', $filterDepartmentId);
         }
-        $completedBuilder->groupStart()
-                        ->where('form_submissions.completed', 1)
-                        ->orWhere('form_submissions.status', 'completed')
-                        ->groupEnd();
+        $completedBuilder->groupStart();
+        $completedBuilder->where('form_submissions.completed', 1);
+        $completedBuilder->orWhere('form_submissions.status', 'completed');
+        $completedBuilder->groupEnd();
         $completedForms = $completedBuilder->countAllResults();
         
         $completionRate = $totalSubmissions > 0 ? ($completedForms / $totalSubmissions) * 100 : 0;
