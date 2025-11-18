@@ -1766,6 +1766,10 @@ class Forms extends BaseController
             ];
             
             $this->formSubmissionModel->update($submissionId, $updateData);
+            
+            // Log the update to verify it succeeded
+            $updatedSubmission = $this->formSubmissionModel->find($submissionId);
+            log_message('info', 'Submission ' . $submissionId . ' approved and updated. Status: ' . ($updatedSubmission['status'] ?? 'NULL') . ', Service Staff ID: ' . ($updatedSubmission['service_staff_id'] ?? 'NULL'));
 
             // Send notification to service staff via model helper so it is recorded
             if (!empty($serviceStaffId)) {

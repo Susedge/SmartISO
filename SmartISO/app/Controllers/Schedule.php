@@ -55,13 +55,17 @@ class Schedule extends BaseController
             // NO department or office filtering - assignment is based on service_staff_id only
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
             
+            log_message('info', 'Service Staff Calendar - User ID: ' . $userId . ' | Schedules from getStaffSchedules: ' . count($schedules));
+            
             // Also get submissions assigned to this service staff that don't have schedules yet
             $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+            
+            log_message('info', 'Service Staff Calendar - User ID: ' . $userId . ' | Submissions without schedules: ' . count($submissionsWithoutSchedules));
             
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
             
-            log_message('info', 'Service Staff Calendar - User ID: ' . $userId . ' | Schedules count: ' . count($schedules));
+            log_message('info', 'Service Staff Calendar - User ID: ' . $userId . ' | Total schedules after merge: ' . count($schedules));
         }
         // Requestor sees schedules for their submissions
         elseif ($userType === 'requestor') {
@@ -71,31 +75,10 @@ class Schedule extends BaseController
                 // Use the new method to get schedules with full details
                 $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
                 
-                // If no schedules exist, show pending submissions as placeholder events
-                if (empty($schedules)) {
-                    $pendingSubs = $this->submissionModel->whereIn('id', $submissionIds)
-                        ->whereIn('status', ['submitted', 'approved'])
-                        ->orderBy('created_at', 'ASC')
-                        ->findAll();
-
-                    if (!empty($pendingSubs)) {
-                        $formModel = new \App\Models\FormModel();
-                        $schedules = [];
-                        foreach ($pendingSubs as $ps) {
-                            $form = $formModel->find($ps['form_id']);
-                            $schedules[] = [
-                                'id' => 'sub-' . $ps['id'],
-                                'priority' => 0,
-                                'form_code' => $form['code'] ?? null,
-                                'panel_name' => $ps['panel_name'] ?? null,
-                                'scheduled_date' => isset($ps['created_at']) ? substr($ps['created_at'], 0, 10) : date('Y-m-d'),
-                                'scheduled_time' => '09:00:00',
-                                'notes' => null,
-                                'status' => $ps['status'] ?? 'submitted'
-                            ];
-                        }
-                    }
-                }
+                // ALWAYS show submissions without schedules as placeholder events
+                // This ensures new submissions appear immediately on the calendar
+                $submissionsWithoutSchedules = $this->getRequestorSubmissionsWithoutSchedules($userId, $submissionIds);
+                $schedules = array_merge($schedules, $submissionsWithoutSchedules);
             } else {
                 $schedules = [];
             }
@@ -491,8 +474,12 @@ class Schedule extends BaseController
                 'schedules' => $schedules
             ]));
             
+            log_message('info', 'Service Staff Calendar (calendar method) - User ID: ' . $userId . ' | Schedules from getStaffSchedules: ' . count($schedules));
+            
             // Also get submissions assigned to this service staff that don't have schedules yet
             $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+            
+            log_message('info', 'Service Staff Calendar (calendar method) - User ID: ' . $userId . ' | Submissions without schedules: ' . count($submissionsWithoutSchedules));
             
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
@@ -506,6 +493,11 @@ class Schedule extends BaseController
             if (!empty($submissionIds)) {
                 // Use the new method to get schedules with full details
                 $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
+                
+                // ALWAYS show submissions without schedules as placeholder events
+                // This ensures new submissions appear immediately on the calendar
+                $submissionsWithoutSchedules = $this->getRequestorSubmissionsWithoutSchedules($userId, $submissionIds);
+                $schedules = array_merge($schedules, $submissionsWithoutSchedules);
             } else {
                 $schedules = [];
             }
@@ -701,9 +693,16 @@ class Schedule extends BaseController
         
         $builder->orderBy('fs.created_at', 'DESC');
         
+        // Log the actual query being executed
+        $sql = $builder->getCompiledSelect(false);
+        log_message('debug', '[getServiceStaffSubmissionsWithoutSchedules] Query for staff_id=' . $staffId . ': ' . $sql);
+        
         $results = $builder->get()->getResultArray();
         
         log_message('info', 'Service Staff Submissions Without Schedules - Staff ID: ' . $staffId . ' | Count: ' . count($results));
+        if (count($results) > 0) {
+            log_message('debug', 'Service Staff Submissions Without Schedules - Results: ' . json_encode($results));
+        };
         
         // Format these submissions as "virtual" schedule entries
         $virtualSchedules = [];
@@ -751,6 +750,69 @@ class Schedule extends BaseController
                 'estimated_date' => null,
                 'priority_level' => $priorityLevel, // Now properly set
                 'requestor_department_id' => $row['department_id']
+            ];
+        }
+        
+        return $virtualSchedules;
+    }
+
+    /**
+     * Get requestor's submissions that don't have schedule entries yet
+     * Shows all statuses so requestors can track their submissions on the calendar
+     */
+    private function getRequestorSubmissionsWithoutSchedules($userId, $existingSubmissionIds = [])
+    {
+        $db = \Config\Database::connect();
+        
+        // Find submissions by this requestor that don't have schedules
+        $builder = $db->table('form_submissions fs');
+        $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
+                          fs.created_at, fs.priority,
+                          f.code as form_code, f.description as form_description')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->where('fs.submitted_by', $userId)
+            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
+            ->whereIn('fs.status', ['submitted', 'approved', 'pending_service', 'completed']);
+        
+        // Exclude submissions that already have schedules (passed from parent)
+        if (!empty($existingSubmissionIds)) {
+            $existingWithSchedules = $db->table('schedules')->select('submission_id')->whereIn('submission_id', $existingSubmissionIds)->get()->getResultArray();
+            $idsWithSchedules = array_column($existingWithSchedules, 'submission_id');
+            if (!empty($idsWithSchedules)) {
+                $builder->whereNotIn('fs.id', $idsWithSchedules);
+            }
+        }
+        
+        $builder->orderBy('fs.created_at', 'DESC');
+        
+        $results = $builder->get()->getResultArray();
+        
+        // Format as virtual schedule entries
+        $virtualSchedules = [];
+        foreach ($results as $row) {
+            $createdDate = substr($row['created_at'], 0, 10);
+            
+            $virtualSchedules[] = [
+                'id' => 'sub-' . $row['submission_id'],
+                'submission_id' => $row['submission_id'],
+                'form_id' => $row['form_id'],
+                'panel_name' => $row['panel_name'],
+                'submission_status' => $row['submission_status'],
+                'form_code' => $row['form_code'],
+                'form_description' => $row['form_description'],
+                'requestor_name' => 'You',
+                'scheduled_date' => $createdDate,
+                'scheduled_time' => '09:00:00',
+                'duration_minutes' => 60,
+                'location' => '',
+                'notes' => 'Pending schedule assignment',
+                'status' => $row['submission_status'],
+                'assigned_staff_id' => null,
+                'assigned_staff_name' => null,
+                'priority' => $row['priority'] ?? 0,
+                'eta_days' => null,
+                'estimated_date' => null,
+                'priority_level' => null
             ];
         }
         
