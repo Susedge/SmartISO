@@ -45,6 +45,18 @@ class FormSubmissionDataModel extends Model
     }
 
     /**
+     * Get a specific field value for a submission
+     */
+    public function getFieldValue(int $submissionId, string $fieldName)
+    {
+        $record = $this->where('submission_id', $submissionId)
+                       ->where('field_name', $fieldName)
+                       ->first();
+        
+        return $record ? $record['field_value'] : null;
+    }
+
+    /**
      * Upsert a single field value for a submission (used for priority_level updates on calendar UI)
      */
     public function setFieldValue(int $submissionId, string $fieldName, $value): bool
