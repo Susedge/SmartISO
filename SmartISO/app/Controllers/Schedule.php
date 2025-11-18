@@ -62,8 +62,25 @@ class Schedule extends BaseController
             
             log_message('info', 'Service Staff Calendar - User ID: ' . $userId . ' | Submissions without schedules: ' . count($submissionsWithoutSchedules));
             
-            // Merge them into the schedules array
-            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+            // Merge and deduplicate by submission_id to prevent duplicates
+            // If a submission has both a schedule entry and appears in submissions list, keep the schedule version
+            $merged = $schedules;
+            foreach ($submissionsWithoutSchedules as $sub) {
+                $submissionId = $sub['submission_id'] ?? null;
+                $isDuplicate = false;
+                if ($submissionId) {
+                    foreach ($schedules as $sched) {
+                        if (($sched['submission_id'] ?? null) == $submissionId) {
+                            $isDuplicate = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$isDuplicate) {
+                    $merged[] = $sub;
+                }
+            }
+            $schedules = $merged;
             
             log_message('info', 'Service Staff Calendar - User ID: ' . $userId . ' | Total schedules after merge: ' . count($schedules));
         }
@@ -126,6 +143,12 @@ class Schedule extends BaseController
 
         $calendarEvents = [];
         foreach ($schedules as $schedule) {
+            // Ensure we have minimum required fields
+            if (empty($schedule['id']) || empty($schedule['scheduled_date']) || empty($schedule['scheduled_time'])) {
+                log_message('warning', 'Skipping schedule due to missing required fields: ' . json_encode($schedule));
+                continue;
+            }
+            
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
             // Use form description (actual title) instead of form_code
             $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
@@ -146,6 +169,11 @@ class Schedule extends BaseController
                 'scheduled_time' => $schedule['scheduled_time'] ?? null,
                 'is_manual_schedule' => isset($schedule['is_manual_schedule']) ? (int)$schedule['is_manual_schedule'] : 0
             ];
+        }
+        
+        log_message('info', 'Index calendar events created: ' . count($calendarEvents) . ' from ' . count($schedules) . ' schedules');
+        if (count($schedules) > count($calendarEvents)) {
+            log_message('warning', 'Some schedules were skipped in index. Schedules: ' . count($schedules) . ', Events: ' . count($calendarEvents));
         }
 
         $data['events'] = json_encode($calendarEvents);
@@ -481,8 +509,25 @@ class Schedule extends BaseController
             
             log_message('info', 'Service Staff Calendar (calendar method) - User ID: ' . $userId . ' | Submissions without schedules: ' . count($submissionsWithoutSchedules));
             
-            // Merge them into the schedules array
-            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+            // Merge and deduplicate by submission_id to prevent duplicates
+            // If a submission has both a schedule entry and appears in submissions list, keep the schedule version
+            $merged = $schedules;
+            foreach ($submissionsWithoutSchedules as $sub) {
+                $submissionId = $sub['submission_id'] ?? null;
+                $isDuplicate = false;
+                if ($submissionId) {
+                    foreach ($schedules as $sched) {
+                        if (($sched['submission_id'] ?? null) == $submissionId) {
+                            $isDuplicate = true;
+                            break;
+                        }
+                    }
+                }
+                if (!$isDuplicate) {
+                    $merged[] = $sub;
+                }
+            }
+            $schedules = $merged;
             
             log_message('info', 'Service Staff Calendar (calendar method) - User ID: ' . $userId . ' | Total schedules: ' . count($schedules));
         }
@@ -543,6 +588,12 @@ class Schedule extends BaseController
         // Format schedules for calendar display
         $calendarEvents = [];
         foreach ($schedules as $schedule) {
+            // Ensure we have minimum required fields
+            if (empty($schedule['id']) || empty($schedule['scheduled_date']) || empty($schedule['scheduled_time'])) {
+                log_message('warning', 'Skipping schedule due to missing required fields: ' . json_encode($schedule));
+                continue;
+            }
+            
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
             // Use form description (actual title) instead of form_code
             $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
@@ -554,13 +605,18 @@ class Schedule extends BaseController
                 'id' => $schedule['id'],
                 'title' => $title,
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
-                'description' => $schedule['notes'],
+                'description' => $schedule['notes'] ?? '',
                 'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
                 'estimated_date' => $schedule['estimated_date'] ?? null,
                 'eta_days' => isset($schedule['eta_days']) ? (int)$schedule['eta_days'] : null,
                 'priority_level' => $schedule['priority_level'] ?? null
             ];
+        }
+        
+        log_message('info', 'Calendar events created: ' . count($calendarEvents) . ' from ' . count($schedules) . ' schedules');
+        if (count($schedules) > count($calendarEvents)) {
+            log_message('warning', 'Some schedules were skipped. Schedules: ' . count($schedules) . ', Events: ' . count($calendarEvents));
         }
         
         $data['events'] = json_encode($calendarEvents);
@@ -662,16 +718,17 @@ class Schedule extends BaseController
     }
 
     /**
-     * Get submissions assigned to a service staff member that don't have schedule entries yet
+     * Get ALL submissions assigned to a service staff member
      * IMPORTANT: Service staff see ALL submissions assigned to them regardless of requestor's department or office
-     * The only filter is service_staff_id - department and office are NOT considered
+     * This method now returns ALL assigned submissions to ensure nothing is missed on the calendar
+     * Even if a schedule exists, we show the submission (schedules will be merged and deduplicated by ID)
      */
     private function getServiceStaffSubmissionsWithoutSchedules($staffId)
     {
         $db = \Config\Database::connect();
         
-        // Find submissions assigned to this service staff that don't have a corresponding schedule entry
-        // NO DEPARTMENT OR OFFICE FILTERING - only filter by service_staff_id
+        // Find ALL submissions assigned to this service staff
+        // NO DEPARTMENT, OFFICE, OR SCHEDULE FILTERING - only filter by service_staff_id
         $builder = $db->table('form_submissions fs');
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
                           fs.created_at, fs.priority, fs.service_staff_id,
@@ -682,13 +739,17 @@ class Schedule extends BaseController
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
             ->where('fs.service_staff_id', $staffId)  // ONLY filter: assigned to this service staff
-            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
-            ->whereIn('fs.status', ['approved', 'pending_service', 'completed']); // Include completed submissions for service staff
+            ->whereIn('fs.status', ['approved', 'pending_service', 'completed']); // Include all relevant statuses
+        
+        // REMOVED: NOT EXISTS check for schedules - we want ALL submissions to show
+        // If a schedule exists from getStaffSchedules(), array_merge will handle it
+        // but we ensure submissions appear even if schedule query fails
         
         // EXPLICITLY NO FILTERING by:
         // - u.department_id (requestor's department)
         // - u.office_id (requestor's office)  
         // - f.office_id (form's office)
+        // - Existence of schedule entry
         // Service staff can be assigned to submissions from ANY department or office
         
         $builder->orderBy('fs.created_at', 'DESC');

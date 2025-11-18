@@ -1780,13 +1780,10 @@ class Forms extends BaseController
                 }
             }
 
-            // OPTIONAL: Auto-create a pending schedule when a submission is approved and assigned
-            // Assumption: approval + service staff assignment implies a service should be scheduled.
-            // We create a minimal 'pending' schedule entry (non-blocking) so it appears on the calendar.
-            // Auto-create schedule only if enabled in config
+            // ALWAYS create a schedule entry when a submission is approved and assigned to service staff
+            // This ensures the submission appears on the service staff's calendar immediately
             try {
-                $appConf = config('App');
-                if (!empty($appConf->autoCreateScheduleOnApproval) && class_exists('App\\Models\\ScheduleModel')) {
+                if (class_exists('App\\Models\\ScheduleModel')) {
                     $scheduleModel = new \App\Models\ScheduleModel();
                     // Only insert if ScheduleModel allows submission_id
                     if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
@@ -1816,23 +1813,35 @@ class Forms extends BaseController
                                 'assigned_staff_id' => $serviceStaffId,
                                 'priority_level' => $schedulePriority,
                                 'location' => '',
-                                'notes' => 'Auto-created schedule on approval',
+                                'notes' => 'Pending schedule - created on approval',
                                 'status' => 'pending'
                             ];
 
-                            // Insert quietly; if it fails, log but don't block approval flow
+                            // Insert schedule entry - this is critical for calendar visibility
                             try {
-                                $scheduleModel->insert($schedData);
-                                log_message('info', "Auto-created schedule for submission {$submissionId} on approval with service staff {$serviceStaffId}");
+                                $scheduleInserted = $scheduleModel->insert($schedData);
+                                if ($scheduleInserted) {
+                                    log_message('info', "Successfully created schedule for submission {$submissionId} assigned to service staff {$serviceStaffId}");
+                                } else {
+                                    log_message('error', "Failed to create schedule for submission {$submissionId} - insert returned false");
+                                }
                             } catch (\Throwable $inner) {
-                                log_message('error', 'Auto-schedule creation failed for submission ' . $submissionId . ': ' . $inner->getMessage());
+                                log_message('error', 'CRITICAL: Schedule creation failed for submission ' . $submissionId . ': ' . $inner->getMessage());
+                                log_message('error', 'Stack trace: ' . $inner->getTraceAsString());
                             }
+                        } else {
+                            log_message('info', "Schedule already exists for submission {$submissionId}, skipping creation");
                         }
+                    } else {
+                        log_message('error', 'CRITICAL: ScheduleModel does not have submission_id in allowedFields');
                     }
+                } else {
+                    log_message('error', 'CRITICAL: ScheduleModel class not found');
                 }
             } catch (\Throwable $e) {
-                // Non-fatal: log and continue
-                log_message('error', 'Error while attempting to auto-create schedule in submitApproval: ' . $e->getMessage());
+                // This is critical - log extensively
+                log_message('error', 'CRITICAL ERROR while creating schedule in submitApproval: ' . $e->getMessage());
+                log_message('error', 'Stack trace: ' . $e->getTraceAsString());
             }
             
             return redirect()->to('/forms/approved-by-me')
