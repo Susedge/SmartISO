@@ -90,6 +90,8 @@ class ScheduleModel extends Model
 
     /**
      * Get schedules for a specific staff member
+     * IMPORTANT: Service staff see ALL schedules assigned to them regardless of department or office
+     * Only filters by assigned_staff_id - no department or office restrictions
      */
     public function getStaffSchedules($staffId, $date = null)
     {
@@ -101,7 +103,14 @@ class ScheduleModel extends Model
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('users staff', 'staff.id = s.assigned_staff_id', 'left')
-            ->where('s.assigned_staff_id', $staffId);
+            ->where('s.assigned_staff_id', $staffId);  // ONLY filter by staff assignment
+        
+        // EXPLICITLY NO FILTERING by:
+        // - u.department_id (requestor's department)
+        // - u.office_id (requestor's office)
+        // - f.office_id (form's office)
+        // - Staff's own department_id
+        // Service staff see all schedules where they are assigned, regardless of any department/office
         
         if ($date) {
             $builder->where('s.scheduled_date', $date);

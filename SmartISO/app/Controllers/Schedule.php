@@ -51,15 +51,17 @@ class Schedule extends BaseController
         }
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
+            // IMPORTANT: Service staff see ALL submissions assigned to them
+            // NO department or office filtering - assignment is based on service_staff_id only
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
-            
-            // Service staff should see ALL schedules assigned to them, regardless of department
-            // No department filtering for service staff - they are assigned to specific submissions
             
             // Also get submissions assigned to this service staff that don't have schedules yet
             $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+            
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+            
+            log_message('info', 'Service Staff Calendar - User ID: ' . $userId . ' | Schedules count: ' . count($schedules));
         }
         // Requestor sees schedules for their submissions
         elseif ($userType === 'requestor') {
@@ -479,6 +481,8 @@ class Schedule extends BaseController
         }
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
+            // IMPORTANT: Service staff see ALL schedules assigned to them
+            // NO department or office filtering - only filter by assigned_staff_id
             $schedules = $this->scheduleModel->getStaffSchedules($userId);
             
             // Debug: Log raw schedules from database
@@ -489,8 +493,11 @@ class Schedule extends BaseController
             
             // Also get submissions assigned to this service staff that don't have schedules yet
             $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+            
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+            
+            log_message('info', 'Service Staff Calendar (calendar method) - User ID: ' . $userId . ' | Total schedules: ' . count($schedules));
         }
         // Requestor sees schedules for their submissions
         elseif ($userType === 'requestor') {
@@ -664,13 +671,15 @@ class Schedule extends BaseController
 
     /**
      * Get submissions assigned to a service staff member that don't have schedule entries yet
-     * This ensures service staff can see ALL submissions assigned to them regardless of department
+     * IMPORTANT: Service staff see ALL submissions assigned to them regardless of requestor's department or office
+     * The only filter is service_staff_id - department and office are NOT considered
      */
     private function getServiceStaffSubmissionsWithoutSchedules($staffId)
     {
         $db = \Config\Database::connect();
         
         // Find submissions assigned to this service staff that don't have a corresponding schedule entry
+        // NO DEPARTMENT OR OFFICE FILTERING - only filter by service_staff_id
         $builder = $db->table('form_submissions fs');
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
                           fs.created_at, fs.priority, fs.service_staff_id,
@@ -680,16 +689,21 @@ class Schedule extends BaseController
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
-            ->where('fs.service_staff_id', $staffId)
+            ->where('fs.service_staff_id', $staffId)  // ONLY filter: assigned to this service staff
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->whereIn('fs.status', ['approved', 'pending_service', 'completed']); // Include completed submissions for service staff
         
-        // Service staff should see ALL submissions assigned to them, regardless of requestor's department
-        // No department filtering - assignment to service staff is what matters
+        // EXPLICITLY NO FILTERING by:
+        // - u.department_id (requestor's department)
+        // - u.office_id (requestor's office)  
+        // - f.office_id (form's office)
+        // Service staff can be assigned to submissions from ANY department or office
         
         $builder->orderBy('fs.created_at', 'DESC');
         
         $results = $builder->get()->getResultArray();
+        
+        log_message('info', 'Service Staff Submissions Without Schedules - Staff ID: ' . $staffId . ' | Count: ' . count($results));
         
         // Format these submissions as "virtual" schedule entries
         $virtualSchedules = [];
