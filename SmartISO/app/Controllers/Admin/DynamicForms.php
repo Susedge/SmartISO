@@ -1134,8 +1134,14 @@ class DynamicForms extends BaseController
         }
         
         // Check if user has permission to export this submission
-        $isAdmin = in_array(session()->get('role'), ['admin', 'superuser']);
-        if (!$isAdmin && $submission['submitted_by'] != session()->get('user_id')) {
+        $userType = session()->get('user_type');
+        $isAdmin = in_array($userType, ['admin', 'superuser']);
+        $isDeptAdmin = session()->get('is_department_admin');
+        $isServiceStaff = ($userType === 'service_staff');
+        $isApprovingAuthority = ($userType === 'approving_authority');
+        $canExport = $isAdmin || $isDeptAdmin || $isServiceStaff || $isApprovingAuthority || ($submission['submitted_by'] == session()->get('user_id'));
+        
+        if (!$canExport) {
             return redirect()->to('/admin/dynamicforms/submissions')
                             ->with('error', 'You do not have permission to export this submission');
         }
@@ -1266,7 +1272,8 @@ class DynamicForms extends BaseController
     public function bulkAction()
     {
         // Check if user has admin permissions
-        $isAdmin = in_array(session()->get('role'), ['admin', 'superuser']);
+        $userType = session()->get('user_type');
+        $isAdmin = in_array($userType, ['admin', 'superuser']);
         if (!$isAdmin) {
             return redirect()->to('/admin/dynamicforms/submissions')
                             ->with('error', 'You do not have permission to perform bulk actions');

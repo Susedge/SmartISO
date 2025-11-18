@@ -59,7 +59,7 @@ class PdfGenerator extends BaseController
         // Check permissions - allow export for completed forms
         $canExport = false;
         
-        if ($userType === 'admin' || $userType === 'approving_authority' || $userType === 'service_staff') {
+        if ($userType === 'admin' || $userType === 'approving_authority' || $userType === 'service_staff' || $userType === 'department_admin') {
             $canExport = ($submission['status'] == 'completed');
         } else if ($userType === 'requestor' && $submission['submitted_by'] == $userId) {
             $canExport = ($submission['status'] == 'completed');
