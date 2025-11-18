@@ -158,9 +158,11 @@
         
         <?php if ($submission['status'] === 'approved'): ?>
             <div class="mt-4">
+                <?php /* PDF export hidden per request
                 <a href="<?= base_url('admin/dynamicforms/export-submission/' . $submission['id'] . '/pdf') ?>" class="btn btn-danger me-2">
                     <i class="fas fa-file-pdf"></i> Download as PDF
                 </a>
+                */ ?>
                 <a href="<?= base_url('admin/dynamicforms/export-submission/' . $submission['id'] . '/word') ?>" class="btn btn-primary me-2">
                     <i class="fas fa-file-word"></i> Download as Word
                 </a>

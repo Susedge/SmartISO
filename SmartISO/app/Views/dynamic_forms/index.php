@@ -42,11 +42,13 @@
             </div>
             <div class="mt-3">
                 <button id="load-form" class="btn btn-primary">Load Form</button>
+                <?php /* PDF download hidden per request
                 <div class="ms-2 d-inline-block">
                     <button id="download-pdf" class="btn btn-outline-secondary" title="Download PDF template">
                         <i class="fas fa-file-download"></i>
                     </button>
                 </div>
+                */ ?>
             </div>
         </div>
     </div>
@@ -63,6 +65,7 @@ document.getElementById('load-form').addEventListener('click', function() {
     }
 });
 
+/* PDF download hidden per request
 document.getElementById('download-pdf').addEventListener('click', function() {
     const sel = document.getElementById('form-select');
     const opt = sel.options[sel.selectedIndex];
@@ -70,6 +73,7 @@ document.getElementById('download-pdf').addEventListener('click', function() {
     if (!code) { alert('Please select a form first'); return; }
     window.location.href = '<?= base_url('forms/download/pdf/') ?>' + code;
 });
+*/
 
 // Office filter depends on selected department
 var deptSel = document.getElementById('filter-department');
