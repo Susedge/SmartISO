@@ -443,6 +443,17 @@ class Analytics extends BaseController
         
         // Title
         $section->addTitle('SmartISO Analytics Report', 1);
+        
+        // Report Type
+        $reportTypeNames = [
+            'overview' => 'Complete Overview',
+            'forms' => 'Form Analytics',
+            'departments' => 'Department Statistics',
+            'performance' => 'Performance Metrics'
+        ];
+        $reportTypeName = $reportTypeNames[$reportType] ?? 'Complete Overview';
+        $section->addText('Report Type: ' . $reportTypeName, ['bold' => true, 'size' => 12]);
+        
         $section->addText('Generated on: ' . date('Y-m-d H:i:s'));
         $section->addTextBreak(2);
         
@@ -565,17 +576,65 @@ class Analytics extends BaseController
 
     private function getReportData($reportType, $dateRange, $filterDepartmentId = null)
     {
+        // Base data always included
         $data = [
             'report_type' => $reportType,
             'date_range' => $dateRange,
             'generated_at' => date('Y-m-d H:i:s'),
-            'overview' => $this->getOverviewData($filterDepartmentId),
-            'formStats' => $this->getFormStatistics($filterDepartmentId),
-            'departmentStats' => $this->getDepartmentStatistics($filterDepartmentId),
-            'timelineData' => $this->getTimelineData($filterDepartmentId),
-            'performanceMetrics' => $this->getPerformanceMetrics($filterDepartmentId),
-            'recentSubmissions' => $this->getSubmissionsOverview($filterDepartmentId)
         ];
+
+        // Add data based on report type
+        switch ($reportType) {
+            case 'overview':
+                // Complete Overview - includes everything
+                $data['overview'] = $this->getOverviewData($filterDepartmentId);
+                $data['formStats'] = $this->getFormStatistics($filterDepartmentId);
+                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
+                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId);
+                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId);
+                break;
+
+            case 'forms':
+                // Form Analytics - overview + form statistics
+                $data['overview'] = $this->getOverviewData($filterDepartmentId);
+                $data['formStats'] = $this->getFormStatistics($filterDepartmentId);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
+                $data['recentSubmissions'] = [];
+                $data['departmentStats'] = [];
+                $data['performanceMetrics'] = [];
+                break;
+
+            case 'departments':
+                // Department Statistics - overview + department data
+                $data['overview'] = $this->getOverviewData($filterDepartmentId);
+                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
+                $data['formStats'] = [];
+                $data['recentSubmissions'] = [];
+                $data['performanceMetrics'] = [];
+                break;
+
+            case 'performance':
+                // Performance Metrics - overview + performance data
+                $data['overview'] = $this->getOverviewData($filterDepartmentId);
+                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
+                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId);
+                $data['formStats'] = [];
+                $data['departmentStats'] = [];
+                break;
+
+            default:
+                // Fallback to complete overview
+                $data['overview'] = $this->getOverviewData($filterDepartmentId);
+                $data['formStats'] = $this->getFormStatistics($filterDepartmentId);
+                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
+                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId);
+                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId);
+                break;
+        }
 
         return $data;
     }
