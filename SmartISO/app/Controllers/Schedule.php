@@ -763,7 +763,7 @@ class Schedule extends BaseController
         log_message('info', 'Service Staff Submissions Without Schedules - Staff ID: ' . $staffId . ' | Count: ' . count($results));
         if (count($results) > 0) {
             log_message('debug', 'Service Staff Submissions Without Schedules - Results: ' . json_encode($results));
-        };
+        }
         
         // Format these submissions as "virtual" schedule entries
         $virtualSchedules = [];
