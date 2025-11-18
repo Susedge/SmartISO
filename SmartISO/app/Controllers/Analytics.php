@@ -412,10 +412,37 @@ class Analytics extends BaseController
         
         $dompdf = new Dompdf($options);
         
-    $data = $this->getReportData($reportType, $dateRange, $filterDepartmentId);
+        $data = $this->getReportData($reportType, $dateRange, $filterDepartmentId);
+        
+        // Log data structure for debugging
+        log_message('info', 'Export PDF - Report Type: ' . $reportType);
+        log_message('info', 'Export PDF - Data keys: ' . json_encode(array_keys($data)));
+        if (isset($data['overview'])) {
+            log_message('info', 'Export PDF - Overview keys: ' . json_encode(array_keys($data['overview'])));
+            log_message('info', 'Export PDF - Status distribution count: ' . (isset($data['overview']['status_distribution']) ? count($data['overview']['status_distribution']) : 0));
+        }
+        if (isset($data['formStats'])) {
+            log_message('info', 'Export PDF - Form stats present: ' . (!empty($data['formStats']) ? 'yes' : 'no'));
+        }
+        if (isset($data['departmentStats'])) {
+            log_message('info', 'Export PDF - Dept stats present: ' . (!empty($data['departmentStats']) ? 'yes' : 'no'));
+        }
+        if (isset($data['timelineData'])) {
+            log_message('info', 'Export PDF - Timeline data present: ' . (!empty($data['timelineData']) ? 'yes' : 'no'));
+        }
         
         // Generate chart images using QuickChart API
         $data['chart_images'] = $this->generateChartImages($data);
+        log_message('info', 'Export PDF - Generated chart images: ' . json_encode(array_keys($data['chart_images'])));
+        
+        // Add friendly report type name
+        $reportTypeNames = [
+            'overview' => 'Complete Overview',
+            'forms' => 'Form Analytics',
+            'departments' => 'Department Statistics',
+            'performance' => 'Performance Metrics'
+        ];
+        $data['report_type_label'] = $reportTypeNames[$reportType] ?? 'Complete Overview';
         
         $html = view('analytics/reports/pdf_template', $data);
         
@@ -648,38 +675,40 @@ class Analytics extends BaseController
         
         try {
             // Status Distribution Chart (Doughnut)
-            $statusLabels = array_map(function($item) {
-                return ucfirst($item['status']);
-            }, $data['overview']['status_distribution']);
-            
-            $statusData = array_map(function($item) {
-                return $item['count'];
-            }, $data['overview']['status_distribution']);
-            
-            $statusChartConfig = [
-                'type' => 'doughnut',
-                'data' => [
-                    'labels' => $statusLabels,
-                    'datasets' => [[
-                        'data' => $statusData,
-                        'backgroundColor' => ['#FFD166', '#FFADC7', '#06D6A0', '#FFF3C4', '#EF476F', '#118AB2'],
-                        'borderColor' => ['#EABC41', '#FF9DB4', '#05C194', '#F5E8A3', '#DC3545', '#0F7A9F'],
-                        'borderWidth' => 2
-                    ]]
-                ],
-                'options' => [
-                    'plugins' => [
-                        'legend' => ['position' => 'bottom'],
-                        'title' => [
-                            'display' => true,
-                            'text' => 'Status Distribution',
-                            'font' => ['size' => 16]
+            if (!empty($data['overview']['status_distribution'])) {
+                $statusLabels = array_map(function($item) {
+                    return ucfirst($item['status']);
+                }, $data['overview']['status_distribution']);
+                
+                $statusData = array_map(function($item) {
+                    return $item['count'];
+                }, $data['overview']['status_distribution']);
+                
+                $statusChartConfig = [
+                    'type' => 'doughnut',
+                    'data' => [
+                        'labels' => $statusLabels,
+                        'datasets' => [[
+                            'data' => $statusData,
+                            'backgroundColor' => ['#FFD166', '#FFADC7', '#06D6A0', '#FFF3C4', '#EF476F', '#118AB2'],
+                            'borderColor' => ['#EABC41', '#FF9DB4', '#05C194', '#F5E8A3', '#DC3545', '#0F7A9F'],
+                            'borderWidth' => 2
+                        ]]
+                    ],
+                    'options' => [
+                        'plugins' => [
+                            'legend' => ['position' => 'bottom'],
+                            'title' => [
+                                'display' => true,
+                                'text' => 'Status Distribution',
+                                'font' => ['size' => 16]
+                            ]
                         ]
                     ]
-                ]
-            ];
-            
-            $chartImages['status_chart'] = $this->getQuickChartUrl($statusChartConfig, 500, 400);
+                ];
+                
+                $chartImages['status_chart'] = $this->getQuickChartUrl($statusChartConfig, 500, 400);
+            }
             
             // Timeline Chart (Line)
             if (!empty($data['timelineData']['daily_submissions'])) {
@@ -816,20 +845,259 @@ class Analytics extends BaseController
     }
 
     /**
-     * Get QuickChart API URL for chart image
+     * Get chart image URL or generate inline SVG
+     * Since external chart APIs are failing, generate simple SVG charts
      */
     private function getQuickChartUrl($chartConfig, $width = 500, $height = 300)
     {
-        $baseUrl = 'https://quickchart.io/chart';
-        $params = [
-            'c' => json_encode($chartConfig),
-            'width' => $width,
-            'height' => $height,
-            'backgroundColor' => 'white',
-            'devicePixelRatio' => 2.0
-        ];
+        $type = $chartConfig['type'] ?? 'pie';
+        $data = $chartConfig['data'] ?? [];
+        $options = $chartConfig['options'] ?? [];
         
-        return $baseUrl . '?' . http_build_query($params);
+        // Generate inline SVG charts as data URIs
+        $svg = $this->generateSVGChart($type, $data, $options, $width, $height);
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+    
+    /**
+     * Generate simple SVG chart
+     */
+    private function generateSVGChart($type, $data, $options, $width, $height)
+    {
+        $labels = $data['labels'] ?? [];
+        $values = $data['datasets'][0]['data'] ?? [];
+        $colors = $data['datasets'][0]['backgroundColor'] ?? ['#FFD166', '#FFADC7', '#06D6A0', '#FFF3C4', '#EF476F', '#118AB2'];
+        $title = $options['plugins']['title']['text'] ?? '';
+        
+        $svg = '<?xml version="1.0" encoding="UTF-8"?>';
+        $svg .= '<svg xmlns="http://www.w3.org/2000/svg" width="' . $width . '" height="' . $height . '" viewBox="0 0 ' . $width . ' ' . $height . '">';
+        $svg .= '<rect width="100%" height="100%" fill="white"/>';
+        
+        if ($type === 'doughnut' || $type === 'pie') {
+            $svg .= $this->generatePieChart($labels, $values, $colors, $title, $width, $height);
+        } elseif ($type === 'bar') {
+            $svg .= $this->generateBarChart($labels, $values, $colors, $title, $width, $height);
+        } elseif ($type === 'line') {
+            $svg .= $this->generateLineChart($labels, $values, $colors, $title, $width, $height);
+        } elseif ($type === 'polarArea') {
+            // Use pie chart for polar area
+            $svg .= $this->generatePieChart($labels, $values, $colors, $title, $width, $height);
+        }
+        
+        $svg .= '</svg>';
+        return $svg;
+    }
+    
+    /**
+     * Generate SVG pie chart
+     */
+    private function generatePieChart($labels, $values, $colors, $title, $width, $height)
+    {
+        $svg = '';
+        $total = array_sum($values);
+        if ($total == 0) return '<text x="50%" y="50%" text-anchor="middle" fill="#999">No data</text>';
+        
+        // Title
+        if ($title) {
+            $svg .= '<text x="' . ($width / 2) . '" y="25" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">' . htmlspecialchars($title) . '</text>';
+        }
+        
+        $centerX = $width / 2;
+        $centerY = ($height / 2) + 20;
+        $radius = min($width, $height) / 3;
+        $innerRadius = $radius * 0.5; // For doughnut
+        
+        $startAngle = 0;
+        $legendY = $height - 80;
+        $legendX = 20;
+        $legendItemWidth = ($width - 40) / count($labels);
+        
+        foreach ($values as $i => $value) {
+            $angle = ($value / $total) * 360;
+            $endAngle = $startAngle + $angle;
+            
+            $color = $colors[$i % count($colors)];
+            // Convert rgba to hex if needed
+            if (strpos($color, 'rgba') !== false) {
+                $color = '#FFD166'; // fallback
+            }
+            
+            // Draw pie slice
+            $x1 = $centerX + $radius * cos(deg2rad($startAngle));
+            $y1 = $centerY + $radius * sin(deg2rad($startAngle));
+            $x2 = $centerX + $radius * cos(deg2rad($endAngle));
+            $y2 = $centerY + $radius * sin(deg2rad($endAngle));
+            
+            $largeArc = $angle > 180 ? 1 : 0;
+            
+            $svg .= '<path d="M' . $centerX . ',' . $centerY . ' L' . $x1 . ',' . $y1 . ' A' . $radius . ',' . $radius . ' 0 ' . $largeArc . ',1 ' . $x2 . ',' . $y2 . ' Z" fill="' . $color . '" stroke="white" stroke-width="2"/>';
+            
+            // Legend
+            $legendItemX = $legendX + ($i * $legendItemWidth);
+            $svg .= '<rect x="' . $legendItemX . '" y="' . $legendY . '" width="15" height="15" fill="' . $color . '"/>';
+            $svg .= '<text x="' . ($legendItemX + 20) . '" y="' . ($legendY + 12) . '" font-size="11" fill="#333">' . htmlspecialchars(substr($labels[$i] ?? '', 0, 15)) . '</text>';
+            
+            $startAngle = $endAngle;
+        }
+        
+        return $svg;
+    }
+    
+    /**
+     * Generate SVG bar chart
+     */
+    private function generateBarChart($labels, $values, $colors, $title, $width, $height)
+    {
+        $svg = '';
+        
+        // Check if we have data
+        if (empty($values)) {
+            return '<text x="50%" y="50%" text-anchor="middle" fill="#999">No data available</text>';
+        }
+        
+        $max = max($values);
+        if ($max == 0) return '<text x="50%" y="50%" text-anchor="middle" fill="#999">No data</text>';
+        
+        // Title
+        if ($title) {
+            $svg .= '<text x="' . ($width / 2) . '" y="25" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">' . htmlspecialchars($title) . '</text>';
+        }
+        
+        $chartHeight = $height - 120;
+        $chartTop = 50;
+        $barWidth = ($width - 100) / count($values);
+        $leftMargin = 60;
+        
+        $color = is_array($colors) ? $colors[0] : $colors;
+        if (strpos($color, 'rgba') !== false) {
+            $color = '#FFADC7';
+        }
+        
+        // Draw Y axis
+        $svg .= '<line x1="' . $leftMargin . '" y1="' . $chartTop . '" x2="' . $leftMargin . '" y2="' . ($chartTop + $chartHeight) . '" stroke="#ccc" stroke-width="1"/>';
+        
+        // Draw X axis
+        $svg .= '<line x1="' . $leftMargin . '" y1="' . ($chartTop + $chartHeight) . '" x2="' . ($width - 40) . '" y2="' . ($chartTop + $chartHeight) . '" stroke="#ccc" stroke-width="1"/>';
+        
+        // Y-axis grid lines and labels
+        $ySteps = 5;
+        for ($i = 0; $i <= $ySteps; $i++) {
+            $y = $chartTop + ($chartHeight * $i / $ySteps);
+            $value = $max - ($max * $i / $ySteps);
+            
+            // Grid line
+            $svg .= '<line x1="' . $leftMargin . '" y1="' . $y . '" x2="' . ($width - 40) . '" y2="' . $y . '" stroke="#f0f0f0" stroke-width="1"/>';
+            
+            // Y-axis label
+            $svg .= '<text x="' . ($leftMargin - 10) . '" y="' . ($y + 4) . '" text-anchor="end" font-size="10" fill="#666">' . round($value) . '</text>';
+        }
+        
+        foreach ($values as $i => $value) {
+            $barHeight = ($value / $max) * $chartHeight;
+            $x = $leftMargin + ($i * $barWidth);
+            $y = $chartTop + $chartHeight - $barHeight;
+            
+            $svg .= '<rect x="' . ($x + 5) . '" y="' . $y . '" width="' . ($barWidth - 15) . '" height="' . $barHeight . '" fill="' . $color . '" rx="4"/>';
+            $svg .= '<text x="' . ($x + $barWidth/2) . '" y="' . ($y - 5) . '" text-anchor="middle" font-size="10" fill="#333" font-weight="bold">' . $value . '</text>';
+            
+            // Label
+            if (isset($labels[$i])) {
+                $label = substr($labels[$i] ?? '', 0, 10);
+                $labelX = $x + $barWidth/2;
+                $labelY = $chartTop + $chartHeight + 15;
+                
+                if ($barWidth < 60) {
+                    // Rotate labels if bars are narrow
+                    $svg .= '<text x="' . $labelX . '" y="' . $labelY . '" font-size="9" fill="#666" text-anchor="end" transform="rotate(-45 ' . $labelX . ' ' . $labelY . ')">' . htmlspecialchars($label) . '</text>';
+                } else {
+                    $svg .= '<text x="' . $labelX . '" y="' . $labelY . '" font-size="9" fill="#666" text-anchor="middle">' . htmlspecialchars($label) . '</text>';
+                }
+            }
+        }
+        
+        return $svg;
+    }
+    
+    /**
+     * Generate SVG line chart
+     */
+    private function generateLineChart($labels, $values, $colors, $title, $width, $height)
+    {
+        $svg = '';
+        
+        // Check if we have data
+        if (empty($values)) {
+            return '<text x="50%" y="50%" text-anchor="middle" fill="#999">No data available</text>';
+        }
+        
+        $max = max($values);
+        if ($max == 0) $max = 1;
+        
+        // Title
+        if ($title) {
+            $svg .= '<text x="' . ($width / 2) . '" y="25" text-anchor="middle" font-size="16" font-weight="bold" fill="#333">' . htmlspecialchars($title) . '</text>';
+        }
+        
+        $chartHeight = $height - 100;
+        $chartTop = 50;
+        $chartWidth = $width - 100;
+        $leftMargin = 60;
+        $bottomMargin = 50;
+        
+        // Handle single data point
+        $stepX = count($values) > 1 ? $chartWidth / (count($values) - 1) : $chartWidth / 2;
+        
+        $color = is_array($colors) ? ($colors[0] ?? '#FFD166') : $colors;
+        if (strpos($color, 'rgba') !== false) {
+            $color = '#FFD166';
+        }
+        
+        // Draw Y axis
+        $svg .= '<line x1="' . $leftMargin . '" y1="' . $chartTop . '" x2="' . $leftMargin . '" y2="' . ($chartTop + $chartHeight) . '" stroke="#ccc" stroke-width="1"/>';
+        
+        // Draw X axis
+        $svg .= '<line x1="' . $leftMargin . '" y1="' . ($chartTop + $chartHeight) . '" x2="' . ($leftMargin + $chartWidth) . '" y2="' . ($chartTop + $chartHeight) . '" stroke="#ccc" stroke-width="1"/>';
+        
+        // Y-axis labels and grid lines
+        $ySteps = 5;
+        for ($i = 0; $i <= $ySteps; $i++) {
+            $y = $chartTop + ($chartHeight * $i / $ySteps);
+            $value = $max - ($max * $i / $ySteps);
+            
+            // Grid line
+            $svg .= '<line x1="' . $leftMargin . '" y1="' . $y . '" x2="' . ($leftMargin + $chartWidth) . '" y2="' . $y . '" stroke="#f0f0f0" stroke-width="1"/>';
+            
+            // Y-axis label
+            $svg .= '<text x="' . ($leftMargin - 10) . '" y="' . ($y + 4) . '" text-anchor="end" font-size="10" fill="#666">' . round($value) . '</text>';
+        }
+        
+        // Draw line and points
+        $pathD = '';
+        $labelInterval = count($values) > 10 ? ceil(count($values) / 10) : 1;
+        
+        foreach ($values as $i => $value) {
+            $x = $leftMargin + ($i * $stepX);
+            $y = $chartTop + $chartHeight - (($value / $max) * $chartHeight);
+            
+            if ($i === 0) {
+                $pathD .= 'M' . $x . ',' . $y;
+            } else {
+                $pathD .= ' L' . $x . ',' . $y;
+            }
+            
+            // Draw point
+            $svg .= '<circle cx="' . $x . '" cy="' . $y . '" r="4" fill="' . $color . '" stroke="white" stroke-width="2"/>';
+            
+            // X-axis labels (show every nth label to avoid crowding)
+            if ($i % $labelInterval === 0 && isset($labels[$i])) {
+                $label = $labels[$i];
+                $svg .= '<text x="' . $x . '" y="' . ($chartTop + $chartHeight + 15) . '" text-anchor="middle" font-size="9" fill="#666">' . htmlspecialchars($label) . '</text>';
+            }
+        }
+        
+        $svg .= '<path d="' . $pathD . '" stroke="' . $color . '" stroke-width="2" fill="none"/>';
+        
+        return $svg;
     }
 
     /**

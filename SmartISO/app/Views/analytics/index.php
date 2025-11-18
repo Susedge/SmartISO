@@ -555,18 +555,13 @@
                             </select>
                         </div>
                     </div>
-                    <div class="row mt-3">
+                    <div class="row mt-3" style="display: none;">
                         <div class="col-12">
                             <label for="format" class="form-label">Export Format</label>
                             <div class="btn-group w-100" role="group" aria-label="Format selection">
                                 <input type="radio" class="btn-check" name="format" id="format_pdf" value="pdf" checked>
                                 <label class="btn btn-outline-primary" for="format_pdf">
                                     <i class="fas fa-file-pdf me-2"></i>PDF Report
-                                </label>
-                                
-                                <input type="radio" class="btn-check" name="format" id="format_word" value="word">
-                                <label class="btn btn-outline-primary" for="format_word">
-                                    <i class="fas fa-file-word me-2"></i>Word Document
                                 </label>
                             </div>
                         </div>

@@ -203,7 +203,7 @@
 <body>
     <div class="header">
         <h1>SmartISO Analytics Report</h1>
-        <p>Generated on <?= $generated_at ?> | Report Type: <?= ucfirst($report_type) ?></p>
+        <p>Generated on <?= $generated_at ?> | Report Type: <?= $report_type_label ?? ucfirst($report_type) ?></p>
         <p>Date Range: Last <?= $date_range ?> days</p>
     </div>
 
@@ -283,6 +283,7 @@
 
     <div class="page-break"></div>
 
+    <?php if (!empty($formStats)): ?>
     <!-- Form Usage Statistics -->
     <div class="section">
         <div class="section-title">Form Usage Analytics</div>
@@ -347,7 +348,9 @@
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
+    <?php if (!empty($departmentStats)): ?>
     <!-- Department Analysis -->
     <div class="section">
         <div class="section-title">Department Performance</div>
@@ -401,7 +404,9 @@
             </tbody>
         </table>
     </div>
+    <?php endif; ?>
 
+    <?php if (!empty($performanceMetrics)): ?>
     <!-- Performance Metrics -->
     <div class="section">
         <div class="section-title">Performance Insights</div>
@@ -460,7 +465,9 @@
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
+    <?php if (!empty($timelineData)): ?>
     <!-- Timeline Analysis -->
     <div class="section">
         <div class="section-title">Timeline Analysis</div>
@@ -504,9 +511,11 @@
             </tbody>
         </table>
     </div>
+    <?php endif; ?>
 
     <div class="page-break"></div>
 
+    <?php if (!empty($recentSubmissions)): ?>
     <!-- Recent Submissions -->
     <div class="section">
         <div class="section-title">Recent Submissions (Last 100)</div>
@@ -550,6 +559,7 @@
             </tbody>
         </table>
     </div>
+    <?php endif; ?>
 
     <!-- Recommendations -->
     <div class="section">
