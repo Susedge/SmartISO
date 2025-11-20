@@ -1958,7 +1958,7 @@ class Forms extends BaseController
     /**
      * Handles form rejection submission
      */
-    public function submitRejection()
+    public function submitRejection($submissionId = null)
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
@@ -1967,7 +1967,10 @@ class Forms extends BaseController
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
-        $submissionId = $this->request->getPost('submission_id');
+        // Allow submission id to be passed either via URL segment or POST body
+        if (empty($submissionId)) {
+            $submissionId = $this->request->getPost('submission_id');
+        }
         $reason = $this->request->getPost('reject_reason');
         
         if (empty($reason)) {

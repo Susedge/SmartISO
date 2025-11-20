@@ -110,7 +110,9 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/approve-form/(:num)', 'Forms::approveForm/$1');
     $routes->post('forms/approve', 'Forms::submitApproval');
     $routes->get('forms/reject/(:num)', 'Forms::rejectForm/$1');
+    // Accept POST to both '/forms/reject' (with hidden submission_id) and '/forms/reject/{id}'
     $routes->post('forms/reject', 'Forms::submitRejection');
+    $routes->post('forms/reject/(:num)', 'Forms::submitRejection/$1');
     $routes->post('forms/approve-all', 'Forms::approveAll');
     $routes->post('forms/assign-service-staff', 'Forms::assignServiceStaff');
     $routes->get('forms/service/(:num)', 'Forms::serviceForm/$1');
