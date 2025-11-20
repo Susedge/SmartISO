@@ -1796,13 +1796,13 @@ class Forms extends BaseController
                 // Map form_submissions.priority to schedules.priority_level
                 $priorityMapping = [
                     'low' => 'low',
-                    'normal' => 'medium',
+                    'normal' => 'low',
                     'medium' => 'medium',
                     'high' => 'high',
                     'urgent' => 'high',
                     'critical' => 'high'
                 ];
-                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
+                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'low';  // Default to low
                 
                 // Use approval date as the scheduled date
                 $approvalDate = date('Y-m-d');
@@ -1880,13 +1880,13 @@ class Forms extends BaseController
                 // Map priority
                 $priorityMapping = [
                     'low' => 'low',
-                    'normal' => 'medium',
+                    'normal' => 'low',
                     'medium' => 'medium',
                     'high' => 'high',
                     'urgent' => 'high',
                     'critical' => 'high'
                 ];
-                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
+                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'low';  // Default to low
                 
                 // Use approval date as the scheduled date
                 $approvalDate = date('Y-m-d');
