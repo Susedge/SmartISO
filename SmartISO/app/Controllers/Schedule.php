@@ -784,7 +784,7 @@ class Schedule extends BaseController
             
             // Set default priority_level if none exists
             if (empty($priorityLevel)) {
-                $priorityLevel = 'medium'; // Default priority
+                $priorityLevel = 'low'; // Default priority changed to low
                 // Optionally save the default priority
                 $submissionDataModel->setFieldValue($row['submission_id'], 'priority_level', $priorityLevel);
             }
