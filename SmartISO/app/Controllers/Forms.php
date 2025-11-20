@@ -1765,11 +1765,12 @@ class Forms extends BaseController
                 'service_staff_id' => $serviceStaffId, // NEW: Save selected service staff
             ];
             
+            log_message('info', "[APPROVAL] Updating submission {$submissionId} with data: " . json_encode($updateData));
             $this->formSubmissionModel->update($submissionId, $updateData);
             
             // Log the update to verify it succeeded
             $updatedSubmission = $this->formSubmissionModel->find($submissionId);
-            log_message('info', 'Submission ' . $submissionId . ' approved and updated. Status: ' . ($updatedSubmission['status'] ?? 'NULL') . ', Service Staff ID: ' . ($updatedSubmission['service_staff_id'] ?? 'NULL'));
+            log_message('info', '[APPROVAL] Submission ' . $submissionId . ' approved and updated. Status: ' . ($updatedSubmission['status'] ?? 'NULL') . ', Service Staff ID: ' . ($updatedSubmission['service_staff_id'] ?? 'NULL') . ', Approved At: ' . ($updatedSubmission['approved_at'] ?? 'NULL'));
 
             // Send notification to service staff via model helper so it is recorded
             if (!empty($serviceStaffId)) {
@@ -1780,169 +1781,161 @@ class Forms extends BaseController
                 }
             }
 
-            // ALWAYS create a schedule entry when a submission is approved and assigned to service staff
-            // This ensures the submission appears on the service staff's calendar immediately
-            try {
-                if (class_exists('App\\Models\\ScheduleModel')) {
-                    $scheduleModel = new \App\Models\ScheduleModel();
-                    // Only insert if ScheduleModel allows submission_id
-                    if (property_exists($scheduleModel, 'allowedFields') && in_array('submission_id', $scheduleModel->allowedFields)) {
-                        // Check if a schedule already exists for this submission to avoid duplicates
-                        $existingSchedule = $scheduleModel->where('submission_id', $submissionId)->first();
-                        if (!$existingSchedule) {
-                            // Get submission priority to copy to schedule
-                            $submission = $this->formSubmissionModel->find($submissionId);
-                            $submissionPriority = $submission['priority'] ?? 'low';
-                            
-                            // Map form_submissions.priority to schedules.priority_level
-                            $priorityMapping = [
-                                'low' => 'low',
-                                'normal' => 'medium',
-                                'medium' => 'medium',
-                                'high' => 'high',
-                                'urgent' => 'high',
-                                'critical' => 'high'
-                            ];
-                            $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
-                            
-                            // Use approval date as the scheduled date
-                            $approvalDate = date('Y-m-d');
-                            
-                            // Calculate ETA from approval date based on priority
-                            $etaDays = null;
-                            $estimatedDate = null;
-                            if ($schedulePriority === 'low') {
-                                $etaDays = 7;
-                                $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
-                            } elseif ($schedulePriority === 'medium') {
-                                $etaDays = 5;
-                                // Use business days for medium priority
-                                try {
-                                    $scheduleController = new \App\Controllers\Schedule();
-                                    $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 5);
-                                } catch (\Throwable $e) {
-                                    $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +5 days'));
-                                }
-                            } elseif ($schedulePriority === 'high') {
-                                $etaDays = 3;
-                                // Use business days for high priority
-                                try {
-                                    $scheduleController = new \App\Controllers\Schedule();
-                                    $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 3);
-                                } catch (\Throwable $e) {
-                                    $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +3 days'));
-                                }
-                            }
-                            
-                            $schedData = [
-                                'submission_id' => $submissionId,
-                                'scheduled_date' => $approvalDate,  // Use approval date
-                                'scheduled_time' => '09:00:00',
-                                'duration_minutes' => 60,
-                                'assigned_staff_id' => $serviceStaffId,
-                                'priority_level' => $schedulePriority,
-                                'location' => '',
-                                'notes' => 'Pending schedule - created on approval',
-                                'status' => 'pending'
-                            ];
-                            
-                            // Add ETA fields if calculated
-                            if ($etaDays && $estimatedDate) {
-                                $schedData['eta_days'] = $etaDays;
-                                $schedData['estimated_date'] = $estimatedDate;
-                            }
-
-                            // Insert schedule entry - this is critical for calendar visibility
-                            try {
-                                $scheduleInserted = $scheduleModel->insert($schedData);
-                                if ($scheduleInserted) {
-                                    log_message('info', "Successfully created schedule for submission {$submissionId} assigned to service staff {$serviceStaffId}");
-                                } else {
-                                    log_message('error', "Failed to create schedule for submission {$submissionId} - insert returned false");
-                                }
-                            } catch (\Throwable $inner) {
-                                log_message('error', 'CRITICAL: Schedule creation failed for submission ' . $submissionId . ': ' . $inner->getMessage());
-                                log_message('error', 'Stack trace: ' . $inner->getTraceAsString());
-                            }
-                        } else {
-                            // Schedule exists - UPDATE with approval date and assigned_staff_id
-                            log_message('info', "Schedule already exists for submission {$submissionId}, updating with approval date and assigned_staff_id {$serviceStaffId}");
-                            try {
-                                // Get submission priority to recalculate ETA from approval date
-                                $submission = $this->formSubmissionModel->find($submissionId);
-                                $submissionPriority = $submission['priority'] ?? 'low';
-                                
-                                // Map priority
-                                $priorityMapping = [
-                                    'low' => 'low',
-                                    'normal' => 'medium',
-                                    'medium' => 'medium',
-                                    'high' => 'high',
-                                    'urgent' => 'high',
-                                    'critical' => 'high'
-                                ];
-                                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
-                                
-                                // Use approval date as the scheduled date
-                                $approvalDate = date('Y-m-d');
-                                
-                                // Calculate ETA from approval date
-                                $etaDays = null;
-                                $estimatedDate = null;
-                                if ($schedulePriority === 'low') {
-                                    $etaDays = 7;
-                                    $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
-                                } elseif ($schedulePriority === 'medium') {
-                                    $etaDays = 5;
-                                    try {
-                                        $scheduleController = new \App\Controllers\Schedule();
-                                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 5);
-                                    } catch (\Throwable $e) {
-                                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +5 days'));
-                                    }
-                                } elseif ($schedulePriority === 'high') {
-                                    $etaDays = 3;
-                                    try {
-                                        $scheduleController = new \App\Controllers\Schedule();
-                                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 3);
-                                    } catch (\Throwable $e) {
-                                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +3 days'));
-                                    }
-                                }
-                                
-                                // Update schedule with approval date and ETA
-                                $updateData = [
-                                    'assigned_staff_id' => $serviceStaffId,
-                                    'scheduled_date' => $approvalDate,  // Update to approval date
-                                    'priority_level' => $schedulePriority
-                                ];
-                                
-                                // Add ETA fields if calculated
-                                if ($etaDays && $estimatedDate) {
-                                    $updateData['eta_days'] = $etaDays;
-                                    $updateData['estimated_date'] = $estimatedDate;
-                                }
-                                
-                                $updateSuccess = $scheduleModel->update($existingSchedule['id'], $updateData);
-                                if ($updateSuccess) {
-                                    log_message('info', "Successfully updated schedule {$existingSchedule['id']} with approval date {$approvalDate} and assigned_staff_id = {$serviceStaffId}");
-                                } else {
-                                    log_message('error', "Failed to update schedule {$existingSchedule['id']}");
-                                }
-                            } catch (\Throwable $updateEx) {
-                                log_message('error', 'Failed to update existing schedule: ' . $updateEx->getMessage());
-                            }
-                        }
-                    } else {
-                        log_message('error', 'CRITICAL: ScheduleModel does not have submission_id in allowedFields');
+            // CRITICAL: ALWAYS create a schedule entry when a submission is approved
+            // This is REQUIRED - the submission will not appear on the calendar without a schedule
+            $scheduleModel = new \App\Models\ScheduleModel();
+            
+            // Check if a schedule already exists for this submission
+            $existingSchedule = $scheduleModel->where('submission_id', $submissionId)->first();
+            
+            if (!$existingSchedule) {
+                // Get submission priority to copy to schedule
+                $submission = $this->formSubmissionModel->find($submissionId);
+                $submissionPriority = $submission['priority'] ?? 'low';
+                
+                // Map form_submissions.priority to schedules.priority_level
+                $priorityMapping = [
+                    'low' => 'low',
+                    'normal' => 'medium',
+                    'medium' => 'medium',
+                    'high' => 'high',
+                    'urgent' => 'high',
+                    'critical' => 'high'
+                ];
+                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
+                
+                // Use approval date as the scheduled date
+                $approvalDate = date('Y-m-d');
+                
+                // Calculate ETA from approval date based on priority
+                $etaDays = null;
+                $estimatedDate = null;
+                if ($schedulePriority === 'low') {
+                    $etaDays = 7;
+                    $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
+                } elseif ($schedulePriority === 'medium') {
+                    $etaDays = 5;
+                    // Use business days for medium priority
+                    try {
+                        $scheduleController = new \App\Controllers\Schedule();
+                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 5);
+                    } catch (\Throwable $e) {
+                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +5 days'));
                     }
-                } else {
-                    log_message('error', 'CRITICAL: ScheduleModel class not found');
+                } elseif ($schedulePriority === 'high') {
+                    $etaDays = 3;
+                    // Use business days for high priority
+                    try {
+                        $scheduleController = new \App\Controllers\Schedule();
+                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 3);
+                    } catch (\Throwable $e) {
+                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +3 days'));
+                    }
                 }
-            } catch (\Throwable $e) {
-                // This is critical - log extensively
-                log_message('error', 'CRITICAL ERROR while creating schedule in submitApproval: ' . $e->getMessage());
-                log_message('error', 'Stack trace: ' . $e->getTraceAsString());
+                
+                $schedData = [
+                    'submission_id' => $submissionId,
+                    'scheduled_date' => $approvalDate,  // Use approval date
+                    'scheduled_time' => '09:00:00',
+                    'duration_minutes' => 60,
+                    'assigned_staff_id' => $serviceStaffId,
+                    'priority_level' => $schedulePriority,
+                    'location' => '',
+                    'notes' => 'Pending schedule - created on approval',
+                    'status' => 'pending'
+                ];
+                
+                // Add ETA fields if calculated
+                if ($etaDays && $estimatedDate) {
+                    $schedData['eta_days'] = $etaDays;
+                    $schedData['estimated_date'] = $estimatedDate;
+                }
+
+                // Insert schedule entry - this is CRITICAL and REQUIRED
+                log_message('info', "[APPROVAL] About to insert schedule for submission {$submissionId} with data: " . json_encode($schedData));
+                
+                $scheduleInserted = $scheduleModel->insert($schedData);
+                if (!$scheduleInserted) {
+                    // CRITICAL ERROR - schedule creation failed
+                    log_message('error', "[APPROVAL] CRITICAL: Failed to create schedule for submission {$submissionId} - insert returned false");
+                    log_message('error', "[APPROVAL] Schedule data attempted: " . json_encode($schedData));
+                    log_message('error', "[APPROVAL] Validation errors: " . json_encode($scheduleModel->errors()));
+                    
+                    // Show error to user
+                    return redirect()->back()->with('error', 'Failed to create schedule. Please contact support.');
+                }
+                
+                $newScheduleId = $scheduleModel->getInsertID();
+                log_message('info', "[APPROVAL] Successfully created schedule ID {$newScheduleId} for submission {$submissionId} assigned to service staff {$serviceStaffId}");
+                log_message('info', "[APPROVAL] Schedule data: scheduled_date={$schedData['scheduled_date']}, status={$schedData['status']}, assigned_staff={$serviceStaffId}");
+                
+            } else {
+                // Schedule exists - UPDATE with approval date and assigned_staff_id
+                log_message('info', "[APPROVAL] Schedule already exists for submission {$submissionId} (Schedule ID: {$existingSchedule['id']}), updating with approval date and assigned_staff_id {$serviceStaffId}");
+                
+                // Get submission priority to recalculate ETA from approval date
+                $submission = $this->formSubmissionModel->find($submissionId);
+                $submissionPriority = $submission['priority'] ?? 'low';
+                
+                // Map priority
+                $priorityMapping = [
+                    'low' => 'low',
+                    'normal' => 'medium',
+                    'medium' => 'medium',
+                    'high' => 'high',
+                    'urgent' => 'high',
+                    'critical' => 'high'
+                ];
+                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'medium';
+                
+                // Use approval date as the scheduled date
+                $approvalDate = date('Y-m-d');
+                
+                // Calculate ETA from approval date
+                $etaDays = null;
+                $estimatedDate = null;
+                if ($schedulePriority === 'low') {
+                    $etaDays = 7;
+                    $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
+                } elseif ($schedulePriority === 'medium') {
+                    $etaDays = 5;
+                    try {
+                        $scheduleController = new \App\Controllers\Schedule();
+                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 5);
+                    } catch (\Throwable $e) {
+                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +5 days'));
+                    }
+                } elseif ($schedulePriority === 'high') {
+                    $etaDays = 3;
+                    try {
+                        $scheduleController = new \App\Controllers\Schedule();
+                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 3);
+                    } catch (\Throwable $e) {
+                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +3 days'));
+                    }
+                }
+                
+                // Update schedule with approval date and ETA
+                $updateData = [
+                    'assigned_staff_id' => $serviceStaffId,
+                    'scheduled_date' => $approvalDate,  // Update to approval date
+                    'priority_level' => $schedulePriority
+                ];
+                
+                // Add ETA fields if calculated
+                if ($etaDays && $estimatedDate) {
+                    $updateData['eta_days'] = $etaDays;
+                    $updateData['estimated_date'] = $estimatedDate;
+                }
+                
+                $updateSuccess = $scheduleModel->update($existingSchedule['id'], $updateData);
+                if ($updateSuccess) {
+                    log_message('info', "[APPROVAL] Successfully updated schedule {$existingSchedule['id']} with approval date {$approvalDate} and assigned_staff_id = {$serviceStaffId}");
+                    log_message('info', "[APPROVAL] Updated schedule data: " . json_encode($updateData));
+                } else {
+                    log_message('error', "[APPROVAL] Failed to update schedule {$existingSchedule['id']}");
+                    log_message('error', "[APPROVAL] Update data attempted: " . json_encode($updateData));
+                }
             }
             
             return redirect()->to('/forms/approved-by-me')
