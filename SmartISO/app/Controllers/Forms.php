@@ -1791,7 +1791,7 @@ class Forms extends BaseController
             if (!$existingSchedule) {
                 // Get submission priority to copy to schedule
                 $submission = $this->formSubmissionModel->find($submissionId);
-                $submissionPriority = $submission['priority'] ?? 'low';
+                $submissionPriority = $submission['priority'] ?? 'low';  // Default to 'low' if not set
                 
                 // Map form_submissions.priority to schedules.priority_level
                 $priorityMapping = [

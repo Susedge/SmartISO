@@ -205,8 +205,8 @@ document.addEventListener('DOMContentLoaded', function(){
 
     function escapeHtml(str){ if (!str && str !== 0) return ''; return String(str).replace(/[&<>"'`]/g, function(s){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;', '`':'&#96;'}[s]; }); }
 
-    // Admin-only select HTML injected safely via json_encode to avoid quoting issues
-    <?php if (session()->get('user_type') === 'admin' || session()->get('user_type') === 'superuser' || session()->get('is_department_admin')): ?>
+    // Priority select for admin and service staff
+    <?php if (in_array(session()->get('user_type'), ['admin', 'superuser', 'service_staff']) || session()->get('is_department_admin')): ?>
     var adminPrioritySelect = <?= json_encode('<div class="d-flex align-items-center mt-2"><label class="me-2 mb-0 small">Priority:</label><select id="priority-level" class="form-select form-select-sm priority-auto-save" style="width:auto; display:inline-block"><option value="">None</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>') ?>;
     <?php else: ?>
     var adminPrioritySelect = null;
