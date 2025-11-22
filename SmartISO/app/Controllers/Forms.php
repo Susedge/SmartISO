@@ -112,7 +112,8 @@ class Forms extends BaseController
         $userType = session()->get('user_type');
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         
-        // SECURITY: Non-admin users are automatically restricted to their department/office
+        // SECURITY: Requestors can see all forms (no department/office filtering)
+        // Non-admin, non-requestor users are restricted to their department/office
         // Only global admins can use dropdown filters
         $selectedDepartment = null;
         $selectedOffice = null;
@@ -124,11 +125,14 @@ class Forms extends BaseController
             $rawOffice = $req->getGet('office');
             $selectedDepartment = (is_numeric($rawDept) && $rawDept !== '') ? (int)$rawDept : null;
             $selectedOffice = (is_numeric($rawOffice) && $rawOffice !== '') ? (int)$rawOffice : null;
-        } else {
-            // Non-admin users: enforce their department/office via WHERE clause
+        } elseif ($userType !== 'requestor') {
+            // Non-admin, non-requestor users: enforce their department/office via WHERE clause
+            // REQUESTORS: No filtering - they see all forms
             $selectedDepartment = $userDepartmentId;
             $selectedOffice = $userOfficeId;
             log_message('info', "User {$userType} restricted to department {$userDepartmentId}, office {$userOfficeId}");
+        } else {
+            log_message('info', "Requestor user {$userType} - no department/office filtering applied");
         }
 
         // Get user's department and office info for display
