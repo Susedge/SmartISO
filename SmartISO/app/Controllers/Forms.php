@@ -2417,9 +2417,11 @@ class Forms extends BaseController
         try {
             $userId = session()->get('user_id');
             $userType = session()->get('user_type');
+            $userDepartmentId = session()->get('department_id');
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
             
-            // Only admins and approving authorities can assign service staff
-            if (!in_array($userType, ['admin', 'approving_authority'])) {
+            // Only admins, approving authorities, and department admins can assign service staff
+            if (!in_array($userType, ['admin', 'superuser', 'approving_authority', 'department_admin'])) {
                 return redirect()->back()->with('error', 'Unauthorized access');
             }
             
@@ -2434,6 +2436,14 @@ class Forms extends BaseController
             $submission = $this->formSubmissionModel->find($submissionId);
             if (!$submission) {
                 return redirect()->back()->with('error', 'Submission not found');
+            }
+            
+            // Department filtering for non-admin approvers
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $submitter = $this->userModel->find($submission['submitted_by']);
+                if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                    return redirect()->back()->with('error', 'You can only assign service staff to submissions from your department');
+                }
             }
             
             // Verify the service staff exists and is active
