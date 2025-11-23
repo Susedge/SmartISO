@@ -28,9 +28,15 @@ class Schedule extends BaseController
         $userId = session()->get('user_id');
         $userDepartmentId = session()->get('department_id');
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
-        $isDepartmentAdmin = session()->get('is_department_admin') && session()->get('scoped_department_id');
+        
+        // Department admin check - use the same logic as calendar() method
+        $isDepartmentAdmin = ($userType === 'department_admin');
         
         $data['title'] = 'Service Schedules';
+        
+        log_message('debug', '==================== SCHEDULE INDEX ACCESS ====================');
+        log_message('debug', 'Schedule Index - User Type: "' . $userType . '", User ID: ' . $userId . ', Department: ' . $userDepartmentId);
+        log_message('debug', 'Schedule Index - isDepartmentAdmin: ' . ($isDepartmentAdmin ? 'TRUE' : 'FALSE'));
         
         // Admin and superuser can see all schedules AND submissions without schedules
         if ($isGlobalAdmin) {
@@ -43,11 +49,23 @@ class Schedule extends BaseController
         }
         // Department admin sees schedules for their department
         elseif ($isDepartmentAdmin) {
-            $schedules = $this->scheduleModel->getDepartmentSchedules(session()->get('scoped_department_id'));
-            
-            // Also get submissions without schedules from their department
-            $submissionsWithoutSchedules = $this->getDepartmentSubmissionsWithoutSchedules(session()->get('scoped_department_id'));
-            $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+            if ($userDepartmentId) {
+                log_message('info', 'Department Admin Index START - User ID: ' . $userId . ' | Department: ' . $userDepartmentId);
+                
+                $schedules = $this->scheduleModel->getDepartmentSchedules($userDepartmentId);
+                log_message('info', 'Department Admin Index - getDepartmentSchedules returned: ' . count($schedules) . ' schedule(s)');
+                
+                // Also get submissions without schedules from their department
+                $submissionsWithoutSchedules = $this->getDepartmentSubmissionsWithoutSchedules($userDepartmentId);
+                log_message('info', 'Department Admin Index - getDepartmentSubmissionsWithoutSchedules returned: ' . count($submissionsWithoutSchedules) . ' submission(s)');
+                
+                $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+                
+                log_message('info', 'Department Admin Index END - Total schedules: ' . count($schedules));
+            } else {
+                log_message('warning', 'Department Admin Index - No department_id in session');
+                $schedules = [];
+            }
         }
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
@@ -131,14 +149,40 @@ class Schedule extends BaseController
             }
         }
         else {
+            log_message('warning', 'Schedule Index - ELSE BLOCK TRIGGERED for user_type: "' . $userType . '" | Showing ALL schedules');
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
         }
 
-        // If none found, fallback to pending schedules for next 30 days (for backward compatibility)
-        if (empty($schedules)) {
+        // If none found, fallback to pending schedules for next 30 days
+        // EXCEPT for department admins - they should only see their department's schedules (even if empty)
+        if (empty($schedules) && !$isDepartmentAdmin) {
             $start = date('Y-m-d');
             $end = date('Y-m-d', strtotime('+30 days'));
             $schedules = $this->scheduleModel->getPendingSchedules($start, $end);
+            log_message('info', 'Schedule Index - Using fallback pending schedules for user type: ' . $userType);
+        }
+        
+        // ADDITIONAL SAFEGUARD: For department admins, filter out any schedules from other departments
+        if ($isDepartmentAdmin && !empty($schedules) && $userDepartmentId) {
+            $beforeCount = count($schedules);
+            $schedules = array_filter($schedules, function($schedule) use ($userDepartmentId) {
+                // Check form_department_id (primary) - forms belong to departments
+                if (isset($schedule['form_department_id'])) {
+                    return $schedule['form_department_id'] == $userDepartmentId;
+                }
+                // Fallback to requestor_department_id if form_department_id not available
+                if (isset($schedule['requestor_department_id'])) {
+                    return $schedule['requestor_department_id'] == $userDepartmentId;
+                }
+                // If neither available, allow through (shouldn't happen with proper joins)
+                return true;
+            });
+            $schedules = array_values($schedules); // Re-index array
+            $afterCount = count($schedules);
+            
+            if ($beforeCount != $afterCount) {
+                log_message('warning', 'Department Admin Index - SAFEGUARD FILTER ACTIVATED: Removed ' . ($beforeCount - $afterCount) . ' cross-department schedule(s)');
+            }
         }
 
         $calendarEvents = [];
@@ -475,8 +519,12 @@ class Schedule extends BaseController
         
         $data['title'] = 'Schedule Calendar';
         
-        // DEBUG: Log session info
-        log_message('debug', 'Calendar accessed - User Type: ' . $userType . ', User ID: ' . $userId);
+        // DEBUG: Log session info with details
+        log_message('debug', '==================== CALENDAR ACCESS START ====================');
+        log_message('debug', 'Calendar accessed - User Type: "' . $userType . '" (strlen=' . strlen($userType) . '), User ID: ' . $userId);
+        log_message('debug', 'User Type comparison: is_department_admin=' . ($userType === 'department_admin' ? 'TRUE' : 'FALSE'));
+        log_message('debug', 'Department ID from session: ' . session()->get('department_id'));
+        log_message('debug', 'All session data: ' . json_encode(session()->get()));
         
         // Initialize schedules array
         $schedules = [];
@@ -489,6 +537,33 @@ class Schedule extends BaseController
             $submissionsWithoutSchedules = $this->getSubmissionsWithoutSchedules();
             // Merge them into the schedules array
             $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+        }
+        // Department admin sees schedules for their department only
+        elseif ($userType === 'department_admin') {
+            $userDepartmentId = session()->get('department_id');
+            if ($userDepartmentId) {
+                log_message('info', 'Department Admin Calendar START - User ID: ' . $userId . ' | User Type: ' . $userType . ' | Department: ' . $userDepartmentId);
+                
+                $schedules = $this->scheduleModel->getDepartmentSchedules($userDepartmentId);
+                log_message('info', 'Department Admin Calendar - getDepartmentSchedules returned: ' . count($schedules) . ' schedule(s)');
+                
+                // Also get submissions without schedules from their department
+                $submissionsWithoutSchedules = $this->getDepartmentSubmissionsWithoutSchedules($userDepartmentId);
+                log_message('info', 'Department Admin Calendar - getDepartmentSubmissionsWithoutSchedules returned: ' . count($submissionsWithoutSchedules) . ' submission(s)');
+                
+                $schedules = array_merge($schedules, $submissionsWithoutSchedules);
+                
+                log_message('info', 'Department Admin Calendar END - User ID: ' . $userId . ' | Department: ' . $userDepartmentId . ' | Total schedules: ' . count($schedules));
+                
+                // Log each schedule/submission for debugging
+                foreach ($schedules as $idx => $sched) {
+                    log_message('debug', 'Department Admin Calendar Item ' . ($idx + 1) . ': Submission ID: ' . ($sched['submission_id'] ?? 'N/A') . ' | Form: ' . ($sched['form_code'] ?? 'N/A') . ' | Status: ' . ($sched['status'] ?? 'N/A'));
+                }
+            } else {
+                // No department assigned, show empty calendar
+                $schedules = [];
+                log_message('warning', 'Department Admin Calendar - User ID: ' . $userId . ' has no department assigned');
+            }
         }
         // Service staff sees schedules assigned to them
         elseif ($userType === 'service_staff') {
@@ -571,18 +646,54 @@ class Schedule extends BaseController
             }
         }
         else {
+            log_message('warning', 'Calendar - ELSE BLOCK TRIGGERED for user_type: "' . $userType . '" | This means the user_type did not match any of the elseif conditions above!');
+            log_message('warning', 'Calendar - Falling back to getSchedulesWithDetails() which returns ALL schedules');
+            log_message('warning', 'Calendar - User ID: ' . $userId . ' | Expected user_type values: admin, superuser, department_admin, service_staff, requestor, approving_authority');
             $schedules = $this->scheduleModel->getSchedulesWithDetails();
+            log_message('warning', 'Calendar - Retrieved ' . count($schedules) . ' schedules from getSchedulesWithDetails()');
         }
 
         // If no schedules found, try to fetch pending schedules for the next 30 days as a fallback
-        if (empty($schedules)) {
+        // EXCEPT for department admins - they should only see their department's schedules (even if empty)
+        if (empty($schedules) && $userType !== 'department_admin') {
             $start = date('Y-m-d');
             $end = date('Y-m-d', strtotime('+30 days'));
             $schedules = $this->scheduleModel->getPendingSchedules($start, $end);
+            log_message('info', 'Calendar - Using fallback pending schedules for user type: ' . $userType);
         }
         
         // DEBUG: Log schedules before formatting
         log_message('debug', 'Calendar - Schedules count before formatting: ' . count($schedules ?? []));
+        log_message('debug', 'Calendar - User type for filtering check: ' . $userType);
+        
+        // ADDITIONAL SAFEGUARD: For department admins, filter out any schedules from other departments
+        // This ensures cross-department items don't slip through even if there's a bug elsewhere
+        // Filter by FORM's department, not requestor's department
+        if ($userType === 'department_admin' && !empty($schedules)) {
+            $userDepartmentId = session()->get('department_id');
+            if ($userDepartmentId) {
+                $beforeCount = count($schedules);
+                $schedules = array_filter($schedules, function($schedule) use ($userDepartmentId) {
+                    // Check form_department_id (primary) - forms belong to departments
+                    if (isset($schedule['form_department_id'])) {
+                        return $schedule['form_department_id'] == $userDepartmentId;
+                    }
+                    // Fallback to requestor_department_id if form_department_id not available
+                    if (isset($schedule['requestor_department_id'])) {
+                        return $schedule['requestor_department_id'] == $userDepartmentId;
+                    }
+                    // If neither available, allow through (shouldn't happen with proper joins)
+                    return true;
+                });
+                $schedules = array_values($schedules); // Re-index array
+                $afterCount = count($schedules);
+                
+                if ($beforeCount != $afterCount) {
+                    log_message('warning', 'Department Admin Calendar - SAFEGUARD FILTER ACTIVATED: Removed ' . ($beforeCount - $afterCount) . ' cross-department schedule(s)');
+                }
+            }
+        }
+        
         log_message('debug', 'Calendar - Schedules data: ' . json_encode($schedules ?? []));
         
         // Format schedules for calendar display
@@ -1271,20 +1382,21 @@ class Schedule extends BaseController
     
     /**
      * Get submissions without schedules for a specific department
+     * Filters by FORM's department to match getDepartmentSchedules logic
      */
     private function getDepartmentSubmissionsWithoutSchedules($departmentId)
     {
         $db = \Config\Database::connect();
         
-        // Find submissions from users in the specified department that don't have schedules
+        // Find submissions for forms that belong to the specified department and don't have schedules
         $builder = $db->table('form_submissions fs');
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
                           fs.created_at, fs.priority,
-                          f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name, u.department_id')
+                          f.code as form_code, f.description as form_description, f.department_id as form_department_id,
+                          u.full_name as requestor_name, u.department_id as requestor_department_id')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
-            ->where('u.department_id', $departmentId)
+            ->where('f.department_id', $departmentId)  // FIXED: Filter by form's department, not requestor's
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->whereIn('fs.status', ['submitted', 'approved', 'pending_service'])
             ->orderBy('fs.created_at', 'DESC');

@@ -111,21 +111,27 @@ class Forms extends BaseController
         $userOfficeId = session()->get('office_id');
         $userType = session()->get('user_type');
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $isRequestor = ($userType === 'requestor');
         
-        // SECURITY: Non-admin users are automatically restricted to their department/office
-        // Only global admins can use dropdown filters
+        // SECURITY: Requestors can view ALL forms but with optional filtering
+        // Non-admin, non-requestor users are restricted to their department/office
+        // Only global admins and requestors can use dropdown filters
         $selectedDepartment = null;
         $selectedOffice = null;
         
-        if ($isGlobalAdmin) {
-            // Global admins can filter using dropdowns
+        if ($isGlobalAdmin || $isRequestor) {
+            // Global admins and requestors can filter using dropdowns (optional)
             $req = $this->getRequest();
             $rawDept = $req->getGet('department');
             $rawOffice = $req->getGet('office');
             $selectedDepartment = (is_numeric($rawDept) && $rawDept !== '') ? (int)$rawDept : null;
             $selectedOffice = (is_numeric($rawOffice) && $rawOffice !== '') ? (int)$rawOffice : null;
+            
+            if ($isRequestor && ($selectedDepartment || $selectedOffice)) {
+                log_message('info', "Requestor filtering forms - department: {$selectedDepartment}, office: {$selectedOffice}");
+            }
         } else {
-            // Non-admin users: enforce their department/office via WHERE clause
+            // Non-admin, non-requestor users: enforce their department/office via WHERE clause
             $selectedDepartment = $userDepartmentId;
             $selectedOffice = $userOfficeId;
             log_message('info', "User {$userType} restricted to department {$userDepartmentId}, office {$userOfficeId}");
@@ -139,8 +145,8 @@ class Forms extends BaseController
         if ($userDepartmentId) {
             $userDepartment = $this->departmentModel->find($userDepartmentId);
             
-            // Get all offices within user's department for filtering (non-admin users)
-            if (!$isGlobalAdmin) {
+            // Get all offices within user's department for filtering (non-admin, non-requestor users)
+            if (!$isGlobalAdmin && !$isRequestor) {
                 try {
                     $departmentOffices = $this->officeModel
                         ->where('department_id', $userDepartmentId)
@@ -157,10 +163,10 @@ class Forms extends BaseController
             $userOffice = $this->officeModel->find($userOfficeId);
         }
 
-        // For global admins, get all departments and offices for dropdowns
+        // For global admins and requestors, get all departments and offices for dropdowns
         $departments = [];
         $allOffices = [];
-        if ($isGlobalAdmin) {
+        if ($isGlobalAdmin || $isRequestor) {
             $departments = $this->departmentModel->findAll();
             try {
                 $allOffices = $this->officeModel->orderBy('description','ASC')->findAll();
@@ -179,27 +185,56 @@ class Forms extends BaseController
                 ->join('departments d2', 'd2.id = o.department_id', 'left');
             
             // SECURITY: Apply WHERE clause filtering based on user's access
-            if (!empty($selectedDepartment) && !empty($selectedOffice)) {
-                // Both department and office: intersection semantics
-                $builder->groupStart()
-                        ->where('f.office_id', $selectedOffice)
-                        ->groupEnd()
-                    ->groupStart()
-                        ->groupStart()
-                            ->where('f.department_id', $selectedDepartment)
-                            ->orWhere('o.department_id', $selectedDepartment)
-                        ->groupEnd()
-                    ->groupEnd();
-            } else {
-                if (!empty($selectedDepartment)) {
-                    // Match forms where department is set on the form OR inherited via office
+            // Requestors: NO automatic restriction - can see all forms (but can filter optionally)
+            // Other users: restricted to their department/office
+            if (!$isRequestor) {
+                if (!empty($selectedDepartment) && !empty($selectedOffice)) {
+                    // Both department and office: intersection semantics
                     $builder->groupStart()
-                            ->where('f.department_id', $selectedDepartment)
-                            ->orWhere('o.department_id', $selectedDepartment)
+                            ->where('f.office_id', $selectedOffice)
+                            ->groupEnd()
+                        ->groupStart()
+                            ->groupStart()
+                                ->where('f.department_id', $selectedDepartment)
+                                ->orWhere('o.department_id', $selectedDepartment)
+                            ->groupEnd()
                         ->groupEnd();
+                } else {
+                    if (!empty($selectedDepartment)) {
+                        // Match forms where department is set on the form OR inherited via office
+                        $builder->groupStart()
+                                ->where('f.department_id', $selectedDepartment)
+                                ->orWhere('o.department_id', $selectedDepartment)
+                            ->groupEnd();
+                    }
+                    if (!empty($selectedOffice)) {
+                        $builder->where('f.office_id', $selectedOffice);
+                    }
                 }
-                if (!empty($selectedOffice)) {
-                    $builder->where('f.office_id', $selectedOffice);
+            } else {
+                // Requestors: Apply optional filters if selected
+                if (!empty($selectedDepartment) && !empty($selectedOffice)) {
+                    // Both department and office: intersection semantics
+                    $builder->groupStart()
+                            ->where('f.office_id', $selectedOffice)
+                            ->groupEnd()
+                        ->groupStart()
+                            ->groupStart()
+                                ->where('f.department_id', $selectedDepartment)
+                                ->orWhere('o.department_id', $selectedDepartment)
+                            ->groupEnd()
+                        ->groupEnd();
+                } else {
+                    if (!empty($selectedDepartment)) {
+                        // Match forms where department is set on the form OR inherited via office
+                        $builder->groupStart()
+                                ->where('f.department_id', $selectedDepartment)
+                                ->orWhere('o.department_id', $selectedDepartment)
+                            ->groupEnd();
+                    }
+                    if (!empty($selectedOffice)) {
+                        $builder->where('f.office_id', $selectedOffice);
+                    }
                 }
             }
             
@@ -216,6 +251,7 @@ class Forms extends BaseController
             'selectedDepartment' => $selectedDepartment,
             'selectedOffice' => $selectedOffice,
             'isGlobalAdmin' => $isGlobalAdmin,
+            'isRequestor' => $isRequestor,
             'userDepartment' => $userDepartment,
             'userOffice' => $userOffice
         ];

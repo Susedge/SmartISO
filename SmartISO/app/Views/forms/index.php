@@ -17,6 +17,7 @@
     <div class="card-body pt-2">
         <?php 
         $displayIsGlobalAdmin = isset($isGlobalAdmin) ? $isGlobalAdmin : false;
+        $displayIsRequestor = isset($isRequestor) ? $isRequestor : false;
         ?>
         
         <?php if ($displayIsGlobalAdmin): ?>
@@ -57,6 +58,53 @@
                     </button>
                 </div>
             </form>
+        <?php elseif ($displayIsRequestor): ?>
+            <!-- Requestors can view all forms and filter by department/office -->
+            <div class="mb-3">
+                <div class="alert alert-success mb-2">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Full Access:</strong> You can view and submit all available forms.
+                    <br><small class="text-muted">Use filters below to narrow down your search by department or office.</small>
+                </div>
+                
+                <!-- Department and Office filters for requestors -->
+                <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end">
+                    <div class="col-sm-4 col-md-3">
+                        <label class="form-label mb-1 fw-semibold">Department</label>
+                        <select name="department" id="departmentSelect" class="form-select form-select-sm">
+                            <option value="">All Departments</option>
+                            <?php if (isset($departments) && is_array($departments)): ?>
+                                <?php foreach ($departments as $dept): ?>
+                                    <option value="<?= esc($dept['id']) ?>" <?= (isset($selectedDepartment) && $selectedDepartment == $dept['id']) ? 'selected' : '' ?>>
+                                        <?= esc($dept['description']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+                    <div class="col-sm-4 col-md-3">
+                        <label class="form-label mb-1 fw-semibold">Office</label>
+                        <select name="office" id="officeSelect" class="form-select form-select-sm">
+                            <option value="">All Offices</option>
+                            <?php if (isset($allOffices) && is_array($allOffices)): ?>
+                                <?php foreach ($allOffices as $office): ?>
+                                    <option value="<?= esc($office['id']) ?>" data-dept="<?= esc($office['department_id'] ?? '') ?>" <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
+                                        <?= esc($office['description']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+                    <div class="col-sm-4 col-md-3 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-sm mt-auto">
+                            <i class="fas fa-filter me-1"></i> Filter
+                        </button>
+                        <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm mt-auto flex-shrink-0 <?= empty($selectedDepartment) && empty($selectedOffice) ? 'd-none':'' ?>">
+                            <i class="fas fa-redo me-1"></i> Reset
+                        </button>
+                    </div>
+                </form>
+            </div>
         <?php else: ?>
             <!-- Non-admin users see their assigned department (read-only) and can filter by office -->
             <div class="mb-3">

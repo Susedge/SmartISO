@@ -76,29 +76,71 @@ class NotificationModel extends Model
 
     /**
      * Get notifications for a user
+     * For department admins: only show notifications from their own department
      */
     public function getUserNotifications($userId, $limit = 20, $unreadOnly = false)
     {
-        $builder = $this->where('user_id', $userId);
+        // Get user type and department for filtering
+        $userModel = new UserModel();
+        $user = $userModel->find($userId);
+        $userType = $user['user_type'] ?? null;
+        $userDepartment = $user['department_id'] ?? null;
         
-        if ($unreadOnly) {
-            // notifications table uses `read` column per migration
-            $builder->where('read', 0);
+        // Build base query
+        $builder = $this->db->table($this->table . ' n');
+        $builder->select('n.*');
+        $builder->where('n.user_id', $userId);
+        
+        // For department admins: filter by submission's FORM department (forms belong to departments)
+        if ($userType === 'department_admin' && $userDepartment) {
+            $builder->join('form_submissions fs', 'fs.id = n.submission_id', 'left');
+            $builder->join('forms f', 'f.id = fs.form_id', 'left');
+            $builder->groupStart()
+                    ->where('n.submission_id IS NULL', null, false) // Include non-submission notifications
+                    ->orWhere('f.department_id', $userDepartment) // Or submissions for forms from same department
+                    ->groupEnd();
+            
+            log_message('info', "Filtering notifications for department_admin (User ID: {$userId}, Dept: {$userDepartment}) by FORM department");
         }
         
-        return $builder->orderBy('created_at', 'DESC')
-                      ->limit($limit)
-                      ->findAll();
+        if ($unreadOnly) {
+            $builder->where('n.read', 0);
+        }
+        
+        $builder->orderBy('n.created_at', 'DESC')
+                ->limit($limit);
+        
+        return $builder->get()->getResultArray();
     }
 
     /**
      * Get unread count for a user
+     * For department admins: only count notifications from their own department
      */
     public function getUnreadCount($userId)
     {
-    return $this->where('user_id', $userId)
-           ->where('read', 0)
-           ->countAllResults();
+        // Get user type and department for filtering
+        $userModel = new UserModel();
+        $user = $userModel->find($userId);
+        $userType = $user['user_type'] ?? null;
+        $userDepartment = $user['department_id'] ?? null;
+        
+        // Build query
+        $builder = $this->db->table($this->table . ' n');
+        $builder->where('n.user_id', $userId)
+                ->where('n.read', 0);
+        
+        // For department admins: filter by submission's FORM department (forms belong to departments)
+        if ($userType === 'department_admin' && $userDepartment) {
+            $builder->join('form_submissions fs', 'fs.id = n.submission_id', 'left');
+            $builder->join('forms f', 'f.id = fs.form_id', 'left');
+            $builder->groupStart()
+                    ->where('n.submission_id IS NULL', null, false) // Include non-submission notifications
+                    ->orWhere('f.department_id', $userDepartment) // Or submissions for forms from same department
+                    ->groupEnd();
+        }
+        
+        return $builder->countAllResults();
     }
 
     /**
@@ -205,6 +247,8 @@ class NotificationModel extends Model
         $formSignatoryModel = new \App\Models\FormSignatoryModel();
         $assignedApprovers = $formSignatoryModel->getFormSignatories($submission['form_id']);
         
+        log_message('info', "Submission Notification - Submission ID: {$submissionId} | Form: {$formCode} | Submitter Dept: {$submitterDepartment} | Form Signatories: " . count($assignedApprovers));
+        
         // If no specific approvers assigned, fall back to approving authorities FROM THE SAME DEPARTMENT
         if (empty($assignedApprovers)) {
             if ($submitterDepartment) {
@@ -213,11 +257,13 @@ class NotificationModel extends Model
                                                ->where('department_id', $submitterDepartment)
                                                ->where('active', 1)
                                                ->findAll();
+                log_message('info', "Submission Notification - No form signatories, using department-based routing | Department: {$submitterDepartment} | Found " . count($assignedApprovers) . " approvers/dept admins");
             } else {
                 // No department - notify all approvers (legacy support for data without departments)
                 $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
                                                ->where('active', 1)
                                                ->findAll();
+                log_message('warning', "Submission Notification - No department assigned, notifying ALL approvers (legacy mode)");
             }
         }
         
@@ -241,6 +287,11 @@ class NotificationModel extends Model
                 continue;
             }
             $notifiedUserIds[] = $userId;
+            
+            $userName = $user['full_name'] ?? $user['username'] ?? "User {$userId}";
+            $userType = $user['user_type'] ?? 'unknown';
+            $userDept = $user['department_id'] ?? 'N/A';
+            log_message('info', "Submission Notification - Notifying: {$userName} (ID: {$userId}, Type: {$userType}, Dept: {$userDept})");
 
             // Insert only columns that exist in the current notifications table.
             $this->insert([
@@ -255,6 +306,8 @@ class NotificationModel extends Model
             // Send email notification
             $this->sendEmailNotification($userId, $title, $message);
         }
+        
+        log_message('info', "Submission Notification - Total users notified: " . count($notifiedUserIds));
     }
 
     /**
@@ -330,6 +383,8 @@ class NotificationModel extends Model
         $title = 'Service Completed';
         $message = 'Your service request has been completed successfully. You can now provide feedback about your experience.';
         
+        log_message('info', "Service Completion Notification - Submission ID: {$submissionId} | Requestor User ID: {$userId}");
+        
         $this->insert([
             'user_id'       => $userId,
             'submission_id' => $submissionId,
@@ -341,6 +396,8 @@ class NotificationModel extends Model
 
         // Send email notification
         $this->sendEmailNotification($userId, $title, $message);
+        
+        log_message('info', "Service Completion Notification - Successfully created for user {$userId}");
     }
 
     /**

@@ -219,22 +219,28 @@ class ScheduleModel extends Model
     
     /**
      * Get schedules for a specific department
+     * Filters by FORM's department to ensure department admins only see submissions for forms that belong to their department
+     * This is the correct approach: forms belong to departments, and dept admins manage those forms' submissions
      */
     public function getDepartmentSchedules($departmentId)
     {
         $builder = $this->db->table('schedules s');
         $builder->select('s.*, fs.form_id, fs.panel_name, fs.status as submission_status,
-                          f.code as form_code, f.description as form_description,
+                          f.code as form_code, f.description as form_description, f.department_id as form_department_id,
                           u.full_name as requestor_name, u.department_id as requestor_department_id,
                           staff.full_name as assigned_staff_name')
             ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('users staff', 'staff.id = s.assigned_staff_id', 'left')
-            ->where('u.department_id', $departmentId)
+            ->where('f.department_id', $departmentId)  // FIXED: Filter by form's department, not requestor's
             ->orderBy('s.scheduled_date', 'ASC')
             ->orderBy('s.scheduled_time', 'ASC');
         
-        return $builder->get()->getResultArray();
+        $results = $builder->get()->getResultArray();
+        
+        log_message('info', "getDepartmentSchedules - Department ID: {$departmentId} | Found " . count($results) . " schedule(s) [Filtered by FORM department]");
+        
+        return $results;
     }
 }
