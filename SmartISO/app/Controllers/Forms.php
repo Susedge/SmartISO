@@ -112,24 +112,27 @@ class Forms extends BaseController
         $userType = session()->get('user_type');
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         
-        // SECURITY: Requestors and global admins can use dropdown filters
+        // SECURITY: Requestors can see all forms (no department/office filtering)
         // Non-admin, non-requestor users are restricted to their department/office
+        // Only global admins can use dropdown filters
         $selectedDepartment = null;
         $selectedOffice = null;
         
-        if ($isGlobalAdmin || $userType === 'requestor') {
-            // Global admins and requestors can filter using dropdowns
+        if ($isGlobalAdmin) {
+            // Global admins can filter using dropdowns
             $req = $this->getRequest();
             $rawDept = $req->getGet('department');
             $rawOffice = $req->getGet('office');
             $selectedDepartment = (is_numeric($rawDept) && $rawDept !== '') ? (int)$rawDept : null;
             $selectedOffice = (is_numeric($rawOffice) && $rawOffice !== '') ? (int)$rawOffice : null;
-            log_message('info', "User {$userType} can filter - Department: {$selectedDepartment}, Office: {$selectedOffice}");
-        } else {
+        } elseif ($userType !== 'requestor') {
             // Non-admin, non-requestor users: enforce their department/office via WHERE clause
+            // REQUESTORS: No filtering - they see all forms
             $selectedDepartment = $userDepartmentId;
             $selectedOffice = $userOfficeId;
             log_message('info', "User {$userType} restricted to department {$userDepartmentId}, office {$userOfficeId}");
+        } else {
+            log_message('info', "Requestor user {$userType} - no department/office filtering applied");
         }
 
         // Get user's department and office info for display
@@ -158,10 +161,10 @@ class Forms extends BaseController
             $userOffice = $this->officeModel->find($userOfficeId);
         }
 
-        // For global admins and requestors, get all departments and offices for dropdowns
+        // For global admins, get all departments and offices for dropdowns
         $departments = [];
         $allOffices = [];
-        if ($isGlobalAdmin || $userType === 'requestor') {
+        if ($isGlobalAdmin) {
             $departments = $this->departmentModel->findAll();
             try {
                 $allOffices = $this->officeModel->orderBy('description','ASC')->findAll();
@@ -1629,8 +1632,6 @@ class Forms extends BaseController
         }
         
         $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        $userDepartmentId = session()->get('department_id');
         
         // Get submissions approved by the current user
         $builder = $this->formSubmissionModel->builder();
@@ -1646,7 +1647,6 @@ class Forms extends BaseController
             forms.code as form_code, 
             forms.description as form_description,
             requestor.full_name as requestor_name,
-            requestor.department_id,
             service_staff.full_name as service_staff_name,
             sch.priority_level, 
             sch.eta_days, 
@@ -1660,11 +1660,6 @@ class Forms extends BaseController
         // Only show forms approved by this user AND where they were assigned as approver
         $builder->where('form_submissions.approver_id', $userId);
         $builder->join('form_signatories fsig', 'fsig.form_id = forms.id AND fsig.user_id = ' . $userId, 'inner');
-        
-        // Department filtering for department admins
-        if ($userType === 'department_admin' && $userDepartmentId) {
-            $builder->where('requestor.department_id', $userDepartmentId);
-        }
         
         $builder->orderBy('form_submissions.approved_at', 'DESC');
         

@@ -67,8 +67,8 @@ class Dashboard extends BaseController
                                                    ->groupEnd()
                                                    ->countAllResults();
         } 
-        elseif ($userType === 'approving_authority' || $userType === 'department_admin') {
-            // For approving authorities and department admins - count forms they need to approve
+        elseif ($userType === 'approving_authority') {
+            // For approving authorities - count forms they need to approve
             // Apply department filtering for non-admin approvers
             $builder = $this->db->table('form_submissions')
                                 ->join('users', 'users.id = form_submissions.submitted_by');
