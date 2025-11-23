@@ -1319,6 +1319,18 @@ class Schedule extends BaseController
 
         $updated = $this->scheduleModel->update($id, $data);
         if ($updated) {
+            // Ensure the associated submission is marked as pending_service when schedule is updated
+            try {
+                $submissionId = $schedule['submission_id'] ?? null;
+                if ($submissionId) {
+                    $currentStatus = $this->submissionModel->find($submissionId)['status'] ?? null;
+                    if (!in_array($currentStatus, ['pending_service', 'completed'])) {
+                        $this->submissionModel->update($submissionId, ['status' => 'pending_service']);
+                    }
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'Failed to update submission status after schedule update for submission ID ' . ($submissionId ?? 'unknown') . ': ' . $e->getMessage());
+            }
             return $this->response->setJSON([
                 'success' => true, 
                 'estimated_date' => $data['estimated_date'] ?? null, 
