@@ -721,7 +721,10 @@ class Schedule extends BaseController
                 'priority' => (int)($schedule['priority'] ?? 0),
                 'estimated_date' => $schedule['estimated_date'] ?? null,
                 'eta_days' => isset($schedule['eta_days']) ? (int)$schedule['eta_days'] : null,
-                'priority_level' => $schedule['priority_level'] ?? null
+                'priority_level' => $schedule['priority_level'] ?? null,
+                'submission_id' => $schedule['submission_id'] ?? null,
+                'scheduled_time' => $schedule['scheduled_time'] ?? '09:00:00',
+                'is_manual_schedule' => $schedule['is_manual_schedule'] ?? 0
             ];
         }
         
@@ -1169,6 +1172,78 @@ class Schedule extends BaseController
     {
         if (!$this->request->isAJAX()) {
             return $this->response->setJSON(['success' => false, 'message' => 'Invalid request', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+        }
+
+        // Handle virtual events (submissions without schedules) - they have IDs like "sub-123" or "staff-123"
+        if (is_string($id) && (strpos($id, 'sub-') === 0 || strpos($id, 'staff-') === 0)) {
+            $submissionId = (int)str_replace(['sub-', 'staff-'], '', $id);
+            
+            // Get submission details
+            $submission = $this->submissionModel->find($submissionId);
+            if (!$submission) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Submission not found', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+            }
+            
+            // Get POST data
+            $priorityLevel = $this->request->getPost('priority_level') ?: null;
+            $newScheduledDate = $this->request->getPost('scheduled_date') ?: date('Y-m-d');
+            $newScheduledTime = $this->request->getPost('scheduled_time') ?: '09:00:00';
+            $isManualSchedule = $this->request->getPost('is_manual_schedule') ?: '0';
+            
+            // Calculate ETA based on priority level
+            $etaDays = null;
+            $estimatedDate = null;
+            
+            if ($isManualSchedule === '1' || $isManualSchedule === 1) {
+                $estimatedDate = $newScheduledDate;
+                $etaDays = 0;
+            } elseif ($priorityLevel) {
+                if ($priorityLevel === 'high') {
+                    $etaDays = 3;
+                    $estimatedDate = $this->addBusinessDays($newScheduledDate, 3);
+                } elseif ($priorityLevel === 'medium') {
+                    $etaDays = 5;
+                    $estimatedDate = $this->addBusinessDays($newScheduledDate, 5);
+                } elseif ($priorityLevel === 'low') {
+                    $etaDays = 7;
+                    $estimatedDate = date('Y-m-d', strtotime($newScheduledDate . ' +7 days'));
+                }
+            }
+            
+            // Create a new schedule entry
+            $scheduleData = [
+                'submission_id' => $submissionId,
+                'scheduled_date' => $newScheduledDate,
+                'scheduled_time' => $newScheduledTime,
+                'duration_minutes' => 60,
+                'assigned_staff_id' => $submission['service_staff_id'] ?? null,
+                'location' => '',
+                'notes' => 'Created from calendar',
+                'status' => 'confirmed',
+                'priority_level' => $priorityLevel,
+                'eta_days' => $etaDays,
+                'estimated_date' => $estimatedDate,
+                'is_manual_schedule' => $isManualSchedule
+            ];
+            
+            $newScheduleId = $this->scheduleModel->insert($scheduleData);
+            
+            if ($newScheduleId) {
+                return $this->response->setJSON([
+                    'success' => true,
+                    'message' => 'Schedule created successfully',
+                    'schedule_id' => $newScheduleId,
+                    'estimated_date' => $estimatedDate,
+                    'eta_days' => $etaDays,
+                    'scheduled_date' => $newScheduledDate,
+                    'scheduled_time' => $newScheduledTime,
+                    'is_manual_schedule' => $isManualSchedule,
+                    'csrf_name' => csrf_token(),
+                    'csrf_hash' => csrf_hash()
+                ]);
+            } else {
+                return $this->response->setJSON(['success' => false, 'message' => 'Failed to create schedule', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
+            }
         }
 
         $schedule = $this->scheduleModel->find($id);

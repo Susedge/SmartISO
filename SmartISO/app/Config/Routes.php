@@ -143,7 +143,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('schedule/store', 'Schedule::store');
     $routes->get('schedule/edit/(:num)', 'Schedule::edit/$1');
     $routes->post('schedule/update/(:num)', 'Schedule::update/$1');
-    $routes->post('schedule/update-priority/(:num)', 'Schedule::updatePriority/$1');
+    $routes->post('schedule/update-priority/(:any)', 'Schedule::updatePriority/$1');
     $routes->post('schedule/update-submission-priority/(:num)', 'Schedule::updateSubmissionPriority/$1');
     $routes->get('schedule/delete/(:num)', 'Schedule::delete/$1');
     $routes->get('schedule/calendar', 'Schedule::calendar');

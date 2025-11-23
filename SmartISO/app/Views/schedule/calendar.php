@@ -404,12 +404,21 @@ document.addEventListener('DOMContentLoaded', function(){
                                 var newTime = timeInput ? timeInput.value : '09:00:00';
                                 
                                 // Determine if this is a manual schedule (user changed the date)
-                                var originalDate = ev.start ? ev.start.split('T')[0] : '';
+                                var originalDate = info.event.startStr ? info.event.startStr.split('T')[0] : '';
                                 var isManualSchedule = newDate && newDate !== originalDate;
+                                
+                                console.log('Saving changes:', {
+                                    eventId: info.event.id,
+                                    priority_level: level,
+                                    scheduled_date: newDate || originalDate,
+                                    scheduled_time: newTime,
+                                    is_manual_schedule: isManualSchedule,
+                                    originalDate: originalDate
+                                });
                                 
                                 var params = buildParams({ 
                                     priority_level: level || '',
-                                    scheduled_date: newDate || (ev.start ? ev.start.split('T')[0] : ''),
+                                    scheduled_date: newDate || originalDate,
                                     scheduled_time: newTime,
                                     is_manual_schedule: isManualSchedule ? '1' : '0'
                                 });
@@ -419,18 +428,28 @@ document.addEventListener('DOMContentLoaded', function(){
                                 var isVirtualEvent = String(eventId).startsWith('sub-') || String(eventId).startsWith('staff-');
                                 var endpoint = '<?= base_url('schedule/update-priority/') ?>' + eventId;
                                 
+                                console.log('Sending to endpoint:', endpoint);
+                                
                                 // Save the priority/schedule then reload
                                 fetch(endpoint, { 
                                     method:'POST', 
                                     headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded'}, 
                                     body: params.toString() 
                                 })
-                                .then(function(r){ return r.json ? r.json() : r.text(); })
+                                .then(function(r){ 
+                                    console.log('Response status:', r.status);
+                                    return r.json().catch(function() { return {success: false, message: 'Invalid JSON response'}; }); 
+                                })
                                 .then(function(data){ 
+                                    console.log('Response data:', data);
+                                    if (data.success === false) {
+                                        alert('Error: ' + (data.message || 'Failed to save changes'));
+                                    }
                                     location.reload();
                                 })
                                 .catch(function(err){ 
-                                    alert('Error saving changes');
+                                    console.error('Fetch error:', err);
+                                    alert('Error saving changes: ' + err.message);
                                     location.reload();
                                 });
                             } else {
@@ -482,12 +501,21 @@ document.addEventListener('DOMContentLoaded', function(){
                                 var newTime = timeInput ? timeInput.value : '09:00:00';
                                 
                                 // Determine if this is a manual schedule (user changed the date)
-                                var originalDate = ev.start ? ev.start.split('T')[0] : '';
+                                var originalDate = info.event.startStr ? info.event.startStr.split('T')[0] : '';
                                 var isManualSchedule = newDate && newDate !== originalDate;
+                                
+                                console.log('Saving changes (Bootstrap):', {
+                                    eventId: info.event.id,
+                                    priority_level: level,
+                                    scheduled_date: newDate || originalDate,
+                                    scheduled_time: newTime,
+                                    is_manual_schedule: isManualSchedule,
+                                    originalDate: originalDate
+                                });
                                 
                                 var params = buildParams({ 
                                     priority_level: level || '',
-                                    scheduled_date: newDate || (ev.start ? ev.start.split('T')[0] : ''),
+                                    scheduled_date: newDate || originalDate,
                                     scheduled_time: newTime,
                                     is_manual_schedule: isManualSchedule ? '1' : '0'
                                 });
@@ -497,18 +525,28 @@ document.addEventListener('DOMContentLoaded', function(){
                                 var isVirtualEvent = String(eventId).startsWith('sub-') || String(eventId).startsWith('staff-');
                                 var endpoint = '<?= base_url('schedule/update-priority/') ?>' + eventId;
                                 
+                                console.log('Sending to endpoint (Bootstrap):', endpoint);
+                                
                                 // Save the priority/schedule then reload
                                 fetch(endpoint, { 
                                     method:'POST', 
                                     headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded'}, 
                                     body: params.toString() 
                                 })
-                                .then(function(r){ return r.json ? r.json() : r.text(); })
+                                .then(function(r){ 
+                                    console.log('Response status:', r.status);
+                                    return r.json().catch(function() { return {success: false, message: 'Invalid JSON response'}; }); 
+                                })
                                 .then(function(data){ 
+                                    console.log('Response data:', data);
+                                    if (data.success === false) {
+                                        alert('Error: ' + (data.message || 'Failed to save changes'));
+                                    }
                                     location.reload();
                                 })
                                 .catch(function(err){ 
-                                    alert('Error saving changes');
+                                    console.error('Fetch error:', err);
+                                    alert('Error saving changes: ' + err.message);
                                     location.reload();
                                 });
                             } else {
