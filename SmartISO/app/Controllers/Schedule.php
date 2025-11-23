@@ -1112,6 +1112,28 @@ class Schedule extends BaseController
             return $this->response->setJSON(['success' => false, 'message' => 'Schedule not found', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
         }
 
+        // Ensure schedule has an assigned staff if the submission has one
+        $submission = null;
+        if (empty($schedule['assigned_staff_id']) && !empty($schedule['submission_id'])) {
+            try {
+                $submission = $this->submissionModel->find($schedule['submission_id']);
+                if (!empty($submission['service_staff_id'])) {
+                    $data['assigned_staff_id'] = $submission['service_staff_id'];
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'Failed to load submission for schedule #' . ($schedule['id'] ?? 'unknown') . ': ' . $e->getMessage());
+            }
+        } else {
+            // Load submission when present for later updates
+            if (!empty($schedule['submission_id'])) {
+                try {
+                    $submission = $this->submissionModel->find($schedule['submission_id']);
+                } catch (\Exception $e) {
+                    log_message('error', 'Failed to load submission for schedule #' . ($schedule['id'] ?? 'unknown') . ': ' . $e->getMessage());
+                }
+            }
+        }
+
         $completionNotes = $this->request->getPost('completion_notes');
         
         $updateData = [
@@ -1386,6 +1408,17 @@ class Schedule extends BaseController
                     'csrf_name' => csrf_token(), 
                     'csrf_hash' => csrf_hash()
                 ]);
+            }
+            // If priority was set, ensure submission status reflects pending service so staff see it
+            if ($priorityLevel) {
+                try {
+                    $currentStatus = $submission['status'] ?? null;
+                    if (!in_array($currentStatus, ['pending_service', 'completed'])) {
+                        $this->submissionModel->update($submissionId, ['status' => 'pending_service']);
+                    }
+                } catch (\Exception $e) {
+                    log_message('error', 'Failed to update submission status after priority change for submission ID ' . $submissionId . ': ' . $e->getMessage());
+                }
             }
         } catch (\Exception $e) {
             log_message('error', "Error updating priority for submission {$submissionId}: " . $e->getMessage());
