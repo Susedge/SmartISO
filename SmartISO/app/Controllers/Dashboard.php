@@ -69,15 +69,19 @@ class Dashboard extends BaseController
         } 
         elseif ($userType === 'approving_authority') {
             // For approving authorities - count forms they need to approve
-            // Apply department filtering for non-admin approvers
+            // Filter by FORM's department (forms belong to departments)
             $builder = $this->db->table('form_submissions')
-                                ->join('users', 'users.id = form_submissions.submitted_by');
+                                ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+                                ->join('users', 'users.id = form_submissions.submitted_by', 'left');
             
+            // Filter by form's department for department-scoped approvers
             if (!$isGlobalAdmin && $userDepartmentId) {
-                $builder->where('users.department_id', $userDepartmentId);
+                $builder->where('forms.department_id', $userDepartmentId);
+                log_message('info', 'Dashboard - Approver status filtered by FORM department: ' . $userDepartmentId);
             }
-            if ($isDepartmentAdmin) {
-                $builder->where('users.department_id', session()->get('scoped_department_id'));
+            if ($isDepartmentAdmin && session()->get('scoped_department_id')) {
+                $builder->where('forms.department_id', session()->get('scoped_department_id'));
+                log_message('info', 'Dashboard - Department admin status filtered by FORM department: ' . session()->get('scoped_department_id'));
             }
             
             $statusSummary['pending_approval'] = (clone $builder)

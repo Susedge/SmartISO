@@ -41,14 +41,11 @@
                                     $priority = $submission['priority_level'] ?? $submission['priority'] ?? '';
                                     
                                     if (!empty($priority)):
-                                        // Map priority levels to labels and colors (uniform across all pages)
+                                        // Map priority levels to labels and colors (3-level system matching calendar)
                                         $priorityMap = [
                                             'low' => ['label' => 'Low', 'color' => 'success'],
-                                            'normal' => ['label' => 'Normal', 'color' => 'info'],
                                             'medium' => ['label' => 'Medium', 'color' => 'warning'],
-                                            'high' => ['label' => 'High', 'color' => 'danger'],
-                                            'urgent' => ['label' => 'Urgent', 'color' => 'danger'],
-                                            'critical' => ['label' => 'Critical', 'color' => 'dark']
+                                            'high' => ['label' => 'High', 'color' => 'danger']
                                         ];
                                         
                                         $priorityLabel = $priorityMap[$priority]['label'] ?? ucfirst($priority);

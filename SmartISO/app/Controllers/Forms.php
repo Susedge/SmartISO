@@ -1799,6 +1799,7 @@ class Forms extends BaseController
                 'approver_signature_date' => date('Y-m-d H:i:s'),
                 'approval_comments' => $comments,
                 'service_staff_id' => $serviceStaffId, // NEW: Save selected service staff
+                'priority' => 'low' // FORCE: All newly approved submissions default to low priority
             ];
             
             log_message('info', "[APPROVAL] Updating submission {$submissionId} with data: " . json_encode($updateData));
@@ -1825,49 +1826,16 @@ class Forms extends BaseController
             $existingSchedule = $scheduleModel->where('submission_id', $submissionId)->first();
             
             if (!$existingSchedule) {
-                // Get submission priority to copy to schedule
-                $submission = $this->formSubmissionModel->find($submissionId);
-                $submissionPriority = $submission['priority'] ?? 'low';  // Default to 'low' if not set
-                
-                // Map form_submissions.priority to schedules.priority_level
-                $priorityMapping = [
-                    'low' => 'low',
-                    'normal' => 'low',
-                    'medium' => 'medium',
-                    'high' => 'high',
-                    'urgent' => 'high',
-                    'critical' => 'high'
-                ];
-                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'low';  // Default to low
+                // FORCE: All newly approved submissions get LOW priority
+                // This ensures consistent priority handling without needing fix scripts
+                $schedulePriority = 'low';
                 
                 // Use approval date as the scheduled date
                 $approvalDate = date('Y-m-d');
                 
-                // Calculate ETA from approval date based on priority
-                $etaDays = null;
-                $estimatedDate = null;
-                if ($schedulePriority === 'low') {
-                    $etaDays = 7;
-                    $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
-                } elseif ($schedulePriority === 'medium') {
-                    $etaDays = 5;
-                    // Use business days for medium priority
-                    try {
-                        $scheduleController = new \App\Controllers\Schedule();
-                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 5);
-                    } catch (\Throwable $e) {
-                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +5 days'));
-                    }
-                } elseif ($schedulePriority === 'high') {
-                    $etaDays = 3;
-                    // Use business days for high priority
-                    try {
-                        $scheduleController = new \App\Controllers\Schedule();
-                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 3);
-                    } catch (\Throwable $e) {
-                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +3 days'));
-                    }
-                }
+                // Calculate ETA for low priority (7 days)
+                $etaDays = 7;
+                $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
                 
                 $schedData = [
                     'submission_id' => $submissionId,
@@ -1881,11 +1849,9 @@ class Forms extends BaseController
                     'status' => 'pending'
                 ];
                 
-                // Add ETA fields if calculated
-                if ($etaDays && $estimatedDate) {
-                    $schedData['eta_days'] = $etaDays;
-                    $schedData['estimated_date'] = $estimatedDate;
-                }
+                // Always add ETA fields for low priority
+                $schedData['eta_days'] = $etaDays;
+                $schedData['estimated_date'] = $estimatedDate;
 
                 // Insert schedule entry - this is CRITICAL and REQUIRED
                 log_message('info', "[APPROVAL] About to insert schedule for submission {$submissionId} with data: " . json_encode($schedData));
@@ -1909,60 +1875,24 @@ class Forms extends BaseController
                 // Schedule exists - UPDATE with approval date and assigned_staff_id
                 log_message('info', "[APPROVAL] Schedule already exists for submission {$submissionId} (Schedule ID: {$existingSchedule['id']}), updating with approval date and assigned_staff_id {$serviceStaffId}");
                 
-                // Get submission priority to recalculate ETA from approval date
-                $submission = $this->formSubmissionModel->find($submissionId);
-                $submissionPriority = $submission['priority'] ?? 'low';
-                
-                // Map priority
-                $priorityMapping = [
-                    'low' => 'low',
-                    'normal' => 'low',
-                    'medium' => 'medium',
-                    'high' => 'high',
-                    'urgent' => 'high',
-                    'critical' => 'high'
-                ];
-                $schedulePriority = $priorityMapping[$submissionPriority] ?? 'low';  // Default to low
+                // FORCE: All newly approved submissions get LOW priority
+                $schedulePriority = 'low';
                 
                 // Use approval date as the scheduled date
                 $approvalDate = date('Y-m-d');
                 
-                // Calculate ETA from approval date
-                $etaDays = null;
-                $estimatedDate = null;
-                if ($schedulePriority === 'low') {
-                    $etaDays = 7;
-                    $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
-                } elseif ($schedulePriority === 'medium') {
-                    $etaDays = 5;
-                    try {
-                        $scheduleController = new \App\Controllers\Schedule();
-                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 5);
-                    } catch (\Throwable $e) {
-                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +5 days'));
-                    }
-                } elseif ($schedulePriority === 'high') {
-                    $etaDays = 3;
-                    try {
-                        $scheduleController = new \App\Controllers\Schedule();
-                        $estimatedDate = $scheduleController->addBusinessDays($approvalDate, 3);
-                    } catch (\Throwable $e) {
-                        $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +3 days'));
-                    }
-                }
+                // Calculate ETA for low priority (7 days)
+                $etaDays = 7;
+                $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
                 
                 // Update schedule with approval date and ETA
                 $updateData = [
                     'assigned_staff_id' => $serviceStaffId,
                     'scheduled_date' => $approvalDate,  // Update to approval date
-                    'priority_level' => $schedulePriority
+                    'priority_level' => $schedulePriority,
+                    'eta_days' => $etaDays,
+                    'estimated_date' => $estimatedDate
                 ];
-                
-                // Add ETA fields if calculated
-                if ($etaDays && $estimatedDate) {
-                    $updateData['eta_days'] = $etaDays;
-                    $updateData['estimated_date'] = $estimatedDate;
-                }
                 
                 $updateSuccess = $scheduleModel->update($existingSchedule['id'], $updateData);
                 if ($updateSuccess) {

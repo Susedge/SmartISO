@@ -238,6 +238,10 @@ document.addEventListener('DOMContentLoaded', function(){
                 // Event Title Section
                 parts.push('<div class="fc-event-section">');
                 parts.push('<div class="fc-event-title">' + escapeHtml(info.event.title || 'Service Event') + '</div>');
+                // Add Submission ID
+                if (ev.submission_id) {
+                    parts.push('<div class="text-muted small mt-1"><i class="fas fa-hashtag me-1"></i>Submission ID: <strong>' + escapeHtml(ev.submission_id) + '</strong></div>');
+                }
                 
                 // Status and Priority Badges
                 parts.push('<div class="fc-badge-container">');

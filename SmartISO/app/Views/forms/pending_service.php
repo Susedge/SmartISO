@@ -10,9 +10,10 @@
             <div class="alert alert-info">There are no forms waiting for service.</div>
         <?php else: ?>
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover" id="pending-service-table">
                     <thead>
                         <tr>
+                            <th>ID</th>
                             <th>Form</th>
                             <th>Requestor</th>
                             <th>Priority</th>
@@ -24,6 +25,7 @@
                     <tbody>
                         <?php foreach ($submissions as $item): ?>
                         <tr>
+                            <td><strong>#<?= esc($item['id']) ?></strong></td>
                             <td><?= esc($item['form_code']) ?> - <?= esc($item['form_description']) ?></td>
                             <td><?= esc($item['requestor_name']) ?></td>
                             <td>
@@ -32,14 +34,11 @@
                                 // Prefer schedule priority if available, fallback to submission priority
                                 $priority = $item['priority_level'] ?? $item['priority'] ?? '';
                                 
-                                // Map priority levels to labels and colors (3-level system)
+                                // Map priority levels to labels and colors (3-level system matching calendar)
                                 $priorityMap = [
                                     'high' => ['label' => 'High', 'color' => 'danger'],
                                     'medium' => ['label' => 'Medium', 'color' => 'warning'],
-                                    'low' => ['label' => 'Low', 'color' => 'success'],
-                                    'normal' => ['label' => 'Normal', 'color' => 'warning'],
-                                    'urgent' => ['label' => 'Urgent', 'color' => 'danger'],
-                                    'critical' => ['label' => 'Critical', 'color' => 'danger']
+                                    'low' => ['label' => 'Low', 'color' => 'success']
                                 ];
                                 
                                 $priorityLabel = !empty($priority) ? ($priorityMap[$priority]['label'] ?? ucfirst($priority)) : 'None';
@@ -68,4 +67,21 @@
         <?php endif; ?>
     </div>
 </div>
+
+<?= $this->section('scripts') ?>
+<script>
+$(document).ready(function() {
+    $('#pending-service-table').DataTable({
+        order: [[0, 'desc']], // Sort by ID descending (newest first)
+        pageLength: 25,
+        language: {
+            search: "Search submissions:",
+            lengthMenu: "Show _MENU_ submissions per page",
+            info: "Showing _START_ to _END_ of _TOTAL_ submissions"
+        }
+    });
+});
+</script>
+<?= $this->endSection() ?>
+
 <?= $this->endSection() ?>
