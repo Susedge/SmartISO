@@ -974,12 +974,13 @@ class Forms extends BaseController
         
         // Check permissions - allow view based on role
         $canView = false;
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         
-        if ($userType === 'admin' || $userType === 'approving_authority' || $userType === 'service_staff') {
+        if ($isGlobalAdmin || $userType === 'service_staff') {
             $canView = true;
-        } else if ($userType === 'department_admin') {
-            // Department admins can view submissions from their department
-            $userDepartmentId = session()->get('department_id');
+        } else if ($userType === 'approving_authority' || $userType === 'department_admin') {
+            // Non-admin approvers and department admins can only view submissions from their department
             if ($userDepartmentId) {
                 $submitter = $this->userModel->find($submission['submitted_by']);
                 if ($submitter && $submitter['department_id'] == $userDepartmentId) {
@@ -1133,6 +1134,18 @@ class Forms extends BaseController
                                 ->with('error', 'This form cannot be signed at this time');
             }
             
+            // CRITICAL: Department check for non-admin approvers
+            $userDepartmentId = session()->get('department_id');
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+            
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $submitter = $this->userModel->find($submission['submitted_by']);
+                if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                    return redirect()->to('/forms/pending-approval')
+                        ->with('error', 'You can only approve submissions from your department');
+                }
+            }
+            
             // Get approval comment
             $comments = $this->request->getPost('approval_comments') ?? '';
             // Optional: assign service staff if provided on the approval form
@@ -1238,8 +1251,10 @@ class Forms extends BaseController
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         
-        if ($userType !== 'approving_authority' && $userType !== 'admin') {
+        if (!in_array($userType, ['approving_authority', 'department_admin', 'admin', 'superuser'])) {
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
@@ -1248,6 +1263,15 @@ class Forms extends BaseController
         if (!$submission || $submission['status'] !== 'submitted') {
             return redirect()->to('/forms/pending-approval')
             ->with('error', 'Form not found or cannot be rejected');
+        }
+        
+        // Department check for non-admin approvers
+        if (!$isGlobalAdmin && $userDepartmentId) {
+            $submitter = $this->userModel->find($submission['submitted_by']);
+            if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                return redirect()->to('/dashboard')
+                    ->with('error', 'You can only reject submissions from your department');
+            }
         }
         
         $reason = $this->request->getPost('reject_reason');
@@ -1290,6 +1314,20 @@ class Forms extends BaseController
             }
             
             log_message('info', "User {$userId} verified as assigned approver for form {$submission['form_id']}");
+            
+            // CRITICAL: Department check for non-admin approvers
+            $userType = session()->get('user_type');
+            $userDepartmentId = session()->get('department_id');
+            $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+            
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $submitter = $this->userModel->find($submission['submitted_by']);
+                if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                    log_message('warning', "User {$userId} attempted to approve submission {$submissionId} from different department");
+                    return redirect()->to('/forms/pending-approval')
+                        ->with('error', 'You can only approve submissions from your department');
+                }
+            }
             
             // Get form details
             $form = $this->formModel->find($submission['form_id']);
@@ -1759,6 +1797,20 @@ class Forms extends BaseController
         
         log_message('info', "User {$userId} verified as assigned approver for form {$submission['form_id']}");
         
+        // CRITICAL: Department check for non-admin approvers
+        $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        
+        if (!$isGlobalAdmin && $userDepartmentId) {
+            $submitter = $this->userModel->find($submission['submitted_by']);
+            if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                log_message('warning', "User {$userId} attempted to approve/reject submission {$submissionId} from different department");
+                return redirect()->to('/forms/pending-approval')
+                    ->with('error', 'You can only process submissions from your department');
+            }
+        }
+        
         // Update submission based on action
         if ($action === 'approve') {
             // Require service staff selection when approving
@@ -1964,8 +2016,10 @@ class Forms extends BaseController
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         
-        if ($userType !== 'approving_authority' && $userType !== 'admin') {
+        if (!in_array($userType, ['approving_authority', 'department_admin', 'admin', 'superuser'])) {
             return redirect()->to('/dashboard')->with('error', 'Unauthorized access');
         }
         
@@ -1985,6 +2039,15 @@ class Forms extends BaseController
         if (!$submission || $submission['status'] !== 'submitted') {
             return redirect()->to('/forms/pending-approval')
                             ->with('error', 'Form not found or cannot be rejected');
+        }
+        
+        // CRITICAL: Department check for non-admin approvers
+        if (!$isGlobalAdmin && $userDepartmentId) {
+            $submitter = $this->userModel->find($submission['submitted_by']);
+            if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
+                return redirect()->to('/dashboard')
+                    ->with('error', 'You can only reject submissions from your department');
+            }
         }
         
         // Record rejection
