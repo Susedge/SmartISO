@@ -58,57 +58,42 @@
                 </div>
             </form>
         <?php else: ?>
-            <!-- Non-admin users access information -->
-            <?php if (session()->get('user_type') === 'requestor'): ?>
-                <!-- Requestors can see all forms without department/office restrictions -->
-                <div class="mb-3">
-                    <div class="alert alert-success mb-2">
-                        <i class="fas fa-check-circle me-2"></i>
-                        <strong>Your Access:</strong>
-                        <?php if (isset($userDepartment) && $userDepartment): ?>
-                            Department: <strong><?= esc($userDepartment['description']) ?></strong>
-                        <?php endif; ?>
-                        <br><small class="text-muted">You can view and submit all available forms from any department.</small>
-                    </div>
-                </div>
-            <?php else: ?>
-                <!-- Non-requestor, non-admin users see their assigned department (read-only) and can filter by office -->
-                <div class="mb-3">
-                    <div class="alert alert-info mb-2">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Your Access:</strong>
-                        <?php if (isset($userDepartment) && $userDepartment): ?>
-                            Department: <strong><?= esc($userDepartment['description']) ?></strong>
-                        <?php endif; ?>
-                        <br><small class="text-muted">You can view and submit forms from your assigned department.</small>
-                    </div>
-                    
-                    <?php if (isset($departmentOffices) && !empty($departmentOffices)): ?>
-                        <!-- Office filter for non-admin, non-requestor users -->
-                        <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end">
-                            <div class="col-sm-6 col-md-4">
-                                <label class="form-label mb-1 fw-semibold">Filter by Office</label>
-                                <select name="office" id="officeSelect" class="form-select form-select-sm">
-                                    <option value="">All Offices</option>
-                                    <?php foreach ($departmentOffices as $office): ?>
-                                        <option value="<?= esc($office['id']) ?>" <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
-                                            <?= esc($office['description']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="col-sm-6 col-md-3 d-flex gap-2">
-                                <button type="submit" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-filter me-1"></i> Filter
-                                </button>
-                                <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm flex-shrink-0 <?= empty($selectedOffice) ? 'd-none':'' ?>">
-                                    <i class="fas fa-redo me-1"></i> Reset
-                                </button>
-                            </div>
-                        </form>
+            <!-- Non-admin users see their assigned department (read-only) and can filter by office -->
+            <div class="mb-3">
+                <div class="alert alert-info mb-2">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Your Access:</strong>
+                    <?php if (isset($userDepartment) && $userDepartment): ?>
+                        Department: <strong><?= esc($userDepartment['description']) ?></strong>
                     <?php endif; ?>
+                    <br><small class="text-muted">You can view and submit forms from your assigned department.</small>
                 </div>
-            <?php endif; ?>
+                
+                <?php if (isset($departmentOffices) && !empty($departmentOffices)): ?>
+                    <!-- Office filter for non-admin users -->
+                    <form method="get" action="<?= base_url('forms') ?>" id="filtersForm" class="row gy-2 gx-3 align-items-end">
+                        <div class="col-sm-6 col-md-4">
+                            <label class="form-label mb-1 fw-semibold">Filter by Office</label>
+                            <select name="office" id="officeSelect" class="form-select form-select-sm">
+                                <option value="">All Offices</option>
+                                <?php foreach ($departmentOffices as $office): ?>
+                                    <option value="<?= esc($office['id']) ?>" <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
+                                        <?= esc($office['description']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-sm-6 col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-filter me-1"></i> Filter
+                            </button>
+                            <button type="button" id="resetFilters" class="btn btn-outline-secondary btn-sm flex-shrink-0 <?= empty($selectedOffice) ? 'd-none':'' ?>">
+                                <i class="fas fa-redo me-1"></i> Reset
+                            </button>
+                        </div>
+                    </form>
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
 
         <div class="table-responsive">
