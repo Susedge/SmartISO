@@ -467,7 +467,7 @@ class Forms extends BaseController
         $userDepartmentId = session()->get('department_id');
         
         // Admin and superuser can see all submissions
-        // Department admins see only submissions for forms in their department
+        // Department admins see only their department's submissions
         // Regular users see only their own submissions
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         $isDepartmentAdmin = ($userType === 'department_admin');
@@ -475,17 +475,17 @@ class Forms extends BaseController
         if ($isGlobalAdmin) {
             // Global admins see everything
             $filterUserId = null;
-            $filterFormDepartmentId = null;
+            $filterDepartmentId = null;
             $title = 'All Form Submissions';
         } elseif ($isDepartmentAdmin && $userDepartmentId) {
-            // Department admins see all submissions for forms that belong to their department
+            // Department admins see all submissions from their department
             $filterUserId = null;
-            $filterFormDepartmentId = $userDepartmentId;
+            $filterDepartmentId = $userDepartmentId;
             $title = 'Department Form Submissions';
         } else {
             // Regular users see only their own submissions
             $filterUserId = $userId;
-            $filterFormDepartmentId = null;
+            $filterDepartmentId = null;
             $title = 'My Form Submissions';
         }
         
@@ -504,9 +504,8 @@ class Forms extends BaseController
             $builder->where('form_submissions.submitted_by', $filterUserId);
         }
         
-        if ($filterFormDepartmentId) {
-            // Filter by form's department, not user's department
-            $builder->where('forms.department_id', $filterFormDepartmentId);
+        if ($filterDepartmentId) {
+            $builder->where('users.department_id', $filterDepartmentId);
         }
         
         $builder->orderBy('form_submissions.updated_at', 'DESC');
