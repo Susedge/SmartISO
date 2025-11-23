@@ -1227,8 +1227,19 @@ class Schedule extends BaseController
             ];
             
             $newScheduleId = $this->scheduleModel->insert($scheduleData);
-            
+
             if ($newScheduleId) {
+                // If submission isn't already pending service or completed, mark it as pending_service
+                $currentStatus = $submission['status'] ?? null;
+                if (!in_array($currentStatus, ['pending_service', 'completed'])) {
+                    try {
+                        $this->submissionModel->update($submissionId, ['status' => 'pending_service']);
+                    } catch (\Exception $e) {
+                        // Log but do not fail the schedule creation if submission update fails
+                        log_message('error', 'Failed to update submission status for ID ' . $submissionId . ': ' . $e->getMessage());
+                    }
+                }
+
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => 'Schedule created successfully',
