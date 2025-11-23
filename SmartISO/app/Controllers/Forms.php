@@ -2623,19 +2623,11 @@ class Forms extends BaseController
         // Get user's office for display purposes only (not for filtering)
         $userOfficeId = session()->get('office_id');
         
-        // Get all users from the department
-        $deptUserIds = $this->userModel
-            ->where('department_id', $userDeptId)
-            ->findColumn('id');
-        
-        if (empty($deptUserIds)) {
-            $deptUserIds = [0]; // No users, return empty result
-        }
-        
-        // Build query - department-based only, disregarding office restrictions
+        // Build query - Filter by FORM's department (forms belong to departments)
+        // This ensures dept admins see submissions for forms they manage, regardless of who submitted them
         $builder = $this->formSubmissionModel->builder();
-        $builder->select('form_submissions.*, forms.description as form_description, 
-                         users.full_name as requestor_name, users.username as requestor_username,
+        $builder->select('form_submissions.*, forms.description as form_description, forms.department_id as form_department_id,
+                         users.full_name as requestor_name, users.username as requestor_username, users.department_id as requestor_department_id,
                          offices.description as office_name,
                          departments.description as department_name,
                          schedules.priority_level, schedules.eta_days, schedules.estimated_date,
@@ -2645,19 +2637,18 @@ class Forms extends BaseController
                 ->join('offices', 'offices.id = users.office_id', 'left')
                 ->join('departments', 'departments.id = users.department_id', 'left')
                 ->join('schedules', 'schedules.submission_id = form_submissions.id', 'left')
-                ->whereIn('form_submissions.submitted_by', $deptUserIds)
+                ->where('forms.department_id', $userDeptId)  // FIXED: Filter by form's department
                 ->orderBy('form_submissions.created_at', 'DESC');
+        
+        log_message('info', "Department submissions filtered by FORM department {$userDeptId}");
         
         // Apply filters
         if (!empty($statusFilter)) {
             $builder->where('form_submissions.status', $statusFilter);
         }
         
-        // Apply optional office filter (user-selected, not enforced)
-        if (!empty($officeFilter)) {
-            $builder->where('users.office_id', (int)$officeFilter);
-            log_message('info', "Department submissions filtered by office {$officeFilter}");
-        }
+        // Note: Office filter removed - forms belong to departments, not offices
+        // Office is a property of the user/requestor, not relevant for form ownership
         
         if (!empty($searchQuery)) {
             $builder->groupStart()
@@ -2673,25 +2664,17 @@ class Forms extends BaseController
         // Get paginated results
         $submissions = $builder->limit($perPage, ($page - 1) * $perPage)->get()->getResultArray();
         
-        // Get offices in department for filter
+        // Get offices in department for filter (kept for backwards compatibility, but not used for filtering)
         $deptOffices = $this->officeModel
             ->where('department_id', $userDeptId)
             ->orderBy('description', 'ASC')
             ->findAll();
         
-        // Calculate statistics with correct status values
-        // Status values: 'submitted', 'approved', 'pending_service', 'rejected', 'completed'
-        
-        // Helper function to build stats query - department-based only
-        $buildStatsQuery = function() use ($deptUserIds, $officeFilter) {
+        // Calculate statistics - Filter by FORM's department
+        $buildStatsQuery = function() use ($userDeptId) {
             $builder = $this->formSubmissionModel->builder();
-            $builder->whereIn('submitted_by', $deptUserIds);
-            
-            // Apply office filter to stats if selected
-            if (!empty($officeFilter)) {
-                $builder->join('users su', 'su.id = form_submissions.submitted_by')
-                       ->where('su.office_id', (int)$officeFilter);
-            }
+            $builder->join('forms', 'forms.id = form_submissions.form_id')
+                   ->where('forms.department_id', $userDeptId);  // FIXED: Filter by form's department
             return $builder;
         };
         
