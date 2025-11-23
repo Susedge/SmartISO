@@ -100,8 +100,8 @@ class Schedule extends BaseController
                 $schedules = [];
             }
         }
-        // Approving authority and department admin sees schedules for submissions they need to approve OR have approved (filtered by department)
-        elseif ($userType === 'approving_authority' || $userType === 'department_admin') {
+        // Approving authority sees schedules for submissions they need to approve OR have approved (filtered by department)
+        elseif ($userType === 'approving_authority') {
             // Get submissions that need approval OR already approved by this user
             $builder = $this->submissionModel->builder();
             $builder->select('form_submissions.*')
@@ -112,7 +112,7 @@ class Schedule extends BaseController
                         ->orWhere('form_submissions.approver_id', $userId) // Already approved by this user
                     ->groupEnd();
             
-            // Filter by department for non-admin approvers and department admins
+            // Filter by department for non-admin approvers
             if (!$isGlobalAdmin && $userDepartmentId) {
                 $builder->where('users.department_id', $userDepartmentId);
             }
@@ -547,21 +547,15 @@ class Schedule extends BaseController
                 $schedules = [];
             }
         }
-        // Approving authority and department admin sees schedules for submissions they need to approve OR have approved
-        elseif ($userType === 'approving_authority' || $userType === 'department_admin') {
+        // Approving authority sees schedules for submissions they need to approve OR have approved
+        elseif ($userType === 'approving_authority') {
             $builder = $this->submissionModel->builder();
             $builder->select('form_submissions.*')
-                    ->join('users', 'users.id = form_submissions.submitted_by')
                     ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
                     ->groupStart()
                         ->where('form_submissions.status', 'submitted') // Pending approval
                         ->orWhere('form_submissions.approver_id', $userId) // Already approved
                     ->groupEnd();
-            
-            // Filter by department for non-admin approvers and department admins
-            if (!$isGlobalAdmin && $userDepartmentId) {
-                $builder->where('users.department_id', $userDepartmentId);
-            }
             
             $submissions = $builder->get()->getResultArray();
             $submissionIds = array_column($submissions, 'id');
