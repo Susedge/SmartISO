@@ -128,8 +128,8 @@ class Schedule extends BaseController
                     ->join('users', 'users.id = form_submissions.submitted_by')
                     ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
                     ->groupStart()
-                        ->where('form_submissions.status', 'submitted') // Pending approval
-                        ->orWhere('form_submissions.approver_id', $userId) // Already approved by this user
+                        ->whereIn('form_submissions.status', ['submitted', 'approved', 'completed']) // Show submitted, approved and completed for approvers
+                            ->orWhere('form_submissions.approver_id', $userId) // Already approved by this user
                     ->groupEnd();
             
             // Filter by department for non-admin approvers
@@ -635,9 +635,9 @@ class Schedule extends BaseController
                     ->join('users', 'users.id = form_submissions.submitted_by', 'left')
                     ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
                     ->groupStart()
-                        ->where('form_submissions.status', 'submitted') // Pending approval
-                        ->orWhere('form_submissions.approver_id', $userId) // Already approved
-                    ->groupEnd();
+                    ->whereIn('form_submissions.status', ['submitted','approved','completed']) // Pending/approved/completed
+                    ->orWhere('form_submissions.approver_id', $userId) // Already approved
+                ->groupEnd();
 
             // If this approver is not a global admin, restrict to their department
             if (!$isGlobalAdmin && $userDepartmentId) {
@@ -835,7 +835,7 @@ class Schedule extends BaseController
                 'duration_minutes' => 60,
                 'location' => '',
                 'notes' => 'Pending schedule assignment',
-                'status' => 'pending',
+                'status' => $row['submission_status'] ?? 'pending',
                 'assigned_staff_id' => null,
                 'assigned_staff_name' => null,
                 'priority' => $row['priority'] ?? 0,
@@ -1045,7 +1045,7 @@ class Schedule extends BaseController
             ->join('form_signatories fsig', 'fsig.form_id = fs.form_id AND fsig.user_id = ' . $userId, 'inner')
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->groupStart()
-                ->where('fs.status', 'submitted') // Pending approval
+                ->whereIn('fs.status', ['submitted','approved','completed']) // Pending, approved, or completed
                 ->orWhere('fs.approver_id', $userId) // Already approved by this user
             ->groupEnd();
         
