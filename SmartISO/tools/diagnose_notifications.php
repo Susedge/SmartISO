@@ -2,8 +2,6 @@
 // CLI diagnostic: diagnose notifications for a submission
 // Usage: php tools/diagnose_notifications.php <submission_id>
 
-require __DIR__ . '/../vendor/autoload.php';
-
 if ($argc < 2) {
     echo "Usage: php tools/diagnose_notifications.php <submission_id>\n";
     exit(1);
@@ -14,71 +12,83 @@ if (!$submissionId) {
     exit(1);
 }
 
-// Bootstrap CodeIgniter DB access
-$c = new \Config\Database();
-$db = $c->connect();
+// DB connection parameters (can be overridden via env vars)
+$dbHost = getenv('DB_HOST') ?: '127.0.0.1';
+$dbUser = getenv('DB_USER') ?: 'root';
+$dbPass = getenv('DB_PASS') ?: '';
+$dbName = getenv('DB_NAME') ?: 'smartiso';
+$dbPort = getenv('DB_PORT') ?: 3306;
 
-echo "Diagnostic for submission_id={$submissionId}\n\n";
+echo "Connecting to DB {$dbUser}@{$dbHost}:{$dbPort}/{$dbName}\n";
 
-// Show submission
-$submission = $db->table('form_submissions')->where('id', $submissionId)->get()->getRowArray();
+$mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int)$dbPort);
+if ($mysqli->connect_errno) {
+    echo "DB connection failed: ({$mysqli->connect_errno}) {$mysqli->connect_error}\n";
+    exit(1);
+}
+
+function fetchRow($mysqli, $sql) {
+    $res = $mysqli->query($sql);
+    if (!$res) return null;
+    return $res->fetch_assoc();
+}
+function fetchAll($mysqli, $sql) {
+    $res = $mysqli->query($sql);
+    if (!$res) return [];
+    $rows = [];
+    while ($r = $res->fetch_assoc()) $rows[] = $r;
+    return $rows;
+}
+
+echo "\nDiagnostic for submission_id={$submissionId}\n\n";
+
+$submission = fetchRow($mysqli, "SELECT * FROM form_submissions WHERE id = " . (int)$submissionId);
 if (!$submission) {
     echo "Submission not found\n";
     exit(1);
 }
 print_r($submission);
 
-// Show notification rows
-$rows = $db->table('notifications')->where('submission_id', $submissionId)->orderBy('created_at','ASC')->get()->getResultArray();
+$rows = fetchAll($mysqli, "SELECT * FROM notifications WHERE submission_id = " . (int)$submissionId . " ORDER BY created_at ASC");
 echo "\nExisting notification rows ({" . count($rows) . "}):\n";
 foreach ($rows as $r) {
     echo "- id={$r['id']} user_id={$r['user_id']} title={$r['title']} read={$r['read']} created_at={$r['created_at']}\n";
 }
 
-// Simulate recipients for service completion (mirror NotificationModel logic)
-require_once __DIR__ . '/../app/Models/NotificationModel.php';
-require_once __DIR__ . '/../app/Models/FormSignatoryModel.php';
-require_once __DIR__ . '/../app/Models/UserModel.php';
-require_once __DIR__ . '/../app/Models/FormModel.php';
-
-$nm = new \App\Models\NotificationModel();
-$userModel = new \App\Models\UserModel();
-$formModel = new \App\Models\FormModel();
-
+// Simulate recipients similar to NotificationModel::createServiceCompletionNotification
+$recipients = [];
 $requestorId = $submission['submitted_by'] ?? null;
 $approverId = $submission['approver_id'] ?? null;
 $formId = $submission['form_id'] ?? null;
-
-$recipients = [];
 if ($requestorId) $recipients[$requestorId] = 'requestor';
 if ($approverId) $recipients[$approverId] = 'approver';
 
-// department admins via form's department
 if ($formId) {
-    $form = $formModel->find($formId);
+    $form = fetchRow($mysqli, "SELECT * FROM forms WHERE id = " . (int)$formId);
     $formDept = $form['department_id'] ?? null;
     if ($formDept) {
-        $deptAdmins = $userModel->where('user_type','department_admin')->where('department_id',$formDept)->where('active',1)->findAll();
+        $deptAdmins = fetchAll($mysqli, "SELECT id, email, active, department_id FROM users WHERE user_type = 'department_admin' AND department_id = " . (int)$formDept . " AND active = 1");
         foreach ($deptAdmins as $d) {
             $recipients[$d['id']] = 'dept_admin';
         }
     }
 }
 
-// assigned service staff
 if (!empty($submission['service_staff_id'])) {
     $recipients[$submission['service_staff_id']] = 'service_staff';
 }
 
 echo "\nSimulated recipients (per current code):\n";
 foreach ($recipients as $uid => $role) {
-    $u = $userModel->find($uid);
-    $email = isset($u['email']) ? $u['email'] : '(no email)';
+    $u = fetchRow($mysqli, "SELECT id, email, active, department_id FROM users WHERE id = " . (int)$uid);
+    $email = $u['email'] ?? '(no email)';
     $active = isset($u['active']) ? $u['active'] : 'N/A';
     $dept = isset($u['department_id']) ? $u['department_id'] : 'N/A';
     echo "- user_id={$uid} role={$role} email={$email} active={$active} dept={$dept}\n";
 }
 
 echo "\nIf the requestor is missing from the existing notification rows above then notifications are not being inserted for them.\n";
+
+$mysqli->close();
 
 exit(0);
