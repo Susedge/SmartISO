@@ -202,12 +202,34 @@ class Schedule extends BaseController
             // Use submission_status if available, otherwise fall back to schedule status
             $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
 
+            // compute view URL for this submission (if available)
+            // NOTE: if a submission is included in the calendar for the current user,
+            // it should be viewable. Mark can_view true for all calendar events so
+            // the frontend will always show the "View Request" action when present.
+            $submissionId = $schedule['submission_id'] ?? null;
+            $submittedBy = $schedule['submitted_by'] ?? null;
+
+            $canView = true; // calendar events are assumed viewable by the viewer
+
+            // Build a view URL that points to admin view for admins only, otherwise to public forms view
+            $viewBase = in_array($userType, ['admin','superuser']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/');
+            $viewUrl = $submissionId ? ($viewBase . $submissionId) : null;
+
+            // Determine view URL and make calendar events viewable by default
+            $submissionId = $schedule['submission_id'] ?? null;
+            $submittedBy = $schedule['submitted_by'] ?? null;
+            $canView = true; // calendar inclusion implies view permission
+            $viewBase = in_array($userType, ['admin','superuser']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/');
+            $viewUrl = $submissionId ? ($viewBase . $submissionId) : null;
+
             $calendarEvents[] = [
                 'id' => $schedule['id'],
                 'title' => $title,
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'] ?? null,
                 'requestor_name' => $schedule['requestor_name'] ?? null,
+                'submitted_by' => $submittedBy,
+                'submitted_by' => $submittedBy,
                 'requestor_department' => $schedule['requestor_department_name'] ?? ($schedule['requestor_department'] ?? null),
                 'submission_date' => isset($schedule['submission_created_at']) ? date('M d, Y h:i A', strtotime($schedule['submission_created_at'])) : (isset($schedule['created_at']) ? date('M d, Y h:i A', strtotime($schedule['created_at'])) : null),
                 'submission_id' => $schedule['submission_id'] ?? null,
@@ -217,7 +239,9 @@ class Schedule extends BaseController
                 'eta_days' => isset($schedule['eta_days']) ? (int)$schedule['eta_days'] : null,
                 'priority_level' => $schedule['priority_level'] ?? null,
                 'scheduled_time' => $schedule['scheduled_time'] ?? null,
-                'is_manual_schedule' => isset($schedule['is_manual_schedule']) ? (int)$schedule['is_manual_schedule'] : 0
+                'is_manual_schedule' => isset($schedule['is_manual_schedule']) ? (int)$schedule['is_manual_schedule'] : 0,
+                'can_view' => $canView,
+                'view_url' => $viewUrl
             ];
         }
         
@@ -738,7 +762,9 @@ class Schedule extends BaseController
                 'priority_level' => $schedule['priority_level'] ?? null,
                 'submission_id' => $schedule['submission_id'] ?? null,
                 'scheduled_time' => $schedule['scheduled_time'] ?? '09:00:00',
-                'is_manual_schedule' => $schedule['is_manual_schedule'] ?? 0
+                'is_manual_schedule' => $schedule['is_manual_schedule'] ?? 0,
+                'can_view' => $canView,
+                'view_url' => $viewUrl
             ];
         }
         
@@ -822,6 +848,8 @@ class Schedule extends BaseController
             $virtualSchedules[] = [
                 'id' => 'sub-' . $row['submission_id'], // Prefix with 'sub-' to distinguish from real schedules
                 'submission_id' => $row['submission_id'],
+                'submitted_by' => $row['submitted_by'] ?? null,
+                'submitted_by' => $row['submitted_by'] ?? null,
                 'form_id' => $row['form_id'],
                 'panel_name' => $row['panel_name'],
                 'submission_status' => $row['submission_status'],
@@ -1002,6 +1030,8 @@ class Schedule extends BaseController
             $virtualSchedules[] = [
                 'id' => 'sub-' . $row['submission_id'],
                 'submission_id' => $row['submission_id'],
+                'submitted_by' => $row['submitted_by'] ?? null,
+                'submitted_by' => $userId,
                 'form_id' => $row['form_id'],
                 'panel_name' => $row['panel_name'],
                 'submission_status' => $row['submission_status'],

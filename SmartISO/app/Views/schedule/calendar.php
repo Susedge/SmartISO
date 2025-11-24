@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 parts.push('<div class="fc-event-section fc-event-top d-flex justify-content-between align-items-start">');
                 // Left: submission/requestor details
                 parts.push('<div>');
-                if (ev.submission_id) {
+                if (ev.submission_id && ev.can_view) {
                     parts.push('<div class="text-muted small mb-1"><i class="fas fa-hashtag me-1"></i>Submission ID: <strong>' + escapeHtml(ev.submission_id) + '</strong></div>');
                 }
                 if (ev.requestor_name) {
@@ -322,7 +322,9 @@ document.addEventListener('DOMContentLoaded', function(){
                 // Add view request button on the right side (compact and aligned)
                 if (ev.submission_id) {
                     parts.push('<div class="mt-2">');
-                    parts.push('<a href="' + VIEW_REQUEST_BASE + escapeHtml(ev.submission_id) + '" class="btn btn-sm btn-outline-primary" target="_self"><i class="fas fa-eye me-1"></i>View Request</a>');
+                    // use server-provided view_url when available; fallback to base + id
+                    var viewHref = ev.view_url || (VIEW_REQUEST_BASE + escapeHtml(ev.submission_id));
+                    parts.push('<a href="' + escapeHtml(viewHref) + '" class="btn btn-sm btn-outline-primary" target="_self"><i class="fas fa-eye me-1"></i>View Request</a>');
                     parts.push('</div>');
                 }
                 // close right container

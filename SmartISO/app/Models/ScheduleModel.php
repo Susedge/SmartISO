@@ -49,6 +49,7 @@ class ScheduleModel extends Model
             ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->select('s.*, fs.submitted_by as submitted_by', false)
             ->join('departments d', 'd.id = u.department_id', 'left')
             ->join('users staff', 'staff.id = s.assigned_staff_id', 'left');
         
@@ -72,9 +73,9 @@ class ScheduleModel extends Model
     public function getPendingSchedules($startDate = null, $endDate = null)
     {
         $builder = $this->db->table('schedules s');
-        $builder->select('s.*, fs.panel_name, f.code as form_code, u.full_name as requestor_name,
-                          u.department_id as requestor_department_id, d.description as requestor_department_name,
-                          fs.created_at as submission_created_at')
+        $builder->select('s.*, fs.panel_name, fs.submitted_by as submitted_by, f.code as form_code, u.full_name as requestor_name,
+                  u.department_id as requestor_department_id, d.description as requestor_department_name,
+                  fs.created_at as submission_created_at')
             ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
@@ -103,10 +104,10 @@ class ScheduleModel extends Model
     {
         $builder = $this->db->table('schedules s');
         $builder->select('s.*, fs.form_id, fs.panel_name, fs.status as submission_status,
-                          f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name, u.department_id as requestor_department_id,
-                          d.description as requestor_department_name, fs.created_at as submission_created_at,
-                          staff.full_name as assigned_staff_name')
+                  fs.submitted_by as submitted_by, f.code as form_code, f.description as form_description,
+                  u.full_name as requestor_name, u.department_id as requestor_department_id,
+                  d.description as requestor_department_name, fs.created_at as submission_created_at,
+                  staff.full_name as assigned_staff_name')
             ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
@@ -152,10 +153,10 @@ class ScheduleModel extends Model
         
         $builder = $this->db->table('schedules s');
         $builder->select('s.*, fs.form_id, fs.panel_name, fs.status as submission_status,
-                          f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name, u.department_id as requestor_department_id,
-                          d.description as requestor_department_name, fs.created_at as submission_created_at,
-                          staff.full_name as assigned_staff_name')
+                  fs.submitted_by as submitted_by, f.code as form_code, f.description as form_description,
+                  u.full_name as requestor_name, u.department_id as requestor_department_id,
+                  d.description as requestor_department_name, fs.created_at as submission_created_at,
+                  staff.full_name as assigned_staff_name')
             ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
@@ -175,7 +176,7 @@ class ScheduleModel extends Model
     public function getPrioritizedSchedules()
     {
         $builder = $this->db->table('schedules s');
-        $builder->select('s.*, fs.form_id, f.code as form_code, u.full_name as requestor_name')
+        $builder->select('s.*, fs.form_id, fs.submitted_by as submitted_by, f.code as form_code, u.full_name as requestor_name')
             ->join('form_submissions fs', 'fs.id = s.submission_id', 'left')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
