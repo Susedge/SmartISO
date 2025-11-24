@@ -251,6 +251,13 @@ class Forms extends BaseController
                 'approver_signature_date' => date('Y-m-d H:i:s'),
                 'status' => 'approved'
             ]);
+
+            // Ensure schedule exists for the approval action so item appears on calendars
+            try {
+                $this->formSubmissionModel->createScheduleOnApproval($id);
+            } catch (\Throwable $e) {
+                log_message('error', 'Admin\Forms::signForm - failed to auto-create schedule for submission ' . $id . ': ' . $e->getMessage());
+            }
             
             return redirect()->to('/forms/submissions')
                             ->with('message', 'Form approved and signed successfully');

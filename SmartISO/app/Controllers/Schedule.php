@@ -853,8 +853,14 @@ class Schedule extends BaseController
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
             ->where('fs.service_staff_id', $staffId)  // ONLY filter: assigned to this service staff
-            ->whereIn('fs.status', ['approved', 'pending_service', 'completed'])
-            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false); // Only include submissions that do not already have a schedule
+            ->whereIn('fs.status', ['approved', 'pending_service', 'completed']);
+            // NOTE: intentionally include ALL submissions assigned to this staff member
+            // (do NOT exclude those with existing schedules). The calendar merges
+            // schedule rows and "virtual" submission rows and will keep the
+            // schedule row when a real schedule exists. This handles cases where
+            // a schedule exists but its assigned_staff_id is missing (so
+            // getStaffSchedules() would not return it) — we still want the
+            // submission to be visible to the assigned service staff.
         
         // REMOVED: NOT EXISTS check for schedules - we want ALL submissions to show
         // If a schedule exists from getStaffSchedules(), array_merge will handle it

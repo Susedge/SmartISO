@@ -216,9 +216,117 @@ class FormSubmissionModel extends Model
             $submission = $this->find($submissionId);
             $notificationModel = new \App\Models\NotificationModel();
             $notificationModel->createApprovalNotification($submissionId, $submission['submitted_by'], true);
+
+            // Ensure a schedule exists for newly approved submissions.
+            // We intentionally create a schedule even when assigned_staff_id
+            // is NULL so that approved submissions are visible on calendars
+            // and downstream UI flows. This mirrors the behavior of
+            // Forms::submitApproval which creates schedules on approval.
+            try {
+                $this->createScheduleOnApproval($submissionId);
+            } catch (\Throwable $e) {
+                // Non-fatal - log for diagnostics
+                log_message('error', '[approveSubmission] Failed to auto-create schedule for submission ' . $submissionId . ': ' . $e->getMessage());
+            }
         }
         
         return $result;
+    }
+
+    /**
+     * Create a schedule row when a submission is approved.
+     * - If a schedule already exists for this submission, this method will update the
+     *   existing row with approved date and assigned_staff_id when possible.
+     * - If no schedule exists, it will insert a pending schedule using approval date
+     *   and reasonable defaults to make the item visible on calendars immediately.
+     */
+    public function createScheduleOnApproval(int $submissionId)
+    {
+        $submission = $this->find($submissionId);
+        if (empty($submission)) {
+            throw new \InvalidArgumentException('Submission not found: ' . $submissionId);
+        }
+
+        // Only proceed when ScheduleModel is available
+        if (!class_exists('App\\Models\\ScheduleModel')) {
+            throw new \RuntimeException('ScheduleModel not found');
+        }
+
+        $scheduleModel = new \App\Models\ScheduleModel();
+
+        // If schedule exists, update assigned_staff and scheduled_date to approval date
+        $existing = $scheduleModel->where('submission_id', $submissionId)->first();
+
+        // Use today's date as approval/scheduled date
+        $approvalDate = date('Y-m-d');
+
+        // Map submission priority to schedule priority_level
+        $priorityMapping = [
+            'low' => 'low',
+            'normal' => 'medium',
+            'medium' => 'medium',
+            'high' => 'high',
+            'urgent' => 'high',
+            'critical' => 'high'
+        ];
+        $submissionPriority = $submission['priority'] ?? 'low';
+        $schedulePriority = $priorityMapping[$submissionPriority] ?? 'low';
+
+        // Compute ETA for mapping (low => 7 calendar days, medium => 5 business days, high => 3 business days)
+        $etaDays = null; $estimatedDate = null;
+        if ($schedulePriority === 'low') {
+            $etaDays = 7;
+            $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +7 days'));
+        } elseif ($schedulePriority === 'medium') {
+            try {
+                $schCtrl = new \App\Controllers\Schedule();
+                $estimatedDate = $schCtrl->addBusinessDays($approvalDate, 5);
+            } catch (\Throwable $e) {
+                $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +5 days'));
+            }
+            $etaDays = 5;
+        } else {
+            try {
+                $schCtrl = new \App\Controllers\Schedule();
+                $estimatedDate = $schCtrl->addBusinessDays($approvalDate, 3);
+            } catch (\Throwable $e) {
+                $estimatedDate = date('Y-m-d', strtotime($approvalDate . ' +3 days'));
+            }
+            $etaDays = 3;
+        }
+
+        if ($existing) {
+            // Update schedule with approval date and assigned_staff_id (if present on submission)
+            $update = [
+                'scheduled_date' => $approvalDate,
+                'priority_level' => $schedulePriority,
+                'eta_days' => $etaDays,
+                'estimated_date' => $estimatedDate
+            ];
+            // Preserve assigned staff if submission has one
+            if (!empty($submission['service_staff_id'])) {
+                $update['assigned_staff_id'] = $submission['service_staff_id'];
+            }
+            $scheduleModel->update($existing['id'], $update);
+            return true;
+        }
+
+        // Create new schedule
+        $schedData = [
+            'submission_id' => $submissionId,
+            'scheduled_date' => $approvalDate,
+            'scheduled_time' => '09:00:00',
+            'duration_minutes' => 60,
+            'assigned_staff_id' => $submission['service_staff_id'] ?? null,
+            'priority_level' => $schedulePriority,
+            'location' => '',
+            'notes' => 'Auto-created schedule on approval',
+            'status' => 'pending',
+            'eta_days' => $etaDays,
+            'estimated_date' => $estimatedDate
+        ];
+
+        return (bool)$scheduleModel->insert($schedData);
     }
     
     /**

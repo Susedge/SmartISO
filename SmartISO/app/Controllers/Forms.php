@@ -2015,6 +2015,12 @@ class Forms extends BaseController
                     ];
                     
                     $this->formSubmissionModel->update($submission['id'], $updateData);
+                    // Ensure we create a schedule for each newly approved submission
+                    try {
+                        $this->formSubmissionModel->createScheduleOnApproval($submission['id']);
+                    } catch (\Throwable $e) {
+                        log_message('error', 'approveAll: Failed to auto-create schedule for submission ' . $submission['id'] . ': ' . $e->getMessage());
+                    }
                     $approvedCount++;
                     
                 } catch (\Exception $e) {

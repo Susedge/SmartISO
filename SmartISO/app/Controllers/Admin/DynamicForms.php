@@ -1300,8 +1300,18 @@ class DynamicForms extends BaseController
         foreach ($submissionIds as $id) {
             $submission = $this->formSubmissionModel->find($id);
             if ($submission && $submission['status'] == 'submitted') {
-                $this->formSubmissionModel->update($id, ['status' => $status]);
-                $count++;
+                if ($action == 'approve') {
+                    // Use model helper to approve so notifications and schedules are created
+                    try {
+                        $this->formSubmissionModel->approveSubmission($id, session()->get('user_id'), 'Bulk approved by admin');
+                        $count++;
+                    } catch (\Throwable $e) {
+                        log_message('error', 'Bulk approve failed for submission ' . $id . ': ' . $e->getMessage());
+                    }
+                } else {
+                    $this->formSubmissionModel->update($id, ['status' => $status]);
+                    $count++;
+                }
             }
         }
         
