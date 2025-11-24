@@ -69,49 +69,76 @@ class Dashboard extends BaseController
         } 
         elseif ($userType === 'approving_authority') {
             // For approving authorities - count forms they need to approve
-            // Filter by FORM's department (forms belong to departments)
-            $builder = $this->db->table('form_submissions')
-                                ->join('forms', 'forms.id = form_submissions.form_id', 'left')
-                                ->join('users', 'users.id = form_submissions.submitted_by', 'left');
-            
-            // Filter by form's department for department-scoped approvers
+            // We must only count submissions that this approver is responsible for.
+            // Primary rule: if the form has explicit signatories, only those signatories can approve.
+            // Fallback: if a form has NO signatories, approvers from the same department are used.
+
+            // Base builder joining forms so we can reference form fields
+            $base = $this->db->table('form_submissions')
+                             ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+                             ->join('users', 'users.id = form_submissions.submitted_by', 'left');
+
+            // Apply department scoping for non-global approvers (department-scoped approvers)
             if (!$isGlobalAdmin && $userDepartmentId) {
-                $builder->where('forms.department_id', $userDepartmentId);
+                $base->where('forms.department_id', $userDepartmentId);
                 log_message('info', 'Dashboard - Approver status filtered by FORM department: ' . $userDepartmentId);
             }
             if ($isDepartmentAdmin && session()->get('scoped_department_id')) {
-                $builder->where('forms.department_id', session()->get('scoped_department_id'));
+                $base->where('forms.department_id', session()->get('scoped_department_id'));
                 log_message('info', 'Dashboard - Department admin status filtered by FORM department: ' . session()->get('scoped_department_id'));
             }
-            
-            $statusSummary['pending_approval'] = (clone $builder)
-                                                          ->where('form_submissions.status', 'submitted')
-                                                          ->countAllResults();
-                                                                
-            // Approved by me but NOT completed
-            $statusSummary['approved_by_me'] = $this->db->table('form_submissions')
-                                                        ->where('approver_id', $userId)
-                                                        ->whereIn('status', ['approved', 'pending_service'])
-                                                        ->groupStart()
-                                                            ->where('completed IS NULL')
-                                                            ->orWhere('completed', 0)
-                                                        ->groupEnd()
-                                                        ->where('status !=', 'completed')
-                                                        ->countAllResults();
-                                                              
-            $statusSummary['rejected_by_me'] = $this->db->table('form_submissions')
-                                                        ->where('approver_id', $userId)
-                                                        ->where('status', 'rejected')
-                                                        ->countAllResults();
-                                                              
+
+            // Build pending_approval to match Forms::pendingApproval
+            // Only include submissions in 'submitted' where the current user is an explicit signatory for the form
+            // Department admins are additionally restricted to requestor's department in the Forms page, so apply same filter
+            $pendingBuilder = $this->db->table('form_submissions')
+                                      ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+                                      ->join('users', 'users.id = form_submissions.submitted_by', 'left')
+                                      ->join('form_signatories fsig', 'fsig.form_id = forms.id', 'inner')
+                                      ->where('fsig.user_id', $userId)
+                                      ->where('form_submissions.status', 'submitted');
+
+            if ($isDepartmentAdmin && $userDepartmentId) {
+                // pendingApproval used users.department_id for department_admin scoping
+                $pendingBuilder->where('users.department_id', $userDepartmentId);
+            }
+
+            $statusSummary['pending_approval'] = $pendingBuilder->countAllResults();
+
+            // Approved by me but NOT completed (submissions where this user is the recorded approver)
+            // Match Forms::approvedByMe - only include submissions where user is recorded approver AND is a signatory for the form
+            $approvedBuilder = $this->db->table('form_submissions')
+                                        ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+                                        ->join('form_signatories fsig', 'fsig.form_id = forms.id AND fsig.user_id = ' . (int)$userId, 'inner')
+                                        ->where('form_submissions.approver_id', $userId);
+            $statusSummary['approved_by_me'] = $approvedBuilder->countAllResults();
+
+            // Rejected by me
+            // Match Forms::rejectedByMe - ensure user was assigned as signatory for the form
+            $rejectedBuilder = $this->db->table('form_submissions')
+                                        ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+                                        ->join('users', 'users.id = form_submissions.submitted_by', 'left')
+                                        ->join('form_signatories fsig', 'fsig.form_id = forms.id AND fsig.user_id = ' . (int)$userId, 'inner')
+                                        ->where('form_submissions.approver_id', $userId)
+                                        ->where('form_submissions.status', 'rejected');
+            if ($isDepartmentAdmin && $userDepartmentId) {
+                $rejectedBuilder->where('users.department_id', $userDepartmentId);
+            }
+            $statusSummary['rejected_by_me'] = $rejectedBuilder->countAllResults();
+
             // Completed: approved by me AND marked as completed
-            $statusSummary['completed'] = $this->db->table('form_submissions')
-                                                   ->where('approver_id', $userId)
-                                                   ->groupStart()
-                                                       ->where('completed', 1)
-                                                       ->orWhere('status', 'completed')
-                                                   ->groupEnd()
-                                                   ->countAllResults();
+            // Match Forms::completedForms behavior for approvers: completed forms where approver_id = user
+            $completedBuilder = $this->db->table('form_submissions')
+                                         ->join('users', 'users.id = form_submissions.submitted_by', 'left')
+                                         ->where('form_submissions.approver_id', $userId)
+                                         ->groupStart()
+                                            ->where('form_submissions.completed', 1)
+                                            ->orWhere('form_submissions.status', 'completed')
+                                         ->groupEnd();
+            if ($isDepartmentAdmin && $userDepartmentId) {
+                $completedBuilder->where('users.department_id', $userDepartmentId);
+            }
+            $statusSummary['completed'] = $completedBuilder->countAllResults();
         }
         elseif ($userType === 'service_staff') {
             // For service staff - count forms assigned to them (NO department filter)
