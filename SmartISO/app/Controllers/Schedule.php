@@ -28,6 +28,8 @@ class Schedule extends BaseController
         $userId = session()->get('user_id');
         $userDepartmentId = session()->get('department_id');
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
         
         // Department admin check - use the same logic as calendar() method
         $isDepartmentAdmin = ($userType === 'department_admin');
@@ -630,11 +632,17 @@ class Schedule extends BaseController
         elseif ($userType === 'approving_authority') {
             $builder = $this->submissionModel->builder();
             $builder->select('form_submissions.*')
+                    ->join('users', 'users.id = form_submissions.submitted_by', 'left')
                     ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
                     ->groupStart()
                         ->where('form_submissions.status', 'submitted') // Pending approval
                         ->orWhere('form_submissions.approver_id', $userId) // Already approved
                     ->groupEnd();
+
+            // If this approver is not a global admin, restrict to their department
+            if (!$isGlobalAdmin && $userDepartmentId) {
+                $builder->where('users.department_id', $userDepartmentId);
+            }
             
             $submissions = $builder->get()->getResultArray();
             $submissionIds = array_column($submissions, 'id');
@@ -642,8 +650,8 @@ class Schedule extends BaseController
                 // Use the new method to get schedules with full details
                 $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
                 
-                // Also get submissions without schedules yet
-                $submissionsWithoutSchedules = $this->getApproverSubmissionsWithoutSchedules($userId, null, false, $submissionIds);
+                // Also get submissions without schedules yet (filtered by department when applicable)
+                $submissionsWithoutSchedules = $this->getApproverSubmissionsWithoutSchedules($userId, $userDepartmentId, $isGlobalAdmin, $submissionIds);
                 $schedules = array_merge($schedules, $submissionsWithoutSchedules);
             } else {
                 $schedules = [];
