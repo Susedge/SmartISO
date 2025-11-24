@@ -103,11 +103,32 @@ class Forms extends BaseController
     {
         return $this->request ?? \Config\Services::request();
     }
+
+    /**
+     * Get the current user's department id.
+     * Use session value if available, otherwise fall back to DB (user record).
+     */
+    protected function getUserDepartmentId()
+    {
+        $dept = session()->get('department_id');
+        if (!empty($dept)) return $dept;
+
+        $userId = session()->get('user_id');
+        if (empty($userId)) return null;
+
+        try {
+            $u = $this->userModel->find($userId);
+            return $u['department_id'] ?? null;
+        } catch (\Throwable $e) {
+            log_message('error', 'getUserDepartmentId fallback failed: ' . $e->getMessage());
+            return null;
+        }
+    }
     
     public function index()
     {
         // Get user session data
-        $userDepartmentId = session()->get('department_id');
+        $userDepartmentId = $this->getUserDepartmentId();
         $userOfficeId = session()->get('office_id');
         $userType = session()->get('user_type');
         $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
@@ -499,7 +520,7 @@ class Forms extends BaseController
     {
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
-        $userDepartmentId = session()->get('department_id');
+        $userDepartmentId = $this->getUserDepartmentId();
         
         // Admin and superuser can see all submissions
         // Department admins see only their department's submissions
@@ -574,7 +595,7 @@ class Forms extends BaseController
             
             log_message('info', "User {$userId} passed canUserApprove check");
             
-            $userDepartmentId = session()->get('department_id');
+            $userDepartmentId = $this->getUserDepartmentId();
             $userOfficeId = session()->get('office_id');
             $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
             $isDepartmentAdmin = ($userType === 'department_admin');
@@ -799,7 +820,7 @@ class Forms extends BaseController
         try {
             $userId = session()->get('user_id');
             $userType = session()->get('user_type');
-            $userDepartmentId = session()->get('department_id');
+            $userDepartmentId = $this->getUserDepartmentId();
             $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
             $isDepartmentAdmin = ($userType === 'department_admin');
             
@@ -978,7 +999,7 @@ class Forms extends BaseController
             $builder->where('fs.approver_id', $userId);
             
             // For department admins, also filter by department
-            $userDepartmentId = session()->get('department_id');
+            $userDepartmentId = $this->getUserDepartmentId();
             if ($userType === 'department_admin' && $userDepartmentId) {
                 $builder->where('requestor.department_id', $userDepartmentId);
             }
@@ -1014,7 +1035,7 @@ class Forms extends BaseController
             $canView = true;
         } else if ($userType === 'department_admin') {
             // Department admins can view submissions from their department
-            $userDepartmentId = session()->get('department_id');
+            $userDepartmentId = $this->getUserDepartmentId();
             if ($userDepartmentId) {
                 $submitter = $this->userModel->find($submission['submitted_by']);
                 if ($submitter && $submitter['department_id'] == $userDepartmentId) {
@@ -1033,7 +1054,7 @@ class Forms extends BaseController
         // Department verification for non-admin users
         // IMPORTANT: Service staff should be able to view ALL submissions assigned to them,
         // regardless of department, to support cross-department service assignments
-        $userDepartmentId = session()->get('department_id');
+        $userDepartmentId = $this->getUserDepartmentId();
         $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
         $isServiceStaff = ($userType === 'service_staff');
 
@@ -1736,7 +1757,7 @@ class Forms extends BaseController
         
         // Department filtering for department admins
         $userType = session()->get('user_type');
-        $userDepartmentId = session()->get('department_id');
+        $userDepartmentId = $this->getUserDepartmentId();
         if ($userType === 'department_admin' && $userDepartmentId) {
             $builder->where('requestor.department_id', $userDepartmentId);
         }
@@ -2143,7 +2164,7 @@ class Forms extends BaseController
         // Get user context
         $userId = session()->get('user_id');
         $userType = session()->get('user_type');
-        $userDepartmentId = session()->get('department_id');
+        $userDepartmentId = $this->getUserDepartmentId();
         $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
         
         // Ensure submission exists
@@ -2535,13 +2556,29 @@ class Forms extends BaseController
     public function departmentSubmissions()
     {
         $userType = session()->get('user_type');
-        $userDeptId = session()->get('department_id');
+        $userDeptId = $this->getUserDepartmentId();
+        $userId = session()->get('user_id');
+
+        // Fallback: if user is department_admin but session lacks department_id, fetch from DB
+        if ($userType === 'department_admin' && empty($userDeptId) && !empty($userId)) {
+            try {
+                $usr = $this->userModel->find($userId);
+                if (!empty($usr['department_id'])) {
+                    $userDeptId = $usr['department_id'];
+                    log_message('info', "departmentSubmissions - session missing department_id, using DB value {$userDeptId} for user {$userId}");
+                } else {
+                    log_message('warning', "departmentSubmissions - department_admin user {$userId} has no department_id in DB");
+                }
+            } catch (\Exception $e) {
+                log_message('error', 'departmentSubmissions - failed to fetch user record for fallback department_id: ' . $e->getMessage());
+            }
+        }
         
         // Debug logging
         log_message('info', "departmentSubmissions access attempt - User Type: {$userType}, Department ID: {$userDeptId}");
         
         // Only accessible to department admins
-        if ($userType !== 'department_admin' || !$userDeptId) {
+        if ($userType !== 'department_admin' || empty($userDeptId)) {
             log_message('warning', "departmentSubmissions access denied - User Type: {$userType}, Department ID: " . ($userDeptId ?: 'NULL'));
             return redirect()->to('/dashboard')->with('error', 'Access denied. Only department administrators can view department submissions.');
         }

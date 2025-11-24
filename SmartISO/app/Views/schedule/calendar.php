@@ -236,15 +236,28 @@ document.addEventListener('DOMContentLoaded', function(){
                 var parts = [];
                 
                 // Event Title Section
-                parts.push('<div class="fc-event-section">');
-                parts.push('<div class="fc-event-title">' + escapeHtml(info.event.title || 'Service Event') + '</div>');
-                // Add Submission ID
+                // Top details row - NOTE: modal header will already show the title, so we keep ID & Requestor here
+                parts.push('<div class="fc-event-section d-flex justify-content-between align-items-start">');
+                // Left: submission/requestor details
+                parts.push('<div>');
                 if (ev.submission_id) {
-                    parts.push('<div class="text-muted small mt-1"><i class="fas fa-hashtag me-1"></i>Submission ID: <strong>' + escapeHtml(ev.submission_id) + '</strong></div>');
+                    parts.push('<div class="text-muted small mb-1"><i class="fas fa-hashtag me-1"></i>Submission ID: <strong>' + escapeHtml(ev.submission_id) + '</strong></div>');
                 }
+                if (ev.requestor_name) {
+                    parts.push('<div class="text-muted small mb-1"><i class="fas fa-user me-1"></i>Requestor: <strong>' + escapeHtml(ev.requestor_name) + '</strong></div>');
+                }
+                if (ev.requestor_department) {
+                    parts.push('<div class="text-muted small mb-1"><i class="fas fa-building me-1"></i>Department: <strong>' + escapeHtml(ev.requestor_department) + '</strong></div>');
+                }
+                if (ev.submission_date) {
+                    parts.push('<div class="text-muted small"><i class="fas fa-calendar-alt me-1"></i>Submitted: <strong>' + escapeHtml(ev.submission_date) + '</strong></div>');
+                }
+                parts.push('</div>');
+
+                // Right: badges container (status / priority)
+                parts.push('<div class="ms-3 fc-badge-container">');
                 
                 // Status and Priority Badges
-                parts.push('<div class="fc-badge-container">');
                 if (ev.status) {
                     var statusColor = 'secondary';
                     var statusIcon = 'circle';
@@ -296,7 +309,9 @@ document.addEventListener('DOMContentLoaded', function(){
                     else priorityBadge = '<span class="badge bg-secondary">' + escapeHtml(ev.priority_level) + '</span>';
                     parts.push(priorityBadge);
                 }
+                // close badges container
                 parts.push('</div>');
+                // close details row
                 parts.push('</div>');
                 
                 // Description Section
@@ -371,6 +386,14 @@ document.addEventListener('DOMContentLoaded', function(){
                     parts.push('</select>');
                     parts.push('<span class="fc-saving-indicator d-none"><i class="fas fa-spinner fa-spin"></i></span>');
                     parts.push('</div>');
+                    parts.push('</div>');
+                }
+
+                // Add View Request button (when submission_id is available)
+                if (ev.submission_id) {
+                    // Use server-generated base URL; append submission id
+                    parts.push('<div class="fc-event-section text-end mt-2">');
+                    parts.push('<a href="<?= base_url('forms/submission/') ?>' + escapeHtml(ev.submission_id) + '" class="btn btn-sm btn-outline-primary" target="_self"><i class="fas fa-eye me-1"></i>View Request</a>');
                     parts.push('</div>');
                 }
 

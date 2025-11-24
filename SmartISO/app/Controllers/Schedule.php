@@ -205,6 +205,10 @@ class Schedule extends BaseController
                 'title' => $title,
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'] ?? null,
+                'requestor_name' => $schedule['requestor_name'] ?? null,
+                'requestor_department' => $schedule['requestor_department_name'] ?? ($schedule['requestor_department'] ?? null),
+                'submission_date' => isset($schedule['submission_created_at']) ? date('M d, Y h:i A', strtotime($schedule['submission_created_at'])) : (isset($schedule['created_at']) ? date('M d, Y h:i A', strtotime($schedule['created_at'])) : null),
+                'submission_id' => $schedule['submission_id'] ?? null,
                 'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
                 'estimated_date' => $schedule['estimated_date'] ?? null,
@@ -717,6 +721,8 @@ class Schedule extends BaseController
                 'title' => $title,
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'] ?? '',
+                'requestor_name' => $schedule['requestor_name'] ?? null,
+                'submission_id' => $schedule['submission_id'] ?? null,
                 'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
                 'estimated_date' => $schedule['estimated_date'] ?? null,
@@ -787,11 +793,12 @@ class Schedule extends BaseController
         // Find submissions that don't have a corresponding schedule entry
         $builder = $db->table('form_submissions fs');
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
-                          fs.created_at, fs.priority,
+                          fs.created_at, fs.created_at as submission_created_at, fs.priority,
                           f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name')
+                          u.full_name as requestor_name, u.department_id as requestor_department_id, d.description as requestor_department_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->whereIn('fs.status', ['submitted', 'approved', 'pending_service', 'completed']) // Include completed submissions
             ->orderBy('fs.created_at', 'DESC');
@@ -813,6 +820,8 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
+                'requestor_department' => $row['requestor_department_name'] ?? null,
+                'submission_created_at' => $row['submission_created_at'] ?? $row['created_at'] ?? null,
                 'scheduled_date' => $createdDate,
                 'scheduled_time' => '09:00:00', // Default time
                 'duration_minutes' => 60,
@@ -845,12 +854,13 @@ class Schedule extends BaseController
         // NO DEPARTMENT, OFFICE, OR SCHEDULE FILTERING - only filter by service_staff_id
         $builder = $db->table('form_submissions fs');
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
-                          fs.created_at, fs.approved_at, fs.priority, fs.service_staff_id,
-                          f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name, u.department_id,
-                          fsd.field_value as priority_level')
+                  fs.created_at, fs.created_at as submission_created_at, fs.approved_at, fs.priority, fs.service_staff_id,
+                  f.code as form_code, f.description as form_description,
+                  u.full_name as requestor_name, u.department_id as requestor_department_id, d.description as requestor_department_name,
+                  fsd.field_value as priority_level')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
             ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
             ->where('fs.service_staff_id', $staffId)  // ONLY filter: assigned to this service staff
             ->whereIn('fs.status', ['approved', 'pending_service', 'completed']);
@@ -924,6 +934,8 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
+                'requestor_department' => $row['requestor_department_name'] ?? null,
+                'submission_created_at' => $row['submission_created_at'] ?? $row['created_at'] ?? null,
                 'scheduled_date' => $createdDate,
                 'scheduled_time' => '09:00:00', // Default time
                 'duration_minutes' => 60,
@@ -1016,11 +1028,12 @@ class Schedule extends BaseController
         // Find submissions assigned to this approver that don't have schedules
         $builder = $db->table('form_submissions fs');
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
-                          fs.created_at, fs.priority,
+                          fs.created_at, fs.created_at as submission_created_at, fs.priority,
                           f.code as form_code, f.description as form_description,
-                          u.full_name as requestor_name, u.department_id')
+                          u.full_name as requestor_name, u.department_id as requestor_department_id, d.description as requestor_department_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
             ->join('form_signatories fsig', 'fsig.form_id = fs.form_id AND fsig.user_id = ' . $userId, 'inner')
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->groupStart()
@@ -1056,6 +1069,8 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
+                'requestor_department' => $row['requestor_department_name'] ?? null,
+                'submission_created_at' => $row['submission_created_at'] ?? $row['created_at'] ?? null,
                 'scheduled_date' => $createdDate,
                 'scheduled_time' => '09:00:00',
                 'duration_minutes' => 60,
