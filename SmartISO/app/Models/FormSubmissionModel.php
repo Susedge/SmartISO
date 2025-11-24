@@ -320,12 +320,41 @@ class FormSubmissionModel extends Model
      */
     public function markAsCompleted($submissionId)
     {
-        return $this->update($submissionId, [
+        $result = $this->update($submissionId, [
             'requestor_signature_date' => date('Y-m-d H:i:s'),
             'completed' => 1,
             'completion_date' => date('Y-m-d H:i:s'),
             'status' => 'completed'
         ]);
+
+        if ($result) {
+            // Create notification for requestor (they completed the form) to keep behavior consistent
+            // with service staff completions. This ensures requestor receives the same "Service Completed"
+            // notification and associated audit notifications are created.
+            try {
+                $submission = $this->find($submissionId);
+                $notificationModel = new \App\Models\NotificationModel();
+                $notified = $notificationModel->createServiceCompletionNotification($submissionId, $submission['submitted_by']);
+                if ($notified) {
+                    log_message('info', "markAsCompleted: Service completion notification created for submission {$submissionId}, user {$submission['submitted_by']}");
+                } else {
+                    log_message('warning', "markAsCompleted: Service completion notification FAILED for submission {$submissionId}, user {$submission['submitted_by']}");
+                }
+            } catch (\Throwable $e) {
+                log_message('error', 'markAsCompleted: Exception creating service completion notification: ' . $e->getMessage());
+            }
+
+            // Diagnostic: dump notifications for this submission to logs for easy debugging
+            try {
+                $db = \Config\Database::connect();
+                $rows = $db->table('notifications')->where('submission_id', $submissionId)->orderBy('created_at', 'ASC')->get()->getResultArray();
+                log_message('info', 'markAsCompleted: notification rows for submission ' . $submissionId . ': ' . json_encode($rows));
+            } catch (\Throwable $e) {
+                log_message('error', 'markAsCompleted: failed to fetch notification rows for submission ' . $submissionId . ': ' . $e->getMessage());
+            }
+        }
+
+        return $result;
     }
 
     /**
