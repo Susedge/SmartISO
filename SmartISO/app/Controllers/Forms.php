@@ -2108,16 +2108,10 @@ class Forms extends BaseController
             }
         }
         
-        // Record service staff signature and mark as completed immediately
-        $updateData = [
-            'status' => 'completed', // Change from 'awaiting_requestor_signature' to 'completed'
-            'service_staff_signature_date' => date('Y-m-d H:i:s'),
-            'service_notes' => $notes,
-            'requestor_signature_date' => date('Y-m-d H:i:s'), // Add this to auto-complete the form
-            'completion_date' => date('Y-m-d H:i:s') // Set completion date when service staff completes
-        ];
-        
-        $this->formSubmissionModel->update($submissionId, $updateData);
+        // Record service staff signature and mark as serviced using the model helper
+        // Use the single source of truth in the model so notification creation,
+        // completed flag, and timestamps are consistently applied.
+        $markResult = $this->formSubmissionModel->markAsServiced($submissionId, $userId, $notes);
         
         // Update schedule status to 'completed' if a schedule exists
         try {
@@ -2131,6 +2125,9 @@ class Forms extends BaseController
             log_message('error', 'Failed to update schedule status: ' . $e->getMessage());
         }
         
+        // markAsServiced already creates the service completion notification for the requestor
+        // and sets the completed flag / timestamps, so no separate notification call is needed here.
+
         return redirect()->to('/forms/serviced-by-me')
                     ->with('message', 'Service completed and form signed successfully. The form has been marked as completed.');
     }    
