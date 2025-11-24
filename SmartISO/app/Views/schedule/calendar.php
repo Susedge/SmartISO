@@ -21,7 +21,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-3">
+            <div class="modal-body p-2">
                 <!-- content filled by JS -->
             </div>
             <div class="modal-footer bg-light border-0 py-2">
@@ -77,8 +77,8 @@
     color: #333;
 }
 .fc-event-section {
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.75rem;
+    margin-bottom: 0.45rem;
+    padding-bottom: 0.45rem;
     border-bottom: 1px solid #e9ecef;
 }
 .fc-event-section:last-child {
@@ -94,10 +94,10 @@
     margin-bottom: 0.4rem;
 }
 .fc-event-title {
-    font-size: 1.1rem;
+    font-size: 1.0rem;
     font-weight: 600;
     color: #212529;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
 }
 .fc-badge-container {
     display: flex;
@@ -161,6 +161,13 @@
     margin-right: 0.4rem;
 }
 /* Make modal content more compact with grid layout */
+/* compact top row */
+.fc-event-top { display:flex; gap: .5rem; align-items:flex-start; justify-content:space-between; }
+/* Right-side compact action area (badges + view button) */
+.fc-event-right { min-width:170px; display:flex; flex-direction:column; align-items:flex-end; gap: .35rem; }
+.fc-event-right .fc-badge-container { display:block; }
+.fc-event-right .badge { display:inline-block; min-width:170px; text-align:center; padding-left: .4rem; padding-right: .4rem; }
+.fc-event-right .btn { min-width:170px; }
 #eventModal .modal-body .row {
     margin-bottom: 0.5rem;
 }
@@ -237,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 
                 // Event Title Section
                 // Top details row - NOTE: modal header will already show the title, so we keep ID & Requestor here
-                parts.push('<div class="fc-event-section d-flex justify-content-between align-items-start">');
+                parts.push('<div class="fc-event-section fc-event-top d-flex justify-content-between align-items-start">');
                 // Left: submission/requestor details
                 parts.push('<div>');
                 if (ev.submission_id) {
@@ -254,8 +261,8 @@ document.addEventListener('DOMContentLoaded', function(){
                 }
                 parts.push('</div>');
 
-                // Right: badges container (status / priority)
-                parts.push('<div class="ms-3 fc-badge-container">');
+                // Right: badges container (status / priority) + compact View button
+                parts.push('<div class="fc-event-right ms-3">');
                 
                 // Status and Priority Badges
                 if (ev.status) {
@@ -309,7 +316,13 @@ document.addEventListener('DOMContentLoaded', function(){
                     else priorityBadge = '<span class="badge bg-secondary">' + escapeHtml(ev.priority_level) + '</span>';
                     parts.push(priorityBadge);
                 }
-                // close badges container
+                // Add view request button on the right side (compact and aligned)
+                if (ev.submission_id) {
+                    parts.push('<div class="mt-2">');
+                    parts.push('<a href="<?= base_url('forms/submission/') ?>' + escapeHtml(ev.submission_id) + '" class="btn btn-sm btn-outline-primary" target="_self"><i class="fas fa-eye me-1"></i>View Request</a>');
+                    parts.push('</div>');
+                }
+                // close right container
                 parts.push('</div>');
                 // close details row
                 parts.push('</div>');
@@ -389,13 +402,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     parts.push('</div>');
                 }
 
-                // Add View Request button (when submission_id is available)
-                if (ev.submission_id) {
-                    // Use server-generated base URL; append submission id
-                    parts.push('<div class="fc-event-section text-end mt-2">');
-                    parts.push('<a href="<?= base_url('forms/submission/') ?>' + escapeHtml(ev.submission_id) + '" class="btn btn-sm btn-outline-primary" target="_self"><i class="fas fa-eye me-1"></i>View Request</a>');
-                    parts.push('</div>');
-                }
+                // (View Request now rendered in the top row alongside badges)
 
                 var content = parts.join('');
                 var modalTitle = info.event.title || 'Service Event';
