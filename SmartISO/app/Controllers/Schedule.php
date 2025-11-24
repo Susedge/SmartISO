@@ -845,7 +845,7 @@ class Schedule extends BaseController
         // NO DEPARTMENT, OFFICE, OR SCHEDULE FILTERING - only filter by service_staff_id
         $builder = $db->table('form_submissions fs');
         $builder->select('fs.id as submission_id, fs.form_id, fs.panel_name, fs.status as submission_status,
-                          fs.created_at, fs.priority, fs.service_staff_id,
+                          fs.created_at, fs.approved_at, fs.priority, fs.service_staff_id,
                           f.code as form_code, f.description as form_description,
                           u.full_name as requestor_name, u.department_id,
                           fsd.field_value as priority_level')
@@ -853,7 +853,8 @@ class Schedule extends BaseController
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('form_submission_data fsd', 'fsd.submission_id = fs.id AND fsd.field_name = "priority_level"', 'left')
             ->where('fs.service_staff_id', $staffId)  // ONLY filter: assigned to this service staff
-            ->whereIn('fs.status', ['approved', 'pending_service', 'completed']); // Include all relevant statuses
+            ->whereIn('fs.status', ['approved', 'pending_service', 'completed'])
+            ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false); // Only include submissions that do not already have a schedule
         
         // REMOVED: NOT EXISTS check for schedules - we want ALL submissions to show
         // If a schedule exists from getStaffSchedules(), array_merge will handle it
@@ -882,8 +883,13 @@ class Schedule extends BaseController
         // Format these submissions as "virtual" schedule entries
         $virtualSchedules = [];
         foreach ($results as $row) {
-            // Use submission created date as the scheduled date
-            $createdDate = substr($row['created_at'], 0, 10);
+            // Use approval date if present, otherwise fall back to submission created date
+            $createdDate = null;
+            if (!empty($row['approved_at'])) {
+                $createdDate = substr($row['approved_at'], 0, 10);
+            } else {
+                $createdDate = substr($row['created_at'], 0, 10);
+            }
             
             // Get service staff name
             $staffName = null;
