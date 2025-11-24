@@ -180,6 +180,8 @@
 
 <?= $this->section('scripts') ?>
 <script>
+// PHP-resolved base URL for the "View Request" button so it points to the correct controller
+var VIEW_REQUEST_BASE = <?= json_encode( in_array(session()->get('user_type'), ['admin','superuser','department_admin']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/') ) ?>;
 // Cleaned calendar script: single DOMContentLoaded, safe HTML building, and safe admin HTML injection.
 function loadScript(src, onload, onerror) {
     var s = document.createElement('script'); s.src = src; s.async = true; s.onload = onload; s.onerror = onerror; document.head.appendChild(s);
@@ -319,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function(){
                 // Add view request button on the right side (compact and aligned)
                 if (ev.submission_id) {
                     parts.push('<div class="mt-2">');
-                    parts.push('<a href="<?= base_url('forms/submission/') ?>' + escapeHtml(ev.submission_id) + '" class="btn btn-sm btn-outline-primary" target="_self"><i class="fas fa-eye me-1"></i>View Request</a>');
+                    parts.push('<a href="' + VIEW_REQUEST_BASE + escapeHtml(ev.submission_id) + '" class="btn btn-sm btn-outline-primary" target="_self"><i class="fas fa-eye me-1"></i>View Request</a>');
                     parts.push('</div>');
                 }
                 // close right container
