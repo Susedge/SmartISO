@@ -412,7 +412,7 @@ class NotificationModel extends Model
         log_message('info', "Service Completion Notification - Submission ID: {$submissionId} | Requestor User ID: {$userId}");
 
         // Notify requestor
-        $this->notifyUser((int)$userId, $title, $message, (int)$submissionId);
+        $requestorNotified = $this->notifyUser((int)$userId, $title, $message, (int)$submissionId);
 
         // Also notify approver, department admins, and service staff for audit and visibility
         try {
@@ -444,6 +444,8 @@ class NotificationModel extends Model
         } catch (\Throwable $e) {
             log_message('error', 'createServiceCompletionNotification extra notifications failed: ' . $e->getMessage());
         }
+
+        return (bool)$requestorNotified;
     }
 
     /**

@@ -261,7 +261,16 @@ class FormSubmissionModel extends Model
             // Create notification for requestor
             $submission = $this->find($submissionId);
             $notificationModel = new \App\Models\NotificationModel();
-            $notificationModel->createServiceCompletionNotification($submissionId, $submission['submitted_by']);
+            try {
+                $notified = $notificationModel->createServiceCompletionNotification($submissionId, $submission['submitted_by']);
+                if ($notified) {
+                    log_message('info', "markAsServiced: Service completion notification created for submission {$submissionId}, user {$submission['submitted_by']}");
+                } else {
+                    log_message('warning', "markAsServiced: Service completion notification FAILED for submission {$submissionId}, user {$submission['submitted_by']}");
+                }
+            } catch (\Throwable $e) {
+                log_message('error', 'markAsServiced: Exception creating service completion notification: ' . $e->getMessage());
+            }
         }
         
         return $result;

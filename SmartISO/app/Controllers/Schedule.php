@@ -1155,14 +1155,7 @@ class Schedule extends BaseController
                 $completionNotes
             );
 
-            // Get submission details for notification
-            $submission = $this->submissionModel->find($schedule['submission_id']);
-            
-            // Create notification for requestor
-            $this->notificationModel->createServiceCompletionNotification(
-                $schedule['submission_id'],
-                $submission['submitted_by']
-            );
+            // Notification is created by FormSubmissionModel::markAsServiced
 
             return $this->response->setJSON(['success' => true, 'message' => 'Service completed successfully', 'csrf_name' => csrf_token(), 'csrf_hash' => csrf_hash()]);
         }
