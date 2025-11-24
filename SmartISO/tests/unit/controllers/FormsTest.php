@@ -12,6 +12,15 @@ class FormsTest extends CIUnitTestCase
         $this->assertIsObject($ref->newInstanceWithoutConstructor());
     }
 
+    public function testCalendarVisibleSessionCheckPresent()
+    {
+        $file = __DIR__ . '/../../../../app/Controllers/Forms.php';
+        $this->assertFileExists($file);
+        $contents = file_get_contents($file);
+
+        $this->assertStringContainsString('calendar_visible_submissions', $contents, 'Forms controller should check session calendar_visible_submissions to allow calendar-based views');
+    }
+
     public function testIndexReturnsListView()
     {
         $ref = new ReflectionClass('\\App\\Controllers\\Forms');

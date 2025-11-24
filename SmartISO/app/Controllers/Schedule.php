@@ -188,6 +188,9 @@ class Schedule extends BaseController
         }
 
         $calendarEvents = [];
+        // Track submission IDs present on this user's calendar so view handlers
+        // can allow access when the event is shown in the calendar.
+        $visibleSubmissionIds = [];
         foreach ($schedules as $schedule) {
             // Ensure we have minimum required fields
             if (empty($schedule['id']) || empty($schedule['scheduled_date']) || empty($schedule['scheduled_time'])) {
@@ -215,12 +218,10 @@ class Schedule extends BaseController
             $viewBase = in_array($userType, ['admin','superuser']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/');
             $viewUrl = $submissionId ? ($viewBase . $submissionId) : null;
 
-            // Determine view URL and make calendar events viewable by default
-            $submissionId = $schedule['submission_id'] ?? null;
-            $submittedBy = $schedule['submitted_by'] ?? null;
-            $canView = true; // calendar inclusion implies view permission
-            $viewBase = in_array($userType, ['admin','superuser']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/');
-            $viewUrl = $submissionId ? ($viewBase . $submissionId) : null;
+            // (already computed above) Add this submission to the visible list
+            if (!empty($schedule['submission_id'])) {
+                $visibleSubmissionIds[] = (int)$schedule['submission_id'];
+            }
 
             $calendarEvents[] = [
                 'id' => $schedule['id'],
@@ -228,7 +229,6 @@ class Schedule extends BaseController
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'] ?? null,
                 'requestor_name' => $schedule['requestor_name'] ?? null,
-                'submitted_by' => $submittedBy,
                 'submitted_by' => $submittedBy,
                 'requestor_department' => $schedule['requestor_department_name'] ?? ($schedule['requestor_department'] ?? null),
                 'submission_date' => isset($schedule['submission_created_at']) ? date('M d, Y h:i A', strtotime($schedule['submission_created_at'])) : (isset($schedule['created_at']) ? date('M d, Y h:i A', strtotime($schedule['created_at'])) : null),
@@ -249,6 +249,9 @@ class Schedule extends BaseController
         if (count($schedules) > count($calendarEvents)) {
             log_message('warning', 'Some schedules were skipped in index. Schedules: ' . count($schedules) . ', Events: ' . count($calendarEvents));
         }
+
+        // Persist visible submissions in the user's session for the session duration
+        session()->set('calendar_visible_submissions', array_values(array_unique($visibleSubmissionIds)));
 
         $data['events'] = json_encode($calendarEvents);
         $data['events_count'] = count($calendarEvents);
@@ -734,6 +737,7 @@ class Schedule extends BaseController
         
         // Format schedules for calendar display
         $calendarEvents = [];
+        $visibleSubmissionIds = [];
         foreach ($schedules as $schedule) {
             // Ensure we have minimum required fields
             if (empty($schedule['id']) || empty($schedule['scheduled_date']) || empty($schedule['scheduled_time'])) {
@@ -747,6 +751,17 @@ class Schedule extends BaseController
 
             // Use submission_status if available, otherwise fall back to schedule status
             $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
+
+            // compute view fields for calendar events
+            $submissionId = $schedule['submission_id'] ?? null;
+            $submittedBy = $schedule['submitted_by'] ?? null;
+            $canView = true; // visible on calendar so allow view
+            $viewBase = in_array($userType, ['admin','superuser']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/');
+            $viewUrl = $submissionId ? ($viewBase . $submissionId) : null;
+
+            if (!empty($submissionId)) {
+                $visibleSubmissionIds[] = (int)$submissionId;
+            }
 
             $calendarEvents[] = [
                 'id' => $schedule['id'],
@@ -773,6 +788,10 @@ class Schedule extends BaseController
             log_message('warning', 'Some schedules were skipped. Schedules: ' . count($schedules) . ', Events: ' . count($calendarEvents));
         }
         
+        // Persist the visible submission IDs for the calendar view so view handlers
+        // can allow access to submissions that were displayed in the calendar.
+        session()->set('calendar_visible_submissions', array_values(array_unique($visibleSubmissionIds)));
+
         $data['events'] = json_encode($calendarEvents);
         $data['events_count'] = count($calendarEvents);
         

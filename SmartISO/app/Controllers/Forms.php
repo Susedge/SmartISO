@@ -1030,6 +1030,14 @@ class Forms extends BaseController
         
         // Check permissions - allow view based on role
         $canView = false;
+
+        // Allow view if this submission was included on the user's calendar earlier
+        // (Schedule controller stores visible submission IDs in session). This
+        // ensures a user who already saw an event on the calendar can view it.
+        $calendarVisible = session()->get('calendar_visible_submissions') ?? [];
+        if (in_array((int)$id, $calendarVisible, true)) {
+            $canView = true;
+        }
         
         if ($userType === 'admin' || $userType === 'approving_authority' || $userType === 'service_staff') {
             $canView = true;

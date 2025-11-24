@@ -951,6 +951,12 @@ class DynamicForms extends BaseController
         $userType = session()->get('user_type');
         $isAdmin = (in_array($userType, ['admin', 'superuser']) || session()->get('user_id') == 1);
         
+        // Allow view if this submission was shown on the user's calendar previously
+        $calendarVisible = session()->get('calendar_visible_submissions') ?? [];
+        if (in_array((int)$id, $calendarVisible, true)) {
+            $isAdmin = true; // treat as allowed for the purpose of this view
+        }
+
         if (!$isAdmin && $submission['submitted_by'] != session()->get('user_id')) {
             return redirect()->to('/admin/dynamicforms/submissions')
                             ->with('error', 'You do not have permission to view this submission');
