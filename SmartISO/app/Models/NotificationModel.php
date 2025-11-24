@@ -411,29 +411,20 @@ class NotificationModel extends Model
         $message = 'Your service request has been completed successfully. You can now provide feedback about your experience.';
         log_message('info', "Service Completion Notification - Submission ID: {$submissionId} | Requestor User ID: {$userId}");
 
-        // Insert requestor notification directly (mirror approval insertion style)
+        // Insert requestor notification using the same helper used by approvals
+        // so we get consistent insert + email behaviour and proper boolean return.
+        $requestorNotified = false;
         try {
-            $this->insert([
-                'user_id'       => $userId,
-                'submission_id' => $submissionId,
-                'title'         => $title,
-                'message'       => $message,
-                'read'          => 0,
-                'created_at'    => date('Y-m-d H:i:s')
-            ]);
-
-            try {
-                $sent = $this->sendEmailNotification($userId, $title, $message);
-                if ($sent) {
-                    log_message('info', "Service Completion Notification - Email sent to user {$userId}");
-                } else {
-                    log_message('warning', "Service Completion Notification - Email NOT sent to user {$userId}");
-                }
-            } catch (\Throwable $e) {
-                log_message('error', "Service Completion Notification - Exception while sending email to user {$userId}: " . $e->getMessage());
+            log_message('info', 'createServiceCompletionNotification - create notifyUser for user ' . (int)$userId . ' submission ' . (int)$submissionId);
+            $requestorNotified = $this->notifyUser((int)$userId, $title, $message, (int)$submissionId);
+            if ($requestorNotified) {
+                log_message('info', "Service Completion Notification - notifyUser succeeded for user {$userId} submission {$submissionId}");
+            } else {
+                log_message('warning', "Service Completion Notification - notifyUser FAILED for user {$userId} submission {$submissionId}");
             }
         } catch (\Throwable $e) {
-            log_message('error', 'Service Completion Notification - Failed to insert notification for requestor: ' . $e->getMessage());
+            log_message('error', 'Service Completion Notification - Exception creating requestor notification: ' . $e->getMessage());
+            $requestorNotified = false;
         }
 
         // Also notify approver, department admins, and service staff for audit and visibility
@@ -467,7 +458,8 @@ class NotificationModel extends Model
             log_message('error', 'createServiceCompletionNotification extra notifications failed: ' . $e->getMessage());
         }
 
-        return true;
+        // Return success if requestor notification was created successfully.
+        return ($requestorNotified === true);
     }
 
     /**
