@@ -271,6 +271,15 @@ class FormSubmissionModel extends Model
             } catch (\Throwable $e) {
                 log_message('error', 'markAsServiced: Exception creating service completion notification: ' . $e->getMessage());
             }
+
+            // Diagnostic: dump notification rows for this submission to logs to help debugging
+            try {
+                $db = \Config\Database::connect();
+                $rows = $db->table('notifications')->where('submission_id', $submissionId)->orderBy('created_at', 'ASC')->get()->getResultArray();
+                log_message('info', 'markAsServiced: notification rows for submission ' . $submissionId . ': ' . json_encode($rows));
+            } catch (\Throwable $e) {
+                log_message('error', 'markAsServiced: failed to fetch notification rows for submission ' . $submissionId . ': ' . $e->getMessage());
+            }
         }
         
         return $result;

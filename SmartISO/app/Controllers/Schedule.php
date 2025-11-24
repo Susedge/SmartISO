@@ -1148,7 +1148,8 @@ class Schedule extends BaseController
         ];
 
         if ($this->scheduleModel->update($id, $updateData)) {
-            // Update the related submission
+            // Update the related submission (log for diagnostics)
+            log_message('info', 'Schedule::markComplete - calling markAsServiced for submission ' . ($schedule['submission_id'] ?? 'null') . ' by user ' . session()->get('user_id'));
             $this->submissionModel->markAsServiced(
                 $schedule['submission_id'],
                 session()->get('user_id'),
