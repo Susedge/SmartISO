@@ -384,7 +384,6 @@ class NotificationModel extends Model
         $message = 'Your service request has been completed successfully. You can now provide feedback about your experience.';
         
         log_message('info', "Service Completion Notification - Submission ID: {$submissionId} | Requestor User ID: {$userId}");
-        
         $this->insert([
             'user_id'       => $userId,
             'submission_id' => $submissionId,
@@ -394,9 +393,18 @@ class NotificationModel extends Model
             'created_at'    => date('Y-m-d H:i:s')
         ]);
 
-        // Send email notification
-        $this->sendEmailNotification($userId, $title, $message);
-        
+        // Send email notification and log outcome
+        try {
+            $sent = $this->sendEmailNotification($userId, $title, $message);
+            if ($sent) {
+                log_message('info', "Service Completion Notification - Email sent to user {$userId}");
+            } else {
+                log_message('warning', "Service Completion Notification - Email NOT sent to user {$userId}");
+            }
+        } catch (\Throwable $e) {
+            log_message('error', "Service Completion Notification - Exception while sending email to user {$userId}: " . $e->getMessage());
+        }
+
         log_message('info', "Service Completion Notification - Successfully created for user {$userId}");
     }
 
