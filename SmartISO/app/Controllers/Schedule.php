@@ -200,10 +200,25 @@ class Schedule extends BaseController
             // Use submission_status if available, otherwise fall back to schedule status
             $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
 
+            // Determine which date/time the calendar event should use.
+            // If the schedule was manually scheduled, respect the scheduled_date/time.
+            // Otherwise prefer the schedule's creation timestamp (created_at) as the default
+            // so newly created schedules (e.g. those created at approval) appear on the calendar
+            // on the schedule row's creation date. Falls back to scheduled_date if created_at not available.
+            $eventDate = $schedule['scheduled_date'];
+            $eventTime = $schedule['scheduled_time'] ?? '09:00:00';
+            if (!empty($schedule['is_manual_schedule']) && $schedule['is_manual_schedule']) {
+                $eventDate = $schedule['scheduled_date'];
+                $eventTime = $schedule['scheduled_time'] ?? $eventTime;
+            } elseif (!empty($schedule['created_at'])) {
+                $eventDate = substr($schedule['created_at'], 0, 10);
+                $eventTime = $schedule['scheduled_time'] ?? $eventTime;
+            }
+
             $calendarEvents[] = [
                 'id' => $schedule['id'],
                 'title' => $title,
-                'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
+                'start' => $eventDate . 'T' . $eventTime,
                 'description' => $schedule['notes'] ?? null,
                 'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
@@ -712,10 +727,25 @@ class Schedule extends BaseController
             // Use submission_status if available, otherwise fall back to schedule status
             $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
 
+            // Determine which date/time the calendar event should use.
+            // If the schedule was manually scheduled, respect the scheduled_date/time.
+            // Otherwise prefer the schedule's creation timestamp (created_at) as the default
+            // so newly created schedules (e.g. those created at approval) appear on the calendar
+            // on the schedule row's creation date. Falls back to scheduled_date if created_at not available.
+            $eventDate = $schedule['scheduled_date'];
+            $eventTime = $schedule['scheduled_time'] ?? '09:00:00';
+            if (!empty($schedule['is_manual_schedule']) && $schedule['is_manual_schedule']) {
+                $eventDate = $schedule['scheduled_date'];
+                $eventTime = $schedule['scheduled_time'] ?? $eventTime;
+            } elseif (!empty($schedule['created_at'])) {
+                $eventDate = substr($schedule['created_at'], 0, 10);
+                $eventTime = $schedule['scheduled_time'] ?? $eventTime;
+            }
+
             $calendarEvents[] = [
                 'id' => $schedule['id'],
                 'title' => $title,
-                'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
+                'start' => $eventDate . 'T' . $eventTime,
                 'description' => $schedule['notes'] ?? '',
                 'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
@@ -801,9 +831,14 @@ class Schedule extends BaseController
         // Format these submissions as "virtual" schedule entries
         $virtualSchedules = [];
         foreach ($results as $row) {
-            // Use submission created date as the scheduled date
-            $createdDate = substr($row['created_at'], 0, 10);
-            
+            // Prefer approval date for scheduled date when available, otherwise use submission created date
+            $scheduledDate = null;
+            if (!empty($row['approved_at'])) {
+                $scheduledDate = substr($row['approved_at'], 0, 10);
+            } else {
+                $scheduledDate = substr($row['created_at'], 0, 10);
+            }
+
             $virtualSchedules[] = [
                 'id' => 'sub-' . $row['submission_id'], // Prefix with 'sub-' to distinguish from real schedules
                 'submission_id' => $row['submission_id'],
@@ -813,7 +848,7 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
-                'scheduled_date' => $createdDate,
+                'scheduled_date' => $scheduledDate,
                 'scheduled_time' => '09:00:00', // Default time
                 'duration_minutes' => 60,
                 'location' => '',
@@ -882,9 +917,10 @@ class Schedule extends BaseController
         // Format these submissions as "virtual" schedule entries
         $virtualSchedules = [];
         foreach ($results as $row) {
-            // Use submission created date as the scheduled date
+            // Prefer approval date for scheduled date when available, otherwise use submission created date
             $createdDate = substr($row['created_at'], 0, 10);
-            
+            $scheduledDate = !empty($row['approved_at']) ? substr($row['approved_at'], 0, 10) : $createdDate;
+
             // Get service staff name
             $staffName = null;
             if (!empty($row['service_staff_id'])) {
@@ -912,7 +948,7 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
-                'scheduled_date' => $createdDate,
+                'scheduled_date' => $scheduledDate,
                 'scheduled_time' => '09:00:00', // Default time
                 'duration_minutes' => 60,
                 'location' => '',
@@ -965,8 +1001,10 @@ class Schedule extends BaseController
         // Format as virtual schedule entries
         $virtualSchedules = [];
         foreach ($results as $row) {
+            // Prefer approval date when available for virtual schedule entries
             $createdDate = substr($row['created_at'], 0, 10);
-            
+            $scheduledDate = !empty($row['approved_at']) ? substr($row['approved_at'], 0, 10) : $createdDate;
+
             $virtualSchedules[] = [
                 'id' => 'sub-' . $row['submission_id'],
                 'submission_id' => $row['submission_id'],
@@ -976,7 +1014,7 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => 'You',
-                'scheduled_date' => $createdDate,
+                'scheduled_date' => $scheduledDate,
                 'scheduled_time' => '09:00:00',
                 'duration_minutes' => 60,
                 'location' => '',
@@ -1033,8 +1071,10 @@ class Schedule extends BaseController
         // Format as virtual schedule entries
         $virtualSchedules = [];
         foreach ($results as $row) {
+            // Prefer approval date when available for approver virtual schedules
             $createdDate = substr($row['created_at'], 0, 10);
-            
+            $scheduledDate = !empty($row['approved_at']) ? substr($row['approved_at'], 0, 10) : $createdDate;
+
             $virtualSchedules[] = [
                 'id' => 'sub-' . $row['submission_id'],
                 'submission_id' => $row['submission_id'],
@@ -1044,7 +1084,7 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
-                'scheduled_date' => $createdDate,
+                'scheduled_date' => $scheduledDate,
                 'scheduled_time' => '09:00:00',
                 'duration_minutes' => 60,
                 'location' => '',
@@ -1481,9 +1521,10 @@ class Schedule extends BaseController
         // Format these submissions as "virtual" schedule entries for calendar display
         $virtualSchedules = [];
         foreach ($results as $row) {
-            // Use submission created date as the scheduled date
+            // Prefer approval date when available for direct service staff assignments
             $createdDate = substr($row['created_at'], 0, 10);
-            
+            $scheduledDate = !empty($row['approved_at']) ? substr($row['approved_at'], 0, 10) : $createdDate;
+
             $virtualSchedules[] = [
                 'id' => 'staff-' . $row['submission_id'], // Prefix with 'staff-' to distinguish
                 'submission_id' => $row['submission_id'],
@@ -1493,7 +1534,7 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
-                'scheduled_date' => $createdDate,
+                'scheduled_date' => $scheduledDate,
                 'scheduled_time' => '10:00:00', // Default time for staff assignments
                 'duration_minutes' => 60,
                 'location' => '',
@@ -1537,8 +1578,10 @@ class Schedule extends BaseController
         // Format as virtual schedule entries
         $virtualSchedules = [];
         foreach ($results as $row) {
+            // Prefer approval date when available for department virtual schedules
             $createdDate = substr($row['created_at'], 0, 10);
-            
+            $scheduledDate = !empty($row['approved_at']) ? substr($row['approved_at'], 0, 10) : $createdDate;
+
             $virtualSchedules[] = [
                 'id' => 'sub-' . $row['submission_id'],
                 'submission_id' => $row['submission_id'],
@@ -1548,7 +1591,7 @@ class Schedule extends BaseController
                 'form_code' => $row['form_code'],
                 'form_description' => $row['form_description'],
                 'requestor_name' => $row['requestor_name'],
-                'scheduled_date' => $createdDate,
+                'scheduled_date' => $scheduledDate,
                 'scheduled_time' => '09:00:00',
                 'duration_minutes' => 60,
                 'location' => '',
