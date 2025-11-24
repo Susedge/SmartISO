@@ -43,6 +43,42 @@ class NotificationModel extends Model
     }
 
     /**
+     * Helper: insert notification row and send email with logging
+     */
+    protected function notifyUser(int $userId, string $title, string $message, ?int $submissionId = null): bool
+    {
+        try {
+            $insertData = [
+                'user_id'    => $userId,
+                'title'      => $title,
+                'message'    => $message,
+                'read'       => 0,
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            if ($submissionId !== null) {
+                $insertData['submission_id'] = $submissionId;
+            }
+
+            $res = $this->insert($insertData);
+            if ($res === false) {
+                log_message('error', "Notification insert failed for user {$userId} (submission: " . ($submissionId ?? 'null') . ")");
+            }
+
+            $sent = $this->sendEmailNotification($userId, $title, $message);
+            if ($sent) {
+                log_message('info', "Notification email sent to user {$userId} (submission: " . ($submissionId ?? 'null') . ")");
+            } else {
+                log_message('warning', "Notification email NOT sent to user {$userId} (submission: " . ($submissionId ?? 'null') . ")");
+            }
+
+            return ($res !== false);
+        } catch (\Throwable $e) {
+            log_message('error', 'notifyUser exception: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Send email notification to user
      * 
      * @param int $userId User ID to send email to
@@ -271,42 +307,42 @@ class NotificationModel extends Model
         $globalAdmins = $userModel->whereIn('user_type', ['admin', 'superuser'])
                                   ->where('active', 1)
                                   ->findAll();
-        
-        // Merge approvers and admins, removing duplicates
-        $allNotifyUsers = array_merge($assignedApprovers, $globalAdmins);
+
+        // Also ALWAYS include department admins for submitter's department (explicit requirement)
+        $deptAdmins = [];
+        if ($submitterDepartment) {
+            $deptAdmins = $userModel->where('user_type', 'department_admin')
+                                   ->where('department_id', $submitterDepartment)
+                                   ->where('active', 1)
+                                   ->findAll();
+        }
+
+        // Merge approvers, dept admins and global admins, removing duplicates
+        $allNotifyUsers = array_merge($assignedApprovers, $deptAdmins, $globalAdmins);
         $notifiedUserIds = [];
-        
+
         $title = 'New Service Request Requires Approval';
         $message = "A new {$formCode} request has been submitted by " . ($submitter['full_name'] ?? 'a user') . " and requires approval.";
-        
+
         foreach ($allNotifyUsers as $user) {
-            $userId = isset($user['user_id']) ? $user['user_id'] : $user['id'];
-            
-            // Skip if already notified (avoid duplicates)
+            $userId = isset($user['user_id']) ? $user['user_id'] : ($user['id'] ?? null);
+            if (empty($userId)) continue;
+
+            // Skip duplicates
             if (in_array($userId, $notifiedUserIds)) {
                 continue;
             }
             $notifiedUserIds[] = $userId;
-            
+
             $userName = $user['full_name'] ?? $user['username'] ?? "User {$userId}";
             $userType = $user['user_type'] ?? 'unknown';
             $userDept = $user['department_id'] ?? 'N/A';
             log_message('info', "Submission Notification - Notifying: {$userName} (ID: {$userId}, Type: {$userType}, Dept: {$userDept})");
 
-            // Insert only columns that exist in the current notifications table.
-            $this->insert([
-                'user_id'       => $userId,
-                'submission_id' => $submissionId,
-                'title'         => $title,
-                'message'       => $message,
-                'read'          => 0,
-                'created_at'    => date('Y-m-d H:i:s')
-            ]);
-
-            // Send email notification
-            $this->sendEmailNotification($userId, $title, $message);
+            // Insert and send email via helper
+            $this->notifyUser((int)$userId, $title, $message, (int)$submissionId);
         }
-        
+
         log_message('info', "Submission Notification - Total users notified: " . count($notifiedUserIds));
     }
 
@@ -320,18 +356,30 @@ class NotificationModel extends Model
         $message = $approved ? 
             'Your service request has been approved and will be scheduled.' : 
             'Your service request has been rejected. Please check the comments for details.';
-        
-        $this->insert([
-            'user_id'       => $userId,
-            'submission_id' => $submissionId,
-            'title'         => $title,
-            'message'       => $message,
-            'read'          => 0,
-            'created_at'    => date('Y-m-d H:i:s')
-        ]);
+        // Notify the requestor using helper
+        $this->notifyUser((int)$userId, $title, $message, (int)$submissionId);
 
-        // Send email notification
-        $this->sendEmailNotification($userId, $title, $message);
+        // Also notify department admins and global admins for visibility (audit)
+        try {
+            $userModel = new UserModel();
+            $submissionModel = new \App\Models\FormSubmissionModel();
+            $submission = $submissionModel->find($submissionId);
+            $submitterDept = $submission['department_id'] ?? null;
+
+            $admins = $userModel->whereIn('user_type', ['admin', 'superuser'])->where('active', 1)->findAll();
+            foreach ($admins as $adm) {
+                $this->notifyUser((int)($adm['id'] ?? $adm['user_id']), $title, "Submission #{$submissionId} has been {$status}.", (int)$submissionId);
+            }
+
+            if ($submitterDept) {
+                $deptAdmins = $userModel->where('user_type', 'department_admin')->where('department_id', $submitterDept)->where('active', 1)->findAll();
+                foreach ($deptAdmins as $d) {
+                    $this->notifyUser((int)($d['id'] ?? $d['user_id']), $title, "Submission #{$submissionId} has been {$status}.", (int)$submissionId);
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'createApprovalNotification extra-notify error: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -341,17 +389,7 @@ class NotificationModel extends Model
     {
         $title = 'Service Scheduled';
         $message = "Your service has been scheduled for {$scheduledDate} at {$scheduledTime}.";
-        
-        $this->insert([
-            'user_id'    => $userId,
-            'title'      => $title,
-            'message'    => $message,
-            'read'       => 0,
-            'created_at' => date('Y-m-d H:i:s')
-        ]);
-
-        // Send email notification
-        $this->sendEmailNotification($userId, $title, $message);
+        $this->notifyUser((int)$userId, $title, $message, (int)$scheduleId);
     }
 
     /**
@@ -361,18 +399,7 @@ class NotificationModel extends Model
     {
         $title = 'New Service Assignment';
         $message = "You have been assigned to process a {$formCode} service request. Please review and complete the service.";
-        
-        $this->insert([
-            'user_id'       => $serviceStaffId,
-            'submission_id' => $submissionId,
-            'title'         => $title,
-            'message'       => $message,
-            'read'          => 0,
-            'created_at'    => date('Y-m-d H:i:s')
-        ]);
-
-        // Send email notification
-        $this->sendEmailNotification($serviceStaffId, $title, $message);
+        $this->notifyUser((int)$serviceStaffId, $title, $message, (int)$submissionId);
     }
 
     /**
@@ -382,30 +409,41 @@ class NotificationModel extends Model
     {
         $title = 'Service Completed';
         $message = 'Your service request has been completed successfully. You can now provide feedback about your experience.';
-        
         log_message('info', "Service Completion Notification - Submission ID: {$submissionId} | Requestor User ID: {$userId}");
-        $this->insert([
-            'user_id'       => $userId,
-            'submission_id' => $submissionId,
-            'title'         => $title,
-            'message'       => $message,
-            'read'          => 0,
-            'created_at'    => date('Y-m-d H:i:s')
-        ]);
 
-        // Send email notification and log outcome
+        // Notify requestor
+        $this->notifyUser((int)$userId, $title, $message, (int)$submissionId);
+
+        // Also notify approver, department admins, and service staff for audit and visibility
         try {
-            $sent = $this->sendEmailNotification($userId, $title, $message);
-            if ($sent) {
-                log_message('info', "Service Completion Notification - Email sent to user {$userId}");
-            } else {
-                log_message('warning', "Service Completion Notification - Email NOT sent to user {$userId}");
+            $submission = (new \App\Models\FormSubmissionModel())->find($submissionId);
+            $formId = $submission['form_id'] ?? null;
+
+            // Notify approver if exists
+            if (!empty($submission['approver_id'])) {
+                $this->notifyUser((int)$submission['approver_id'], 'Request Completed', "Submission #{$submissionId} has been completed by service staff.", (int)$submissionId);
+            }
+
+            // Notify department admins by form's department
+            if ($formId) {
+                $form = (new \App\Models\FormModel())->find($formId);
+                $formDept = $form['department_id'] ?? null;
+                if ($formDept) {
+                    $userModel = new UserModel();
+                    $deptAdmins = $userModel->where('user_type', 'department_admin')->where('department_id', $formDept)->where('active', 1)->findAll();
+                    foreach ($deptAdmins as $d) {
+                        $this->notifyUser((int)($d['id'] ?? $d['user_id']), 'Request Completed', "Submission #{$submissionId} has been completed.", (int)$submissionId);
+                    }
+                }
+            }
+
+            // Optionally notify assigned service staff for record
+            if (!empty($submission['service_staff_id'])) {
+                $this->notifyUser((int)$submission['service_staff_id'], 'Request Completed', "You marked Submission #{$submissionId} as completed.", (int)$submissionId);
             }
         } catch (\Throwable $e) {
-            log_message('error', "Service Completion Notification - Exception while sending email to user {$userId}: " . $e->getMessage());
+            log_message('error', 'createServiceCompletionNotification extra notifications failed: ' . $e->getMessage());
         }
-
-        log_message('info', "Service Completion Notification - Successfully created for user {$userId}");
     }
 
     /**
@@ -415,18 +453,7 @@ class NotificationModel extends Model
     {
         $title = 'Request Cancelled';
         $message = 'A service request' . (!empty($formCode) ? " ({$formCode})" : '') . ' has been cancelled by the requestor.';
-        
-        $this->insert([
-            'user_id'       => $userId,
-            'submission_id' => $submissionId,
-            'title'         => $title,
-            'message'       => $message,
-            'read'          => 0,
-            'created_at'    => date('Y-m-d H:i:s')
-        ]);
-
-        // Send email notification
-        $this->sendEmailNotification($userId, $title, $message);
+        $this->notifyUser((int)$userId, $title, $message, (int)$submissionId);
     }
 
     /**
