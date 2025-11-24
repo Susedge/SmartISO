@@ -278,22 +278,34 @@ class NotificationModel extends Model
         $userModel = new UserModel();
         $submitter = $userModel->find($submission['submitted_by']);
         $submitterDepartment = $submitter['department_id'] ?? null;
+
+        // Get form's department (useful when forms are owned by a different department
+        // than the submitter). This fixes a bug where department admins for the FORM
+        // were not notified when the submitter belonged to a different department.
+        $formModel = new \App\Models\FormModel();
+        $form = $formModel->find($submission['form_id']);
+        $formDepartment = $form['department_id'] ?? null;
         
         // Get form-specific assigned approvers
         $formSignatoryModel = new \App\Models\FormSignatoryModel();
         $assignedApprovers = $formSignatoryModel->getFormSignatories($submission['form_id']);
         
-        log_message('info', "Submission Notification - Submission ID: {$submissionId} | Form: {$formCode} | Submitter Dept: {$submitterDepartment} | Form Signatories: " . count($assignedApprovers));
+        log_message('info', "Submission Notification - Submission ID: {$submissionId} | Form: {$formCode} | Submitter Dept: {$submitterDepartment} | Form Dept: {$formDepartment} | Form Signatories: " . count($assignedApprovers));
         
         // If no specific approvers assigned, fall back to approving authorities FROM THE SAME DEPARTMENT
         if (empty($assignedApprovers)) {
-            if ($submitterDepartment) {
-                // Include both approving authorities and department admins from the same department
+            // Prefer form's department for fallback routing; if form has no department
+            // configured, fall back to the submitter's department. If neither is
+            // available, fall back to notifying all approvers (legacy behavior).
+            $departmentForFallback = $formDepartment ?? $submitterDepartment;
+
+            if ($departmentForFallback) {
+                // Include both approving authorities and department admins from the chosen department
                 $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
-                                               ->where('department_id', $submitterDepartment)
+                                               ->where('department_id', $departmentForFallback)
                                                ->where('active', 1)
                                                ->findAll();
-                log_message('info', "Submission Notification - No form signatories, using department-based routing | Department: {$submitterDepartment} | Found " . count($assignedApprovers) . " approvers/dept admins");
+                log_message('info', "Submission Notification - No form signatories, using department-based routing | Department: {$departmentForFallback} | Found " . count($assignedApprovers) . " approvers/dept admins");
             } else {
                 // No department - notify all approvers (legacy support for data without departments)
                 $assignedApprovers = $userModel->whereIn('user_type', ['approving_authority', 'department_admin'])
@@ -308,13 +320,24 @@ class NotificationModel extends Model
                                   ->where('active', 1)
                                   ->findAll();
 
-        // Also ALWAYS include department admins for submitter's department (explicit requirement)
+        // Also ALWAYS include department admins for both the FORM department and the
+        // submitter's department (if available). This ensures both relevant sets of
+        // department admins receive notifications in cross-department scenarios.
         $deptAdmins = [];
-        if ($submitterDepartment) {
-            $deptAdmins = $userModel->where('user_type', 'department_admin')
-                                   ->where('department_id', $submitterDepartment)
-                                   ->where('active', 1)
-                                   ->findAll();
+        // collect departments to query (avoid duplicates by using array)
+        $deptCandidates = [];
+        if ($formDepartment) $deptCandidates[] = $formDepartment;
+        if ($submitterDepartment) $deptCandidates[] = $submitterDepartment;
+        $deptCandidates = array_unique($deptCandidates);
+
+        foreach ($deptCandidates as $d) {
+            $found = $userModel->where('user_type', 'department_admin')
+                               ->where('department_id', $d)
+                               ->where('active', 1)
+                               ->findAll();
+            if (!empty($found)) {
+                $deptAdmins = array_merge($deptAdmins, $found);
+            }
         }
 
         // Merge approvers, dept admins and global admins, removing duplicates
@@ -400,6 +423,47 @@ class NotificationModel extends Model
         $title = 'New Service Assignment';
         $message = "You have been assigned to process a {$formCode} service request. Please review and complete the service.";
         $this->notifyUser((int)$serviceStaffId, $title, $message, (int)$submissionId);
+        
+        // Also notify approving authority, department admins and global admins for visibility
+        // This ensures department admins see assignments for forms in their department
+        try {
+            $submissionModel = new \App\Models\FormSubmissionModel();
+            $submission = $submissionModel->find($submissionId);
+            if ($submission) {
+                $formId = $submission['form_id'] ?? null;
+                $submitterDept = null;
+                if (!empty($formId)) {
+                    $form = (new \App\Models\FormModel())->find($formId);
+                    $submitterDept = $form['department_id'] ?? null;
+                }
+
+                $userModel = new \App\Models\UserModel();
+
+                // Notify approver if present on submission
+                if (!empty($submission['approver_id'])) {
+                    $this->notifyUser((int)$submission['approver_id'], 'Service Assigned', "Submission #{$submissionId} has been assigned to staff.", (int)$submissionId);
+                }
+
+                // Notify department admins for the form's department
+                if (!empty($submitterDept)) {
+                    $deptAdmins = $userModel->where('user_type', 'department_admin')
+                                            ->where('department_id', $submitterDept)
+                                            ->where('active', 1)
+                                            ->findAll();
+                    foreach ($deptAdmins as $d) {
+                        $this->notifyUser((int)($d['id'] ?? $d['user_id']), 'Service Assigned', "Submission #{$submissionId} has been assigned to service staff.", (int)$submissionId);
+                    }
+                }
+
+                // Always notify global admins for audit
+                $globalAdmins = $userModel->whereIn('user_type', ['admin', 'superuser'])->where('active', 1)->findAll();
+                foreach ($globalAdmins as $ga) {
+                    $this->notifyUser((int)($ga['id'] ?? $ga['user_id']), 'Service Assigned', "Submission #{$submissionId} assigned to staff (Staff ID: {$serviceStaffId}).", (int)$submissionId);
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('error', 'createServiceStaffAssignmentNotification extra-notify error: ' . $e->getMessage());
+        }
     }
 
     /**
