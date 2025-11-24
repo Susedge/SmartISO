@@ -181,7 +181,8 @@
 <?= $this->section('scripts') ?>
 <script>
 // PHP-resolved base URL for the "View Request" button so it points to the correct controller
-var VIEW_REQUEST_BASE = <?= json_encode( in_array(session()->get('user_type'), ['admin','superuser','department_admin']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/') ) ?>;
+// Only real admins should use the admin view; department_admin should use the public submission view
+var VIEW_REQUEST_BASE = <?= json_encode( in_array(session()->get('user_type'), ['admin','superuser']) ? base_url('admin/dynamicforms/view-submission/') : base_url('forms/submission/') ) ?>;
 // Cleaned calendar script: single DOMContentLoaded, safe HTML building, and safe admin HTML injection.
 function loadScript(src, onload, onerror) {
     var s = document.createElement('script'); s.src = src; s.async = true; s.onload = onload; s.onerror = onerror; document.head.appendChild(s);
