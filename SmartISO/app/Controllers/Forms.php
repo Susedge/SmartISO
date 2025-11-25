@@ -1065,8 +1065,12 @@ class Forms extends BaseController
         $userDepartmentId = $this->getUserDepartmentId();
         $isAdmin = in_array($userType, ['admin', 'superuser', 'department_admin']);
         $isServiceStaff = ($userType === 'service_staff');
+        // Treat approving authorities as a privileged viewer for calendar-based views.
+        // Approvers should be able to view submissions they're responsible for even when
+        // the submitter is in another department (calendar visibility grants view access).
+        $isApprover = ($userType === 'approving_authority');
 
-        if (!$isAdmin && !$isServiceStaff && $userDepartmentId) {
+        if (!$isAdmin && !$isServiceStaff && !$isApprover && $userDepartmentId) {
             // Get submitter's department
             $submitter = $this->userModel->find($submission['submitted_by']);
             if (!$submitter || $submitter['department_id'] != $userDepartmentId) {
