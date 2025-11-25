@@ -461,7 +461,10 @@ document.addEventListener('DOMContentLoaded', function(){
                                 // Determine which endpoint to use based on event ID format
                                 var eventId = info.event.id;
                                 var isVirtualEvent = String(eventId).startsWith('sub-') || String(eventId).startsWith('staff-');
-                                var endpoint = '<?= base_url('schedule/update-priority/') ?>' + eventId;
+                                if (!eventId) {
+                                    console.error('Invalid event id for update-priority');
+                                }
+                                var endpoint = '<?= base_url('schedule/update-priority/') ?>' + encodeURIComponent(eventId);
                                 
                                 console.log('Sending to endpoint:', endpoint);
                                 
@@ -558,7 +561,10 @@ document.addEventListener('DOMContentLoaded', function(){
                                 // Determine which endpoint to use based on event ID format
                                 var eventId = info.event.id;
                                 var isVirtualEvent = String(eventId).startsWith('sub-') || String(eventId).startsWith('staff-');
-                                var endpoint = '<?= base_url('schedule/update-priority/') ?>' + eventId;
+                                if (!eventId) {
+                                    console.error('Invalid event id for update-priority (Bootstrap)');
+                                }
+                                var endpoint = '<?= base_url('schedule/update-priority/') ?>' + encodeURIComponent(eventId);
                                 
                                 console.log('Sending to endpoint (Bootstrap):', endpoint);
                                 
