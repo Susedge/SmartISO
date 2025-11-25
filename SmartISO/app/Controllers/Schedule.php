@@ -191,6 +191,42 @@ class Schedule extends BaseController
         // Track submission IDs present on this user's calendar so view handlers
         // can allow access when the event is shown in the calendar.
         $visibleSubmissionIds = [];
+        // Pre-fetch submission statuses for schedules that don't already include submission_status
+        $missingShortIds = [];
+        // Pre-fetch missing submission statuses to reduce DB lookups in the loop
+        $missingSubIds = [];
+        foreach ($schedules as $schedule) {
+            if (!empty($schedule['submission_id']) && empty($schedule['submission_status'])) {
+                $missingSubIds[] = (int)$schedule['submission_id'];
+            }
+        }
+        $submissionMap = [];
+        if (!empty($missingSubIds)) {
+            $missingSubIds = array_values(array_unique($missingSubIds));
+            try {
+                $rows = $this->submissionModel->whereIn('id', $missingSubIds)->select('id,status')->findAll();
+                foreach ($rows as $r) { $submissionMap[(int)$r['id']] = $r['status']; }
+            } catch (\Exception $e) {
+                log_message('debug', 'Schedule::calendar bulk status fetch failed: ' . $e->getMessage());
+            }
+        }
+
+        foreach ($schedules as $schedule) {
+            if (!empty($schedule['submission_id']) && empty($schedule['submission_status'])) {
+                $missingShortIds[] = (int)$schedule['submission_id'];
+            }
+        }
+        $submissionStatusMap = [];
+        if (!empty($missingShortIds)) {
+            $missingShortIds = array_values(array_unique($missingShortIds));
+            try {
+                $subs = $this->submissionModel->whereIn('id', $missingShortIds)->select('id,status')->findAll();
+                foreach ($subs as $s) { $submissionStatusMap[(int)$s['id']] = $s['status']; }
+            } catch (\Exception $e) {
+                log_message('debug', 'Schedule::index bulk status fetch failed: ' . $e->getMessage());
+            }
+        }
+
         foreach ($schedules as $schedule) {
             // Ensure we have minimum required fields
             if (empty($schedule['id']) || empty($schedule['scheduled_date']) || empty($schedule['scheduled_time'])) {
@@ -202,8 +238,22 @@ class Schedule extends BaseController
             // Use form description (actual title) instead of form_code
             $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
 
-            // Use submission_status if available, otherwise fall back to schedule status
-            $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
+            // Resolve status: prefer the joined submission.status (submission_status).
+            // If missing (edge cases), query the submission directly as a fallback so the
+            // calendar always shows the authoritative submission status.
+            $status = null;
+            if (!empty($schedule['submission_status'])) {
+                $status = $schedule['submission_status'];
+            } elseif (!empty($schedule['status'])) {
+                $status = $schedule['status'];
+            } elseif (!empty($schedule['submission_id'])) {
+                // Try lookup from pre-fetched map
+                $sid = (int)$schedule['submission_id'];
+                if (isset($submissionStatusMap[$sid])) {
+                    $status = $submissionStatusMap[$sid];
+                }
+            }
+            $status = strtolower(trim($status ?? 'pending'));
 
             // compute view URL for this submission (if available)
             // NOTE: if a submission is included in the calendar for the current user,
@@ -749,8 +799,19 @@ class Schedule extends BaseController
             // Use form description (actual title) instead of form_code
             $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
 
-            // Use submission_status if available, otherwise fall back to schedule status
-            $status = $schedule['submission_status'] ?? $schedule['status'] ?? 'pending';
+            // Resolve status: prefer the joined submission.status (submission_status).
+            // If missing (edge cases), query the submission directly as a fallback so the
+            // calendar always shows the authoritative submission status to approvers.
+            $status = null;
+            if (!empty($schedule['submission_status'])) {
+                $status = $schedule['submission_status'];
+            } elseif (!empty($schedule['status'])) {
+                $status = $schedule['status'];
+            } elseif (!empty($schedule['submission_id'])) {
+                $sid = (int)$schedule['submission_id'];
+                if (isset($submissionMap[$sid])) { $status = $submissionMap[$sid]; }
+            }
+            $status = strtolower(trim($status ?? 'pending'));
 
             // compute view fields for calendar events
             $submissionId = $schedule['submission_id'] ?? null;
@@ -1003,7 +1064,7 @@ class Schedule extends BaseController
                 'eta_days' => null,
                 'estimated_date' => null,
                 'priority_level' => $priorityLevel, // Now properly set
-                'requestor_department_id' => $row['department_id']
+                'requestor_department_id' => $row['requestor_department_id'] ?? null
             ];
         }
         
@@ -1141,7 +1202,7 @@ class Schedule extends BaseController
                 'eta_days' => null,
                 'estimated_date' => null,
                 'priority_level' => null,
-                'requestor_department_id' => $row['department_id']
+                'requestor_department_id' => $row['requestor_department_id'] ?? null
             ];
         }
         
@@ -1672,7 +1733,7 @@ class Schedule extends BaseController
                 'eta_days' => null,
                 'estimated_date' => null,
                 'priority_level' => null,
-                'requestor_department_id' => $row['department_id']
+                'requestor_department_id' => $row['requestor_department_id'] ?? null
             ];
         }
         

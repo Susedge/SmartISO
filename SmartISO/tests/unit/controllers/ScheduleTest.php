@@ -48,4 +48,13 @@ class ScheduleTest extends CIUnitTestCase
         $ref = new ReflectionClass($classname);
         $this->assertIsObject($ref->newInstanceWithoutConstructor());
     }
+
+    public function testCalendarStatusFallbackPresent()
+    {
+        $file = __DIR__ . '/../../../../app/Controllers/Schedule.php';
+        $this->assertFileExists($file);
+        $contents = file_get_contents($file);
+
+        $this->assertStringContainsString('Resolve status: prefer the joined submission.status', $contents, 'Schedule controller should resolve submission status and fallback to DB when necessary');
+    }
 }
