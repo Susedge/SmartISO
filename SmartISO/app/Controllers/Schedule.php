@@ -128,7 +128,7 @@ class Schedule extends BaseController
                     ->join('users', 'users.id = form_submissions.submitted_by')
                     ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
                     ->groupStart()
-                        ->whereIn('form_submissions.status', ['submitted', 'approved', 'completed']) // Show submitted, approved and completed for approvers
+                        ->whereIn('form_submissions.status', ['submitted', 'approved', 'pending_service', 'completed']) // Show submitted, approved, pending_service and completed for approvers
                             ->orWhere('form_submissions.approver_id', $userId) // Already approved by this user
                     ->groupEnd();
             
@@ -712,7 +712,7 @@ class Schedule extends BaseController
                     ->join('users', 'users.id = form_submissions.submitted_by', 'left')
                     ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
                     ->groupStart()
-                    ->whereIn('form_submissions.status', ['submitted','approved','completed']) // Pending/approved/completed
+                    ->whereIn('form_submissions.status', ['submitted','approved','pending_service','completed']) // Pending/approved/pending_service/completed
                     ->orWhere('form_submissions.approver_id', $userId) // Already approved
                 ->groupEnd();
 
@@ -1155,7 +1155,7 @@ class Schedule extends BaseController
             ->join('form_signatories fsig', 'fsig.form_id = fs.form_id AND fsig.user_id = ' . $userId, 'inner')
             ->where('NOT EXISTS (SELECT 1 FROM schedules s WHERE s.submission_id = fs.id)', null, false)
             ->groupStart()
-                ->whereIn('fs.status', ['submitted','approved','completed']) // Pending, approved, or completed
+                ->whereIn('fs.status', ['submitted','approved','pending_service','completed']) // Pending, approved, pending_service or completed
                 ->orWhere('fs.approver_id', $userId) // Already approved by this user
             ->groupEnd();
         
