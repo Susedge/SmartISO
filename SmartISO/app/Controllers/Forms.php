@@ -652,12 +652,12 @@ class Forms extends BaseController
                 }
                 
                 // GLOBAL ADMIN: Can filter by department and office
-                if ($isGlobalAdmin && $departmentFilter) {
+                if (($isGlobalAdmin || $userType === 'approving_authority') && $departmentFilter) {
                     $builder->where('users.department_id', $departmentFilter);
                     log_message('info', "Applying department filter: {$departmentFilter}");
                 }
                 
-                if ($isGlobalAdmin && $officeFilter) {
+                if (($isGlobalAdmin || $userType === 'approving_authority') && $officeFilter) {
                     $builder->where('users.office_id', $officeFilter);
                     log_message('info', "Applying office filter: {$officeFilter}");
                 }
@@ -728,7 +728,7 @@ class Forms extends BaseController
             $departments = [];
             $offices = [];
             
-            if ($isGlobalAdmin) {
+            if ($isGlobalAdmin || $userType === 'approving_authority') {
                 // Global admins can see all departments and offices
                 try {
                     $departments = $this->departmentModel->orderBy('description', 'ASC')

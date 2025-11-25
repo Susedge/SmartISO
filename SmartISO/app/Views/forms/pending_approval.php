@@ -75,6 +75,54 @@
                             </select>
                         </div>
                     </form>
+                <?php elseif (session()->get('user_type') === 'approving_authority'): ?>
+                    <!-- Approving authorities: allow department and office filtering similar to requestor/list views -->
+                    <form method="get" action="<?= base_url('forms/pending-approval') ?>" id="filterForm" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="department_filter" class="form-label">Filter by Department</label>
+                            <select name="department" id="department_filter" class="form-select">
+                                <option value="">All Departments</option>
+                                <?php if (isset($departments) && is_array($departments)): ?>
+                                    <?php foreach ($departments as $dept): ?>
+                                        <option value="<?= esc($dept['id']) ?>" <?= (isset($selectedDepartment) && $selectedDepartment == $dept['id']) ? 'selected' : '' ?>>
+                                            <?= esc($dept['description']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="office_filter" class="form-label">Filter by Office</label>
+                            <select name="office" id="office_filter" class="form-select">
+                                <option value="">All Offices</option>
+                                <?php if (isset($offices) && is_array($offices)): ?>
+                                    <?php foreach ($offices as $office): ?>
+                                        <option value="<?= esc($office['id']) ?>" data-department="<?= esc($office['department_id']) ?>" <?= (isset($selectedOffice) && $selectedOffice == $office['id']) ? 'selected' : '' ?>>
+                                            <?= esc($office['description']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="priority_filter" class="form-label">Filter by Priority</label>
+                            <select name="priority" id="priority_filter" class="form-select">
+                                <option value="">All Priorities</option>
+                                <?php 
+                                $safePriorities = $priorities ?? [
+                                    'low' => 'Low',
+                                    'medium' => 'Medium',
+                                    'high' => 'High'
+                                ];
+                                foreach ($safePriorities as $priority_key => $priority_label): 
+                                ?>
+                                    <option value="<?= esc($priority_key) ?>" <?= (isset($selectedPriority) && $selectedPriority === $priority_key) ? 'selected' : '' ?>>
+                                        <?= esc($priority_label) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </form>
                 <?php elseif (isset($isDepartmentAdmin) && $isDepartmentAdmin): ?>
                     <!-- Department admins see their department info and can filter by office (if not assigned to specific office) and priority -->
                     <div class="alert alert-info mb-3">
