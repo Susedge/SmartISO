@@ -124,6 +124,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     // Form completion routes
     $routes->get('forms/final-sign/(:num)', 'Forms::finalSignForm/$1');
     $routes->post('forms/confirm-service', 'Forms::confirmService');
+    // Backwards/compatibility: accept POST to /forms/confirm-service/{id} (view currently posts to this URL)
+    $routes->post('forms/confirm-service/(:num)', 'Forms::confirmService/$1');
 
     // Export generator (DOCX base + optional PDF conversion)
     $routes->get('pdfgenerator/generateFormPdf/(:num)', 'PdfGenerator::generateFormPdf/$1');
