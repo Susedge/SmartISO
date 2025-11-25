@@ -2590,7 +2590,13 @@ class Forms extends BaseController
         log_message('info', "departmentSubmissions access attempt - User Type: {$userType}, Department ID: {$userDeptId}");
         
         // Only accessible to department admins
-        if ($userType !== 'department_admin' || empty($userDeptId)) {
+        // Accept either an explicit user_type of department_admin OR the session flag 'is_department_admin'.
+        $isDeptAdminFlag = session()->get('is_department_admin');
+        if ((!empty($isDeptAdminFlag) && $isDeptAdminFlag === true)) {
+            log_message('info', "departmentSubmissions: session is_department_admin flag present for user {$userId}");
+        }
+
+        if ((($userType !== 'department_admin') && empty($isDeptAdminFlag)) || empty($userDeptId)) {
             log_message('warning', "departmentSubmissions access denied - User Type: {$userType}, Department ID: " . ($userDeptId ?: 'NULL'));
             return redirect()->to('/dashboard')->with('error', 'Access denied. Only department administrators can view department submissions.');
         }

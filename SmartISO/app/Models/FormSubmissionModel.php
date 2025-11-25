@@ -48,6 +48,70 @@ class FormSubmissionModel extends Model
         
         return $result;
     }
+
+    /**
+     * Override update so we can keep related schedule rows in sync when
+     * certain submission fields change (service_staff assignment, status changes).
+     * This helps ensure edits made from admin/department admin panels are
+     * reflected to service staff calendars and prevent stale/duplicate state.
+     */
+    public function update($id = null, $data = null)
+    {
+        $result = parent::update($id, $data);
+
+        // If the update succeeded and we received an array of updated data,
+        // propagate changes to schedules linked to this submission.
+        try {
+            if ($result && is_array($data) && !empty($id)) {
+                // Normalize id - when called with array of updates, parent::update
+                // may accept string/number or array. We expect numeric submission id.
+                $submissionId = is_array($id) ? ($id['id'] ?? null) : $id;
+                if (is_array($submissionId)) {
+                    // Guard - unexpected shape; do not proceed
+                    $submissionId = null;
+                }
+                if (!empty($submissionId)) {
+                    $scheduleModelClass = 'App\\Models\\ScheduleModel';
+                    if (class_exists($scheduleModelClass)) {
+                        $scheduleModel = new \App\Models\ScheduleModel();
+
+                        // If service_staff_id changed, update assigned_staff_id in all schedules
+                        if (array_key_exists('service_staff_id', $data) && $data['service_staff_id'] !== null) {
+                            $staffId = $data['service_staff_id'];
+                            // Update all schedules for this submission to reflect current assignment
+                            $schedules = $scheduleModel->where('submission_id', $submissionId)->findAll();
+                            foreach ($schedules as $s) {
+                                try {
+                                    $scheduleModel->update($s['id'], ['assigned_staff_id' => $staffId]);
+                                } catch (\Throwable $e) {
+                                    log_message('error', 'FormSubmissionModel::update: Failed to sync assigned_staff_id for schedule ' . ($s['id'] ?? 'unknown') . ': ' . $e->getMessage());
+                                }
+                            }
+                            log_message('info', 'FormSubmissionModel::update: Synced assigned_staff_id to schedules for submission ' . $submissionId);
+                        }
+
+                        // If status changed to completed, mark related schedules as completed too
+                        if (array_key_exists('status', $data) && $data['status'] === 'completed') {
+                            $schedules = $scheduleModel->where('submission_id', $submissionId)->findAll();
+                            foreach ($schedules as $s) {
+                                try {
+                                    $scheduleModel->update($s['id'], ['status' => 'completed']);
+                                } catch (\Throwable $e) {
+                                    log_message('error', 'FormSubmissionModel::update: Failed to set schedule completed for schedule ' . ($s['id'] ?? 'unknown') . ': ' . $e->getMessage());
+                                }
+                            }
+                            log_message('info', 'FormSubmissionModel::update: Marked schedules completed for submission ' . $submissionId);
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Non-fatal - log and continue
+            log_message('error', 'FormSubmissionModel::update: exception when syncing schedules: ' . $e->getMessage());
+        }
+
+        return $result;
+    }
     
     /**
      * Get submissions with form details
