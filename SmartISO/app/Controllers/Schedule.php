@@ -1726,7 +1726,9 @@ class Schedule extends BaseController
                 'duration_minutes' => 60,
                 'location' => '',
                 'notes' => 'Pending schedule assignment',
-                'status' => 'pending',
+                // Use the actual submission status for department virtual entries so
+                // department admins see the authoritative status from form_submissions
+                'status' => strtolower(trim($row['submission_status'] ?? 'pending')),
                 'assigned_staff_id' => null,
                 'assigned_staff_name' => null,
                 'priority' => $row['priority'] ?? 0,
