@@ -385,7 +385,7 @@
                         <i class="bi bi-tools"></i> Service This Form
                     </a>
                 <?php elseif ($canSignCompletion): ?>
-                    <a href="<?= base_url('forms/final-sign-form/' . $submission['id']) ?>" class="btn btn-success">
+                    <a href="<?= base_url('forms/final-sign/' . $submission['id']) ?>" class="btn btn-success">
                         <i class="bi bi-check2-circle"></i> Confirm Completion
                     </a>
                 <?php endif; ?>

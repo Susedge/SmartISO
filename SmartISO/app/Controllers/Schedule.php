@@ -191,37 +191,21 @@ class Schedule extends BaseController
         // Track submission IDs present on this user's calendar so view handlers
         // can allow access when the event is shown in the calendar.
         $visibleSubmissionIds = [];
-        // Pre-fetch submission statuses for schedules that don't already include submission_status
-        $missingShortIds = [];
-        // Pre-fetch missing submission statuses to reduce DB lookups in the loop
-        $missingSubIds = [];
+        // Prefetch authoritative submission.status for any schedule rows that include a submission_id
+        // We intentionally grab all submission statuses in one query to avoid stale schedule.status
+        // being displayed when the form submission has moved to 'completed' or similar.
+        $submissionIdsToPrefetch = [];
         foreach ($schedules as $schedule) {
-            if (!empty($schedule['submission_id']) && empty($schedule['submission_status'])) {
-                $missingSubIds[] = (int)$schedule['submission_id'];
-            }
-        }
-        $submissionMap = [];
-        if (!empty($missingSubIds)) {
-            $missingSubIds = array_values(array_unique($missingSubIds));
-            try {
-                $rows = $this->submissionModel->whereIn('id', $missingSubIds)->select('id,status')->findAll();
-                foreach ($rows as $r) { $submissionMap[(int)$r['id']] = $r['status']; }
-            } catch (\Exception $e) {
-                log_message('debug', 'Schedule::calendar bulk status fetch failed: ' . $e->getMessage());
-            }
-        }
-
-        foreach ($schedules as $schedule) {
-            if (!empty($schedule['submission_id']) && empty($schedule['submission_status'])) {
-                $missingShortIds[] = (int)$schedule['submission_id'];
+            if (!empty($schedule['submission_id'])) {
+                $submissionIdsToPrefetch[] = (int)$schedule['submission_id'];
             }
         }
         $submissionStatusMap = [];
-        if (!empty($missingShortIds)) {
-            $missingShortIds = array_values(array_unique($missingShortIds));
+        if (!empty($submissionIdsToPrefetch)) {
+            $submissionIdsToPrefetch = array_values(array_unique($submissionIdsToPrefetch));
             try {
-                $subs = $this->submissionModel->whereIn('id', $missingShortIds)->select('id,status')->findAll();
-                foreach ($subs as $s) { $submissionStatusMap[(int)$s['id']] = $s['status']; }
+                $rows = $this->submissionModel->whereIn('id', $submissionIdsToPrefetch)->select('id,status')->findAll();
+                foreach ($rows as $r) { $submissionStatusMap[(int)$r['id']] = $r['status']; }
             } catch (\Exception $e) {
                 log_message('debug', 'Schedule::index bulk status fetch failed: ' . $e->getMessage());
             }
@@ -238,20 +222,21 @@ class Schedule extends BaseController
             // Use form description (actual title) instead of form_code
             $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
 
-            // Resolve status: prefer the joined submission.status (submission_status).
-            // If missing (edge cases), query the submission directly as a fallback so the
-            // calendar always shows the authoritative submission status.
+            // Resolve status: prefer the authoritative submission.status where a submission exists.
+            // Fall back to schedule.status only when no submission-status is available.
             $status = null;
-            if (!empty($schedule['submission_status'])) {
-                $status = $schedule['submission_status'];
-            } elseif (!empty($schedule['status'])) {
-                $status = $schedule['status'];
-            } elseif (!empty($schedule['submission_id'])) {
-                // Try lookup from pre-fetched map
+            if (!empty($schedule['submission_id'])) {
                 $sid = (int)$schedule['submission_id'];
-                if (isset($submissionStatusMap[$sid])) {
+                if (isset($submissionStatusMap[$sid]) && !empty($submissionStatusMap[$sid])) {
                     $status = $submissionStatusMap[$sid];
+                } elseif (!empty($schedule['submission_status'])) {
+                    $status = $schedule['submission_status'];
+                } elseif (!empty($schedule['status'])) {
+                    $status = $schedule['status'];
                 }
+            } else {
+                // No linked submission -> use schedule row status
+                if (!empty($schedule['status'])) { $status = $schedule['status']; }
             }
             $status = strtolower(trim($status ?? 'pending'));
 
@@ -790,17 +775,18 @@ class Schedule extends BaseController
         // a joined submission_status. Without this the controller could fall back
         // to schedule.status (eg. 'pending') which is misleading for approvers
         // who should see the authoritative form_submissions.status (approved/completed).
-        $missingSubIds = [];
+        // Prefetch authoritative submission.status for any schedules with submission_id
+        $submissionIdsToPrefetch = [];
         foreach ($schedules as $schedule) {
-            if (!empty($schedule['submission_id']) && empty($schedule['submission_status'])) {
-                $missingSubIds[] = (int)$schedule['submission_id'];
+            if (!empty($schedule['submission_id'])) {
+                $submissionIdsToPrefetch[] = (int)$schedule['submission_id'];
             }
         }
         $submissionMap = [];
-        if (!empty($missingSubIds)) {
-            $missingSubIds = array_values(array_unique($missingSubIds));
+        if (!empty($submissionIdsToPrefetch)) {
+            $submissionIdsToPrefetch = array_values(array_unique($submissionIdsToPrefetch));
             try {
-                $rows = $this->submissionModel->whereIn('id', $missingSubIds)->select('id,status')->findAll();
+                $rows = $this->submissionModel->whereIn('id', $submissionIdsToPrefetch)->select('id,status')->findAll();
                 foreach ($rows as $r) { $submissionMap[(int)$r['id']] = $r['status']; }
             } catch (\Exception $e) {
                 log_message('debug', 'Schedule::calendar bulk status fetch failed: ' . $e->getMessage());
@@ -820,17 +806,19 @@ class Schedule extends BaseController
             // Use form description (actual title) instead of form_code
             $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
 
-            // Resolve status: prefer the joined submission.status (submission_status).
-            // If missing (edge cases), query the submission directly as a fallback so the
-            // calendar always shows the authoritative submission status to approvers.
+            // Resolve status: prefer authoritative submission.status when a submission exists.
             $status = null;
-            if (!empty($schedule['submission_status'])) {
-                $status = $schedule['submission_status'];
-            } elseif (!empty($schedule['status'])) {
-                $status = $schedule['status'];
-            } elseif (!empty($schedule['submission_id'])) {
+            if (!empty($schedule['submission_id'])) {
                 $sid = (int)$schedule['submission_id'];
-                if (isset($submissionMap[$sid])) { $status = $submissionMap[$sid]; }
+                if (isset($submissionMap[$sid]) && !empty($submissionMap[$sid])) {
+                    $status = $submissionMap[$sid];
+                } elseif (!empty($schedule['submission_status'])) {
+                    $status = $schedule['submission_status'];
+                } elseif (!empty($schedule['status'])) {
+                    $status = $schedule['status'];
+                }
+            } else {
+                if (!empty($schedule['status'])) { $status = $schedule['status']; }
             }
             $status = strtolower(trim($status ?? 'pending'));
 
