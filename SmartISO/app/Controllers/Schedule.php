@@ -584,6 +584,16 @@ class Schedule extends BaseController
     {
         $userType = session()->get('user_type');
         $userId = session()->get('user_id');
+        // Ensure these are set consistently (used later for approver filtering)
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin', 'superuser']);
+
+        // Prevent aggressive browser caching for calendar pages which can cause
+        // stale submission status to be displayed (especially for approvers).
+        // This is a defensive measure so clients always see authoritative status.
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
         
         $data['title'] = 'Schedule Calendar';
         
