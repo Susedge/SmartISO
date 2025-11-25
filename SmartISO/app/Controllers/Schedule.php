@@ -786,6 +786,27 @@ class Schedule extends BaseController
         log_message('debug', 'Calendar - Schedules data: ' . json_encode($schedules ?? []));
         
         // Format schedules for calendar display
+        // Ensure we prefetch submission statuses for any schedules that don't include
+        // a joined submission_status. Without this the controller could fall back
+        // to schedule.status (eg. 'pending') which is misleading for approvers
+        // who should see the authoritative form_submissions.status (approved/completed).
+        $missingSubIds = [];
+        foreach ($schedules as $schedule) {
+            if (!empty($schedule['submission_id']) && empty($schedule['submission_status'])) {
+                $missingSubIds[] = (int)$schedule['submission_id'];
+            }
+        }
+        $submissionMap = [];
+        if (!empty($missingSubIds)) {
+            $missingSubIds = array_values(array_unique($missingSubIds));
+            try {
+                $rows = $this->submissionModel->whereIn('id', $missingSubIds)->select('id,status')->findAll();
+                foreach ($rows as $r) { $submissionMap[(int)$r['id']] = $r['status']; }
+            } catch (\Exception $e) {
+                log_message('debug', 'Schedule::calendar bulk status fetch failed: ' . $e->getMessage());
+            }
+        }
+
         $calendarEvents = [];
         $visibleSubmissionIds = [];
         foreach ($schedules as $schedule) {

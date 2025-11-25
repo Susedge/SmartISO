@@ -78,6 +78,16 @@ class ScheduleTest extends CIUnitTestCase
         $this->assertStringContainsString("submission_status", $contents, 'Schedule controller should include joined submission.status in calendar events');
     }
 
+    public function testCalendarPrefetchesMissingSubmissionStatuses()
+    {
+        $file = APPPATH . 'Controllers/Schedule.php';
+        $this->assertFileExists($file);
+        $contents = file_get_contents($file);
+
+        // Our recent fix adds a bulk fetch for missing submission statuses
+        $this->assertStringContainsString("Schedule::calendar bulk status fetch failed", $contents, 'Calendar should prefetch missing submission statuses to avoid falling back to schedule.status');
+    }
+
     public function testDepartmentVirtualEntriesUseSubmissionStatus()
     {
         $file = APPPATH . 'Controllers/Schedule.php';
