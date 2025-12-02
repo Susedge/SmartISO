@@ -219,8 +219,22 @@ class Schedule extends BaseController
             }
             
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
-            // Use form description (actual title) instead of form_code
-            $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
+            // Prefer a more descriptive event label on the calendar: Requesting Office (Requestor)
+            // fall back to the form description when office isn't available
+            $office = $schedule['requestor_department_name'] ?? $schedule['requestor_department'] ?? $schedule['form_department_name'] ?? null;
+            $requestor = $schedule['requestor_name'] ?? $schedule['submitted_by'] ?? null;
+            $serviceLabel = $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
+
+            if (!empty($office)) {
+                $title .= $office . ($requestor ? ' — ' . $requestor : '');
+            } else {
+                // If no office available, show requestor + service for context
+                if (!empty($requestor)) {
+                    $title .= $requestor . ' — ' . $serviceLabel;
+                } else {
+                    $title .= $serviceLabel;
+                }
+            }
 
             // Resolve status: prefer the authoritative submission.status where a submission exists.
             // Fall back to schedule.status only when no submission-status is available.
@@ -813,8 +827,20 @@ class Schedule extends BaseController
             }
             
             $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
-            // Use form description (actual title) instead of form_code
-            $title .= $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
+            // Prefer a more descriptive event label on the calendar: Requesting Office (Requestor)
+            $office = $schedule['requestor_department_name'] ?? $schedule['requestor_department'] ?? $schedule['form_department_name'] ?? null;
+            $requestor = $schedule['requestor_name'] ?? $schedule['submitted_by'] ?? null;
+            $serviceLabel = $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
+
+            if (!empty($office)) {
+                $title .= $office . ($requestor ? ' — ' . $requestor : '');
+            } else {
+                if (!empty($requestor)) {
+                    $title .= $requestor . ' — ' . $serviceLabel;
+                } else {
+                    $title .= $serviceLabel;
+                }
+            }
 
             // Resolve status: prefer authoritative submission.status when a submission exists.
             $status = null;
@@ -849,6 +875,9 @@ class Schedule extends BaseController
                 'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
                 'description' => $schedule['notes'] ?? '',
                 'requestor_name' => $schedule['requestor_name'] ?? null,
+                'requestor_department' => $schedule['requestor_department_name'] ?? ($schedule['requestor_department'] ?? null),
+                'form_description' => $schedule['form_description'] ?? ($schedule['panel_name'] ?? null),
+                'form_code' => $schedule['form_code'] ?? null,
                 'submission_id' => $schedule['submission_id'] ?? null,
                 'status' => $status,
                 'priority' => (int)($schedule['priority'] ?? 0),
@@ -894,6 +923,152 @@ class Schedule extends BaseController
         log_message('debug', 'Calendar - Final event count: ' . count($calendarEvents) . ' for user type: ' . $userType);
         
         return view('schedule/calendar', $data);
+    }
+
+    /**
+     * AJAX endpoint: return calendar events for the current user with server-side filtering
+     * Accepts GET params: priority_level, service (form_description), office (requestor_department), status, assigned_staff_id
+     */
+    public function eventsAjax()
+    {
+        if (!$this->request->isAJAX()) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'AJAX requests only']);
+        }
+
+        $userType = session()->get('user_type');
+        $userId = session()->get('user_id');
+        $userDepartmentId = session()->get('department_id');
+        $isGlobalAdmin = in_array($userType, ['admin','superuser']);
+
+        // Re-use calendar() access logic but return data only (no view)
+        // Build schedules list similar to calendar() method
+        $schedules = [];
+        if (in_array($userType, ['admin','superuser'])) {
+            $schedules = $this->scheduleModel->getSchedulesWithDetails();
+            $schedules = array_merge($schedules, $this->getSubmissionsWithoutSchedules());
+        } elseif ($userType === 'department_admin') {
+            if ($userDepartmentId) {
+                $schedules = $this->scheduleModel->getDepartmentSchedules($userDepartmentId);
+                $schedules = array_merge($schedules, $this->getDepartmentSubmissionsWithoutSchedules($userDepartmentId));
+            } else { $schedules = []; }
+        } elseif ($userType === 'service_staff') {
+            $schedules = $this->scheduleModel->getStaffSchedules($userId);
+            $schedules = array_merge($schedules, $this->getServiceStaffSubmissionsWithoutSchedules($userId));
+        } elseif ($userType === 'requestor') {
+            $userSubs = $this->submissionModel->where('submitted_by', $userId)->findAll();
+            $submissionIds = array_column($userSubs, 'id');
+            if (!empty($submissionIds)) {
+                $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
+                $schedules = array_merge($schedules, $this->getRequestorSubmissionsWithoutSchedules($userId, $submissionIds));
+            } else { $schedules = []; }
+        } elseif ($userType === 'approving_authority') {
+            $builder = $this->submissionModel->builder();
+            $builder->select('form_submissions.*')
+                    ->join('users', 'users.id = form_submissions.submitted_by', 'left')
+                    ->join('form_signatories fsig', 'fsig.form_id = form_submissions.form_id AND fsig.user_id = ' . $userId, 'inner')
+                    ->groupStart()
+                        ->whereIn('form_submissions.status', ['submitted','approved','pending_service','completed'])
+                        ->orWhere('form_submissions.approver_id', $userId)
+                    ->groupEnd();
+
+            if (!$isGlobalAdmin && $userDepartmentId) { $builder->where('users.department_id', $userDepartmentId); }
+
+            $subs = $builder->get()->getResultArray();
+            $submissionIds = array_column($subs, 'id');
+            if (!empty($submissionIds)) {
+                $schedules = $this->scheduleModel->getSchedulesBySubmissions($submissionIds);
+                $schedules = array_merge($schedules, $this->getApproverSubmissionsWithoutSchedules($userId, $userDepartmentId, $isGlobalAdmin, $submissionIds));
+            } else { $schedules = []; }
+        } else {
+            $schedules = $this->scheduleModel->getSchedulesWithDetails();
+        }
+
+        // Filters passed from client
+        $priorityLevel = $this->request->getGet('priority_level'); // high|medium|low|none
+        $service = $this->request->getGet('service');
+        $office = $this->request->getGet('office');
+        $statusFilter = $this->request->getGet('status');
+        $assignedStaff = $this->request->getGet('assigned_staff');
+
+        // Build submission status map to ensure authoritative status
+        $submissionIdsToPrefetch = [];
+        foreach ($schedules as $s) { if (!empty($s['submission_id'])) $submissionIdsToPrefetch[] = (int)$s['submission_id']; }
+        $submissionMap = [];
+        if (!empty($submissionIdsToPrefetch)) {
+            $submissionIdsToPrefetch = array_values(array_unique($submissionIdsToPrefetch));
+            try { $rows = $this->submissionModel->whereIn('id', $submissionIdsToPrefetch)->select('id,status')->findAll(); foreach ($rows as $r) $submissionMap[(int)$r['id']] = $r['status']; } catch (\Exception $e) { log_message('debug','eventsAjax bulk status fetch failed: '.$e->getMessage()); }
+        }
+
+        // Format events and apply filters
+        $events = [];
+        foreach ($schedules as $schedule) {
+            // minimal checks
+            if (empty($schedule['id']) || empty($schedule['scheduled_date']) || empty($schedule['scheduled_time'])) continue;
+
+            // derive fields
+            $officeName = $schedule['requestor_department_name'] ?? ($schedule['requestor_department'] ?? null);
+            $requestor = $schedule['requestor_name'] ?? null;
+            $formDesc = $schedule['form_description'] ?? $schedule['panel_name'] ?? $schedule['form_code'] ?? 'Service';
+            $priority = strtolower(trim($schedule['priority_level'] ?? ($schedule['priority'] ? 'high' : '')));
+
+            // determine status authoritative
+            $status = null;
+            if (!empty($schedule['submission_id'])) {
+                $sid = (int)$schedule['submission_id'];
+                if (isset($submissionMap[$sid]) && !empty($submissionMap[$sid])) $status = $submissionMap[$sid];
+                elseif (!empty($schedule['submission_status'])) $status = $schedule['submission_status'];
+                elseif (!empty($schedule['status'])) $status = $schedule['status'];
+            } else { if (!empty($schedule['status'])) $status = $schedule['status']; }
+            $status = strtolower(trim($status ?? 'pending'));
+
+            // filter checks
+            if ($priorityLevel) {
+                if ($priorityLevel === 'none') { if (!empty($priority)) continue; }
+                else if ($priorityLevel !== 'all' && $priority && strtolower($priority) !== strtolower($priorityLevel)) continue;
+            }
+            if ($service && $service !== 'all' && $formDesc !== $service) continue;
+            if ($office && $office !== 'all' && ($officeName !== $office)) continue;
+            if ($statusFilter && $statusFilter !== 'all' && $status !== $statusFilter) continue;
+            if ($assignedStaff && $assignedStaff !== 'all' && (!isset($schedule['assigned_staff_id']) || (string)$schedule['assigned_staff_id'] !== (string)$assignedStaff)) continue;
+
+            // construct event title - include office and requestor
+            $title = ($schedule['priority'] ?? 0) ? '★ ' : '';
+            if (!empty($officeName)) { $title .= $officeName . ($requestor ? ' — ' . $requestor : ''); }
+            else if (!empty($requestor)) { $title .= $requestor . ' — ' . $formDesc; } else { $title .= $formDesc; }
+
+            // Format submission date for display
+            $submissionDate = null;
+            if (!empty($schedule['submission_created_at'])) {
+                $submissionDate = date('M d, Y h:i A', strtotime($schedule['submission_created_at']));
+            } elseif (!empty($schedule['created_at'])) {
+                $submissionDate = date('M d, Y h:i A', strtotime($schedule['created_at']));
+            }
+
+            $events[] = [
+                'id' => $schedule['id'],
+                'title' => $title,
+                'start' => $schedule['scheduled_date'] . 'T' . $schedule['scheduled_time'],
+                'description' => $schedule['notes'] ?? null,
+                'requestor_name' => $requestor,
+                'requestor_department' => $officeName,
+                'form_description' => $formDesc,
+                'form_code' => $schedule['form_code'] ?? null,
+                'status' => $status,
+                'priority_level' => $schedule['priority_level'] ?? null,
+                'assigned_staff_id' => $schedule['assigned_staff_id'] ?? null,
+                'assigned_staff_name' => $schedule['assigned_staff_name'] ?? null,
+                'submission_id' => $schedule['submission_id'] ?? null,
+                'submission_date' => $submissionDate,
+                'estimated_date' => $schedule['estimated_date'] ?? null,
+                'eta_days' => isset($schedule['eta_days']) ? (int)$schedule['eta_days'] : null,
+                'scheduled_time' => $schedule['scheduled_time'] ?? '09:00:00',
+                'is_manual_schedule' => isset($schedule['is_manual_schedule']) ? (int)$schedule['is_manual_schedule'] : 0,
+                'can_view' => true,
+                'view_url' => $schedule['submission_id'] ? (in_array($userType, ['admin','superuser']) ? base_url('admin/dynamicforms/view-submission/' . $schedule['submission_id']) : base_url('forms/submission/' . $schedule['submission_id'])) : null
+            ];
+        }
+
+        return $this->response->setJSON(['success' => true, 'events' => $events]);
     }
 
     /**

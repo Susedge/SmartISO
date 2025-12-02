@@ -386,8 +386,10 @@ class DatabaseBackup extends BaseController
         }
 
         try {
-            // Create a safety backup before restoration
-            $this->performBackup();
+            // Create a safety backup before restoration and capture the filename so
+            // the UI can notify the administrator which snapshot was created.
+            $safety = $this->performBackup();
+            $safetyFilename = $safety['filename'] ?? null;
 
             $db = \Config\Database::connect();
             
@@ -444,12 +446,18 @@ class DatabaseBackup extends BaseController
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => 'Database restored successfully from ' . $filename,
+                    'safety_backup' => $safetyFilename,
                     'csrfHash' => csrf_hash()
                 ]);
             }
 
+            $flashMsg = 'Database restored successfully from ' . $filename;
+            if (!empty($safetyFilename)) {
+                $flashMsg .= ' — Safety backup created: ' . $safetyFilename;
+            }
+
             return redirect()->to('/admin/database-backup')
-                ->with('message', 'Database restored successfully from ' . $filename);
+                ->with('message', $flashMsg);
         } catch (\Exception $e) {
             log_message('error', 'Restore failed: ' . $e->getMessage());
             

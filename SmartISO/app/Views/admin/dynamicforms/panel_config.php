@@ -19,13 +19,15 @@
                 <thead>
                     <tr>
                         <th>Panel Name</th>
+                        <th>Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (!empty($panels)): ?>
                         <?php foreach ($panels as $panel): ?>
-                            <tr>
+                            <?php $isActive = isset($panel['is_active']) ? (int)$panel['is_active'] : 1; ?>
+                            <tr class="<?= !$isActive ? 'table-secondary' : '' ?>">
                                 <td>
                                     <div class="d-flex align-items-center" style="gap: 8px;">
                                         <span class="panel-name-display" id="panelNameDisplay_<?= esc($panel['panel_name']) ?>"><?= esc($panel['panel_name']) ?></span>
@@ -39,6 +41,19 @@
                                         <button type="button" class="btn btn-link btn-sm p-0 ms-1 panel-edit-btn" title="Edit Panel Name" data-panel="<?= esc($panel['panel_name']) ?>" style="color: #0d6efd;">
                                             <i class="fas fa-edit"></i>
                                         </button>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input panel-status-toggle" type="checkbox" 
+                                               id="panelStatus_<?= md5($panel['panel_name']) ?>" 
+                                               data-panel="<?= esc($panel['panel_name']) ?>"
+                                               <?= $isActive ? 'checked' : '' ?>>
+                                        <label class="form-check-label" for="panelStatus_<?= md5($panel['panel_name']) ?>">
+                                            <span class="badge <?= $isActive ? 'bg-success' : 'bg-secondary' ?>" id="statusBadge_<?= md5($panel['panel_name']) ?>">
+                                                <?= $isActive ? 'Active' : 'Inactive' ?>
+                                            </span>
+                                        </label>
                                     </div>
                                 </td>
 <script>
@@ -116,7 +131,7 @@ document.querySelectorAll('.panel-rename-form').forEach(form => {
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="2" class="text-center">No panels configured yet</td>
+                            <td colspan="3" class="text-center">No panels configured yet</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
@@ -295,6 +310,67 @@ function deletePanel(panelName) {
     try { modal.show(); } catch(e){}
     }
 }
+
+// Panel status toggle functionality
+// Store current CSRF token - will be updated after each request
+let csrfToken = '<?= csrf_hash() ?>';
+const csrfName = '<?= csrf_token() ?>';
+
+document.querySelectorAll('.panel-status-toggle').forEach(toggle => {
+    toggle.addEventListener('change', function() {
+        const panelName = this.getAttribute('data-panel');
+        const isActive = this.checked ? 1 : 0;
+        const badgeId = 'statusBadge_' + this.id.replace('panelStatus_', '');
+        const badge = document.getElementById(badgeId);
+        const row = this.closest('tr');
+        const toggleEl = this;
+        
+        // Show loading state
+        toggleEl.disabled = true;
+        
+        const formData = new FormData();
+        formData.append('panel_name', panelName);
+        formData.append('is_active', isActive);
+        formData.append(csrfName, csrfToken);
+        
+        fetch('<?= base_url('admin/dynamicforms/toggle-panel-status') ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            toggleEl.disabled = false;
+            
+            // Update CSRF token if provided in response
+            if (data.csrf_token) {
+                csrfToken = data.csrf_token;
+            }
+            
+            if (data.success) {
+                // Update badge
+                if (isActive) {
+                    badge.textContent = 'Active';
+                    badge.className = 'badge bg-success';
+                    row.classList.remove('table-secondary');
+                } else {
+                    badge.textContent = 'Inactive';
+                    badge.className = 'badge bg-secondary';
+                    row.classList.add('table-secondary');
+                }
+            } else {
+                // Revert toggle
+                toggleEl.checked = !toggleEl.checked;
+                alert(data.message || 'Failed to update panel status');
+            }
+        })
+        .catch(error => {
+            toggleEl.disabled = false;
+            toggleEl.checked = !toggleEl.checked;
+            alert('Failed to update panel status');
+        });
+    });
+});
 </script>
 
 <script>

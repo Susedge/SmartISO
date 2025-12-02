@@ -225,6 +225,51 @@
         padding: 0.5rem;
     }
 }
+
+/* Analytics Filter Toolbar */
+.analytics-filter-toolbar {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    border: 1px solid rgba(0,0,0,0.05);
+    overflow: hidden;
+}
+
+.analytics-filter-toolbar .filter-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    padding: 0.75rem 1.25rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.analytics-filter-toolbar .filter-body {
+    padding: 1.25rem;
+    background: var(--light-color);
+}
+
+.analytics-filter-toolbar .form-label {
+    font-weight: 500;
+    margin-bottom: 0.35rem;
+}
+
+.analytics-filter-toolbar .modern-input,
+.analytics-filter-toolbar .modern-select {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.analytics-filter-toolbar .active-filters {
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.analytics-filter-toolbar .badge {
+    font-weight: 500;
+    font-size: 0.75rem;
+}
 </style>
 <?= $this->endSection() ?>
 
@@ -246,6 +291,110 @@
                     </button>
                 </div>
             </div>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div class="analytics-filter-toolbar mb-4">
+            <div class="filter-header">
+                <i class="fas fa-filter"></i>
+                <span>Filter Analytics</span>
+            </div>
+            <form id="analyticsFilterForm" method="get" class="filter-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">
+                            <i class="fas fa-calendar me-1"></i>Date From
+                        </label>
+                        <input type="date" name="date_from" class="form-control modern-input" 
+                               value="<?= isset($filters['date_from']) ? esc($filters['date_from']) : '' ?>">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">
+                            <i class="fas fa-calendar me-1"></i>Date To
+                        </label>
+                        <input type="date" name="date_to" class="form-control modern-input" 
+                               value="<?= isset($filters['date_to']) ? esc($filters['date_to']) : '' ?>">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">
+                            <i class="fas fa-concierge-bell me-1"></i>Service
+                        </label>
+                        <select name="service" class="form-select modern-select">
+                            <option value="all">All Services</option>
+                            <?php foreach ($availableServices as $service): ?>
+                                <option value="<?= esc($service['id']) ?>" 
+                                    <?= (isset($filters['service']) && $filters['service'] == $service['id']) ? 'selected' : '' ?>>
+                                    <?= esc($service['description'] ?: $service['code']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">
+                            <i class="fas fa-building me-1"></i>Office
+                        </label>
+                        <select name="office" class="form-select modern-select">
+                            <option value="all">All Offices</option>
+                            <?php foreach ($availableOffices as $office): ?>
+                                <option value="<?= esc($office['id']) ?>" 
+                                    <?= (isset($filters['office']) && $filters['office'] == $office['id']) ? 'selected' : '' ?>>
+                                    <?= esc($office['description']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">
+                            <i class="fas fa-tasks me-1"></i>Status
+                        </label>
+                        <select name="status" class="form-select modern-select">
+                            <option value="all">All Statuses</option>
+                            <option value="submitted" <?= (isset($filters['status']) && $filters['status'] == 'submitted') ? 'selected' : '' ?>>Submitted</option>
+                            <option value="pending" <?= (isset($filters['status']) && $filters['status'] == 'pending') ? 'selected' : '' ?>>Pending</option>
+                            <option value="approved" <?= (isset($filters['status']) && $filters['status'] == 'approved') ? 'selected' : '' ?>>Approved</option>
+                            <option value="completed" <?= (isset($filters['status']) && $filters['status'] == 'completed') ? 'selected' : '' ?>>Completed</option>
+                            <option value="rejected" <?= (isset($filters['status']) && $filters['status'] == 'rejected') ? 'selected' : '' ?>>Rejected</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn modern-btn flex-grow-1">
+                                <i class="fas fa-search me-1"></i>Apply
+                            </button>
+                            <a href="<?= base_url('analytics') ?>" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php if (!empty($filters)): ?>
+                <div class="active-filters mt-3">
+                    <small class="text-muted me-2">Active Filters:</small>
+                    <?php if (!empty($filters['date_from']) || !empty($filters['date_to'])): ?>
+                        <span class="badge bg-info text-dark me-1">
+                            <i class="fas fa-calendar me-1"></i>
+                            <?= !empty($filters['date_from']) ? $filters['date_from'] : 'Start' ?> - 
+                            <?= !empty($filters['date_to']) ? $filters['date_to'] : 'Now' ?>
+                        </span>
+                    <?php endif; ?>
+                    <?php if (!empty($filters['service']) && $filters['service'] !== 'all'): ?>
+                        <span class="badge bg-primary text-dark me-1">
+                            <i class="fas fa-concierge-bell me-1"></i>Service Filter
+                        </span>
+                    <?php endif; ?>
+                    <?php if (!empty($filters['office']) && $filters['office'] !== 'all'): ?>
+                        <span class="badge bg-success text-white me-1">
+                            <i class="fas fa-building me-1"></i>Office Filter
+                        </span>
+                    <?php endif; ?>
+                    <?php if (!empty($filters['status']) && $filters['status'] !== 'all'): ?>
+                        <span class="badge bg-warning text-dark me-1">
+                            <i class="fas fa-tasks me-1"></i><?= ucfirst($filters['status']) ?>
+                        </span>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </form>
         </div>
 
 <!-- Overview Cards -->
@@ -333,6 +482,125 @@
                         All active
                     </small>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Service & Office Rankings -->
+<div class="row mb-4">
+    <!-- Most Requested Services -->
+    <div class="col-xl-6 col-lg-12 mb-4">
+        <div class="chart-container">
+            <h5 class="mb-3">
+                <i class="fas fa-concierge-bell me-2 text-primary"></i>
+                Most Requested Services
+            </h5>
+            <div class="performance-table">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px">#</th>
+                            <th>Service</th>
+                            <th class="text-center">Requests</th>
+                            <th style="width: 150px">Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($mostRequestedServices)): ?>
+                            <?php 
+                            $maxRequests = max(array_column($mostRequestedServices, 'request_count') ?: [1]);
+                            $rank = 1;
+                            ?>
+                            <?php foreach (array_slice($mostRequestedServices, 0, 10) as $service): ?>
+                                <tr>
+                                    <td>
+                                        <?php if ($rank <= 3): ?>
+                                            <span class="badge bg-<?= $rank == 1 ? 'warning' : ($rank == 2 ? 'secondary' : 'danger') ?> text-<?= $rank == 1 ? 'dark' : 'white' ?>">
+                                                <i class="fas fa-trophy"></i> <?= $rank ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-light text-dark"><?= $rank ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <strong><?= esc($service['service_name']) ?></strong>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-primary"><?= number_format($service['request_count']) ?></span>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-primary" style="width: <?= round(($service['request_count'] / $maxRequests) * 100) ?>%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php $rank++; endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="4" class="text-muted text-center py-4">No service data available</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Office with Most Requests -->
+    <div class="col-xl-6 col-lg-12 mb-4">
+        <div class="chart-container">
+            <h5 class="mb-3">
+                <i class="fas fa-building me-2 text-success"></i>
+                Office with Most Requests
+            </h5>
+            <div class="performance-table">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px">#</th>
+                            <th>Office/Department</th>
+                            <th class="text-center">Requests</th>
+                            <th style="width: 150px">Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($officeWithMostRequests)): ?>
+                            <?php 
+                            $maxOfficeRequests = max(array_column($officeWithMostRequests, 'request_count') ?: [1]);
+                            $officeRank = 1;
+                            ?>
+                            <?php foreach (array_slice($officeWithMostRequests, 0, 10) as $office): ?>
+                                <tr>
+                                    <td>
+                                        <?php if ($officeRank <= 3): ?>
+                                            <span class="badge bg-<?= $officeRank == 1 ? 'warning' : ($officeRank == 2 ? 'secondary' : 'danger') ?> text-<?= $officeRank == 1 ? 'dark' : 'white' ?>">
+                                                <i class="fas fa-trophy"></i> <?= $officeRank ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge bg-light text-dark"><?= $officeRank ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <strong><?= esc($office['office_name']) ?></strong>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success"><?= number_format($office['request_count']) ?></span>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" style="width: <?= round(($office['request_count'] / $maxOfficeRequests) * 100) ?>%"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php $officeRank++; endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="4" class="text-muted text-center py-4">No office data available</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -477,6 +745,94 @@
     </div>
 </div>
 
+<!-- Processing Time Analysis -->
+<?php if (!empty($processingTimeAnalysis)): ?>
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="chart-container">
+            <h5 class="mb-3">
+                <i class="fas fa-hourglass-half me-2 text-info"></i>
+                Processing Time Analysis (Date Requested → Date Completed)
+            </h5>
+            
+            <!-- Summary Statistics -->
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="metric-card p-3 text-center">
+                        <div class="h4 mb-0 text-info"><?= $processingTimeAnalysis['statistics']['avg_days'] ?> days</div>
+                        <small class="text-muted">Average Processing</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card p-3 text-center">
+                        <div class="h4 mb-0 text-success"><?= round($processingTimeAnalysis['statistics']['min_hours'] / 24, 1) ?> days</div>
+                        <small class="text-muted">Fastest</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card p-3 text-center">
+                        <div class="h4 mb-0 text-warning"><?= round($processingTimeAnalysis['statistics']['max_hours'] / 24, 1) ?> days</div>
+                        <small class="text-muted">Slowest</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="metric-card p-3 text-center">
+                        <div class="h4 mb-0 text-primary"><?= $processingTimeAnalysis['statistics']['total_completed'] ?></div>
+                        <small class="text-muted">Total Completed</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Completed Requests -->
+            <h6 class="text-muted mb-2"><i class="fas fa-check-circle me-1"></i>Recently Completed Requests</h6>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Office</th>
+                            <th>Priority</th>
+                            <th>Date Requested</th>
+                            <th>Date Completed</th>
+                            <th>Processing Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach (array_slice($processingTimeAnalysis['recent_completed'], 0, 10) as $item): ?>
+                            <?php
+                            $priorityClass = 'secondary';
+                            if (!empty($item['priority_level'])) {
+                                if ($item['priority_level'] === 'high') $priorityClass = 'danger';
+                                elseif ($item['priority_level'] === 'medium') $priorityClass = 'warning';
+                                elseif ($item['priority_level'] === 'low') $priorityClass = 'success';
+                            }
+                            ?>
+                            <tr>
+                                <td><?= esc($item['service_name']) ?></td>
+                                <td><?= esc($item['office_name']) ?></td>
+                                <td>
+                                    <?php if (!empty($item['priority_level'])): ?>
+                                        <span class="badge bg-<?= $priorityClass ?>"><?= ucfirst($item['priority_level']) ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= date('M d, Y', strtotime($item['date_requested'])) ?></td>
+                                <td><?= date('M d, Y', strtotime($item['date_completed'])) ?></td>
+                                <td>
+                                    <span class="badge bg-info"><?= $item['processing_days'] ?> day(s)</span>
+                                    <small class="text-muted">(<?= $item['processing_hours'] ?>h)</small>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Submissions Overview -->
 <div class="row mt-4">
     <div class="col-12">
@@ -493,6 +849,7 @@
                                 <th>Form</th>
                                 <th>Submitted By</th>
                                 <th>Department</th>
+                                <th>Priority</th>
                                 <th>Date Submitted</th>
                                 <th>Date Completed</th>
                                 <th>Status</th>
@@ -501,18 +858,39 @@
                         <tbody>
                             <?php if (!empty($submissionsOverview)): ?>
                                 <?php foreach ($submissionsOverview as $sub): ?>
+                                    <?php
+                                    $priorityClass = 'secondary';
+                                    if (!empty($sub['priority_level'])) {
+                                        if ($sub['priority_level'] === 'high') $priorityClass = 'danger';
+                                        elseif ($sub['priority_level'] === 'medium') $priorityClass = 'warning';
+                                        elseif ($sub['priority_level'] === 'low') $priorityClass = 'success';
+                                    }
+                                    
+                                    $statusClass = 'secondary';
+                                    if ($sub['status'] === 'completed') $statusClass = 'success';
+                                    elseif (strpos($sub['status'], 'pending') !== false) $statusClass = 'warning';
+                                    elseif ($sub['status'] === 'approved') $statusClass = 'info';
+                                    elseif ($sub['status'] === 'rejected') $statusClass = 'danger';
+                                    ?>
                                     <tr>
                                         <td><?= esc($sub['form_name']) ?></td>
                                         <td><?= esc($sub['submitted_by']) ?></td>
                                         <td><?= esc($sub['department_name'] ?? 'Unassigned') ?></td>
+                                        <td>
+                                            <?php if (!empty($sub['priority_level'])): ?>
+                                                <span class="badge bg-<?= $priorityClass ?>"><?= ucfirst($sub['priority_level']) ?></span>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?= $sub['created_at'] ? date('M d, Y H:i', strtotime($sub['created_at'])) : '' ?></td>
                                         <td><?= $sub['completion_date'] ? date('M d, Y H:i', strtotime($sub['completion_date'])) : '-' ?></td>
-                                        <td><span class="badge bg-secondary"><?= esc(ucfirst($sub['status'])) ?></span></td>
+                                        <td><span class="badge bg-<?= $statusClass ?>"><?= ucfirst(str_replace('_', ' ', esc($sub['status']))) ?></span></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-4">No submissions to display</td>
+                                    <td colspan="7" class="text-center text-muted py-4">No submissions to display</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -527,7 +905,7 @@
 <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);">
                 <h5 class="modal-title" id="exportModalLabel">
                     <i class="fas fa-download me-2"></i>Export Analytics Report
                 </h5>
@@ -535,9 +913,25 @@
             </div>
             <div class="modal-body">
                 <form id="exportForm" action="<?= base_url('analytics/export') ?>" method="post">
+                    <!-- Include current filter parameters -->
+                    <input type="hidden" name="date_from" value="<?= isset($filters['date_from']) ? esc($filters['date_from']) : '' ?>">
+                    <input type="hidden" name="date_to" value="<?= isset($filters['date_to']) ? esc($filters['date_to']) : '' ?>">
+                    <input type="hidden" name="service" value="<?= isset($filters['service']) ? esc($filters['service']) : '' ?>">
+                    <input type="hidden" name="office" value="<?= isset($filters['office']) ? esc($filters['office']) : '' ?>">
+                    <input type="hidden" name="status" value="<?= isset($filters['status']) ? esc($filters['status']) : '' ?>">
+                    
+                    <?php if (!empty($filters)): ?>
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> The export will include your current filter selections.
+                    </div>
+                    <?php endif; ?>
+                    
                     <div class="row">
                         <div class="col-md-6">
-                            <label for="report_type" class="form-label">Report Type</label>
+                            <label for="report_type" class="form-label">
+                                <i class="fas fa-chart-pie me-1"></i>Report Type
+                            </label>
                             <select class="form-select modern-select" id="report_type" name="report_type" required>
                                 <option value="overview">Complete Overview</option>
                                 <option value="forms">Form Analytics</option>
@@ -546,12 +940,15 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="date_range" class="form-label">Date Range</label>
+                            <label for="date_range" class="form-label">
+                                <i class="fas fa-calendar me-1"></i>Date Range
+                            </label>
                             <select class="form-select modern-select" id="date_range" name="date_range" required>
                                 <option value="7">Last 7 days</option>
                                 <option value="30" selected>Last 30 days</option>
                                 <option value="90">Last 3 months</option>
                                 <option value="365">Last year</option>
+                                <option value="all">All Time</option>
                             </select>
                         </div>
                     </div>
@@ -567,12 +964,14 @@
                         </div>
                     </div>
                     <div class="mt-4 p-3 bg-light rounded">
-                        <h6 class="mb-2">Report will include:</h6>
+                        <h6 class="mb-2"><i class="fas fa-list me-2"></i>Report will include:</h6>
                         <ul class="mb-0 small">
-                            <li>Executive summary with key metrics</li>
-                            <li>Visual charts and graphs</li>
-                            <li>Detailed data tables</li>
-                            <li>Trend analysis and insights</li>
+                            <li><i class="fas fa-check text-success me-1"></i>Executive summary with key metrics</li>
+                            <li><i class="fas fa-check text-success me-1"></i>Visual charts and graphs</li>
+                            <li><i class="fas fa-check text-success me-1"></i>Most requested services ranking</li>
+                            <li><i class="fas fa-check text-success me-1"></i>Office/Department request statistics</li>
+                            <li><i class="fas fa-check text-success me-1"></i>Processing time analysis</li>
+                            <li><i class="fas fa-check text-success me-1"></i>Detailed data tables</li>
                         </ul>
                     </div>
                 </form>

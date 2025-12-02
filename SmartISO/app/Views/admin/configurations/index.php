@@ -146,15 +146,31 @@
                                 </table>
         <?php elseif ($tableType === 'panels'): ?>
                         <table class="table table-sm table-striped table-hover align-middle" id="table-panels" data-type="panels">
-                                <thead><tr><th style="display:none">ID</th><th>Panel Name</th><th>Department</th><th>Office</th></tr></thead>
+                                <thead><tr><th style="display:none">ID</th><th>Panel Name</th><th>Status</th><th>Department</th><th>Office</th></tr></thead>
                         <tbody>
-                                <?php if (!empty($panels)): foreach ($panels as $panel): ?>
+                                <?php if (!empty($panels)): foreach ($panels as $panel): 
+                                        $isActive = isset($panel['is_active']) ? (int)$panel['is_active'] : 1;
+                                ?>
                                         <tr data-id="<?= esc($panel['panel_name']) ?>" 
                                             data-code="<?= esc($panel['panel_name']) ?>"
                                             data-department-id="<?= esc($panel['department_id'] ?? '') ?>"
-                                            data-office-id="<?= esc($panel['office_id'] ?? '') ?>">
+                                            data-office-id="<?= esc($panel['office_id'] ?? '') ?>"
+                                            class="<?= !$isActive ? 'table-secondary' : '' ?>">
                                                 <td style="display:none">0</td>
                                                 <td><?= esc($panel['panel_name']) ?></td>
+                                                <td>
+                                                        <div class="form-check form-switch">
+                                                                <input class="form-check-input panel-status-toggle" type="checkbox" 
+                                                                       id="panelStatus_<?= md5($panel['panel_name']) ?>" 
+                                                                       data-panel="<?= esc($panel['panel_name']) ?>"
+                                                                       <?= $isActive ? 'checked' : '' ?>>
+                                                                <label class="form-check-label" for="panelStatus_<?= md5($panel['panel_name']) ?>">
+                                                                        <span class="badge <?= $isActive ? 'bg-success' : 'bg-secondary' ?>" id="statusBadge_<?= md5($panel['panel_name']) ?>">
+                                                                                <?= $isActive ? 'Active' : 'Inactive' ?>
+                                                                        </span>
+                                                                </label>
+                                                        </div>
+                                                </td>
                                                 <td>
                                                         <?php
                                                                 $deptName = null;
@@ -286,6 +302,82 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 <script src="<?= base_url('assets/js/admin-configurations.js') ?>"></script>
+<script>
+// Panel status toggle handler
+document.addEventListener('DOMContentLoaded', function(){
+        // Store current CSRF token - will be updated after each request
+        var csrfToken = '<?= csrf_hash() ?>';
+        var csrfName = '<?= csrf_token() ?>';
+        
+        document.querySelectorAll('.panel-status-toggle').forEach(function(toggle) {
+                toggle.addEventListener('change', function() {
+                        var panelName = this.getAttribute('data-panel');
+                        var isActive = this.checked ? 1 : 0;
+                        var badgeId = 'statusBadge_' + this.id.replace('panelStatus_', '');
+                        var badge = document.getElementById(badgeId);
+                        var row = this.closest('tr');
+                        var toggleEl = this;
+                        
+                        // Show loading state
+                        toggleEl.disabled = true;
+                        
+                        var formData = new FormData();
+                        formData.append('panel_name', panelName);
+                        formData.append('is_active', isActive);
+                        formData.append(csrfName, csrfToken);
+                        
+                        fetch('<?= base_url('admin/dynamicforms/toggle-panel-status') ?>', {
+                                method: 'POST',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                body: formData
+                        })
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                                toggleEl.disabled = false;
+                                
+                                // Update CSRF token if provided in response
+                                if (data.csrf_token) {
+                                        csrfToken = data.csrf_token;
+                                }
+                                
+                                if (data.success) {
+                                        // Update badge
+                                        if (isActive) {
+                                                badge.textContent = 'Active';
+                                                badge.className = 'badge bg-success';
+                                                row.classList.remove('table-secondary');
+                                        } else {
+                                                badge.textContent = 'Inactive';
+                                                badge.className = 'badge bg-secondary';
+                                                row.classList.add('table-secondary');
+                                        }
+                                        // Show toast notification
+                                        if (window.SimpleModal && window.SimpleModal.toast) {
+                                                window.SimpleModal.toast(data.message || 'Panel status updated', 'success');
+                                        }
+                                } else {
+                                        // Revert toggle
+                                        toggleEl.checked = !toggleEl.checked;
+                                        if (window.SimpleModal) {
+                                                window.SimpleModal.alert(data.message || 'Failed to update panel status', 'Error');
+                                        } else {
+                                                alert(data.message || 'Failed to update panel status');
+                                        }
+                                }
+                        })
+                        .catch(function(error) {
+                                toggleEl.disabled = false;
+                                toggleEl.checked = !toggleEl.checked;
+                                if (window.SimpleModal) {
+                                        window.SimpleModal.alert('Failed to update panel status', 'Error');
+                                } else {
+                                        alert('Failed to update panel status');
+                                }
+                        });
+                });
+        });
+});
+</script>
 <script>
 // Auto backup toggle handler
 document.addEventListener('DOMContentLoaded', function(){

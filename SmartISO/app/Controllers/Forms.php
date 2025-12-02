@@ -313,6 +313,52 @@ class Forms extends BaseController
         
         return view('forms/view', $data);
     }
+
+    /**
+     * View form in document format with header image
+     * This provides a more formal, print-ready view of the form
+     */
+    public function viewDocument($formCode)
+    {
+        $form = $this->formModel->where('code', $formCode)->first();
+        
+        if (!$form) {
+            return redirect()->to('/forms')->with('error', 'Form not found');
+        }
+        
+        // Get panel fields using the panel_name from the form, or fallback to formCode
+        $panelName = !empty($form['panel_name']) ? $form['panel_name'] : $formCode;
+        $panelFields = $this->dbpanelModel->getPanelFields($panelName);
+        
+        if (empty($panelFields)) {
+            return redirect()->to('/forms')->with('error', 'No fields configured for this form');
+        }
+        
+        // Get department name for display
+        $departmentName = null;
+        if (!empty($form['department_id'])) {
+            $department = $this->departmentModel->find($form['department_id']);
+            $departmentName = $department['description'] ?? null;
+        }
+        
+        $data = [
+            'title' => $form['description'],
+            'form' => $form,
+            'panel_name' => $panelName,
+            'panel_fields' => $panelFields,
+            'department_name' => $departmentName,
+            'departments' => $this->departmentModel->findAll(),
+            'priorities' => $this->priorityModel->getPriorityOptions() ?? [
+                'low' => 'Low',
+                'normal' => 'Normal', 
+                'high' => 'High',
+                'urgent' => 'Urgent',
+                'critical' => 'Critical'
+            ]
+        ];
+        
+        return view('forms/view_document', $data);
+    }
     
     public function submit()
     {

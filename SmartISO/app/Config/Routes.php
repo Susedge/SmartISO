@@ -77,6 +77,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     // Form routes for all users
     $routes->get('forms', 'Forms::index');
     $routes->get('forms/view/(:segment)', 'Forms::view/$1');
+    $routes->get('forms/document/(:segment)', 'Forms::viewDocument/$1');
     $routes->post('forms/submit', 'Forms::submit');
     $routes->get('forms/my-submissions', 'Forms::mySubmissions');
     
@@ -149,6 +150,7 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('schedule/update-submission-priority/(:num)', 'Schedule::updateSubmissionPriority/$1');
     $routes->get('schedule/delete/(:num)', 'Schedule::delete/$1');
     $routes->get('schedule/calendar', 'Schedule::calendar');
+    $routes->get('schedule/events-ajax', 'Schedule::eventsAjax');
     $routes->post('schedule/mark-complete/(:num)', 'Schedule::markComplete/$1');
     $routes->post('schedule/toggle-priority/(:num)', 'Schedule::togglePriority/$1');
     $routes->get('schedule/priorities', 'Schedule::priorities');
@@ -203,6 +205,11 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->get('forms/edit/(:num)', 'Admin\Forms::edit/$1');
     $routes->post('forms/update/(:num)', 'Admin\Forms::update/$1');
     $routes->get('forms/delete/(:num)', 'Admin\Forms::delete/$1');
+    
+    // Form header image management
+    $routes->post('forms/upload-header', 'Admin\Forms::uploadHeader');
+    $routes->post('forms/delete-header', 'Admin\Forms::deleteHeader');
+    $routes->get('forms/get-headers', 'Admin\Forms::getHeaders');
 
     // Dynamic Forms routes
     $routes->get('dynamicforms', 'Admin\DynamicForms::index');
@@ -223,6 +230,7 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->post('dynamicforms/add-panel-field', 'Admin\DynamicForms::addPanelField');
     $routes->post('dynamicforms/create-panel', 'Admin\DynamicForms::createPanel');
     $routes->post('dynamicforms/copy-panel', 'Admin\DynamicForms::copyPanel');
+    $routes->post('dynamicforms/toggle-panel-status', 'Admin\DynamicForms::togglePanelStatus');
     $routes->post('dynamicforms/create-form', 'Admin\DynamicForms::createForm');
     $routes->post('dynamicforms/update-form', 'Admin\DynamicForms::updateForm');
     $routes->post('dynamicforms/delete-form', 'Admin\DynamicForms::deleteForm');
@@ -252,6 +260,7 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->get('configurations/download-template/(:num)', 'Admin\Configurations::downloadTemplate/$1');
     $routes->get('configurations/delete-template/(:num)', 'Admin\Configurations::deleteTemplate/$1');
     $routes->post('configurations/upload-template/(:num)', 'Admin\Configurations::uploadTemplate/$1');
+    $routes->post('configurations/update-header/(:num)', 'Admin\Configurations::updateHeader/$1');
     $routes->post('configurations/update-system-config', 'Admin\Configurations::updateSystemConfig');
     // Department and Office API endpoints for panel assignment
     $routes->get('configurations/get-departments', 'Admin\Configurations::getDepartments');

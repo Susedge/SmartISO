@@ -1,443 +1,303 @@
 <?= $this->extend('layouts/default') ?>
 
+<?= $this->section('styles') ?>
+<style>
+/* Document Paper Styles - Scoped to .document-paper only */
+.document-paper {
+    max-width: 850px;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border: 1px solid #ccc;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11pt;
+    color: #000;
+}
+
+.document-paper * {
+    box-sizing: border-box;
+}
+
+/* Header Section */
+.document-paper .doc-header {
+    text-align: center;
+    padding: 0;
+    border-bottom: none;
+}
+
+.document-paper .doc-header img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Department/Office Box */
+.document-paper .doc-department-box {
+    border: 2px solid #2e7d32;
+    background: #fff;
+    text-align: center;
+    padding: 8px 20px;
+    margin: 15px auto;
+    display: inline-block;
+    font-weight: bold;
+    font-size: 12pt;
+    text-transform: uppercase;
+}
+
+.document-paper .doc-title-section {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+/* Form Title */
+.document-paper .doc-form-title {
+    font-size: 14pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin: 10px 0 20px 0;
+    text-align: center;
+}
+
+/* Table Styles */
+.document-paper .doc-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0;
+}
+
+.document-paper .doc-table td,
+.document-paper .doc-table th {
+    border: 1px solid #000;
+    padding: 6px 8px;
+    vertical-align: top;
+    font-size: 10pt;
+}
+
+.document-paper .doc-table th {
+    background: #e8f5e9;
+    font-weight: bold;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 9pt;
+}
+
+.document-paper .doc-table .field-label {
+    font-weight: bold;
+    white-space: nowrap;
+    width: 1%;
+}
+
+.document-paper .doc-table .field-value {
+    min-width: 120px;
+}
+
+/* Signature Boxes */
+.document-paper .signature-cell {
+    height: 80px;
+    vertical-align: bottom;
+    text-align: center;
+}
+
+.document-paper .signature-cell img {
+    max-height: 60px;
+    max-width: 150px;
+}
+
+.document-paper .signature-label {
+    font-style: italic;
+    font-size: 9pt;
+    border-top: 1px solid #000;
+    padding-top: 3px;
+    margin-top: 5px;
+}
+
+/* Footer */
+.document-paper .doc-footer {
+    margin-top: 0;
+}
+
+.document-paper .doc-footer table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+}
+
+.document-paper .doc-footer td {
+    border: 1px solid #000;
+    padding: 3px 8px;
+    text-align: center;
+}
+
+.document-paper .doc-footer .footer-label {
+    font-style: italic;
+}
+
+/* Info card outside document */
+.submission-info-card {
+    max-width: 850px;
+    margin: 0 auto 20px auto;
+}
+
+.submission-info-card .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.submission-info-card .info-item {
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #0d6efd;
+}
+
+.submission-info-card .info-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6c757d;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.submission-info-card .info-value {
+    font-size: 0.85rem;
+    color: #212529;
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-submitted { background: #fff3cd; color: #856404; }
+.status-approved { background: #cce5ff; color: #004085; }
+.status-rejected { background: #f8d7da; color: #721c24; }
+.status-pending_service { background: #d1ecf1; color: #0c5460; }
+.status-awaiting_requestor_signature { background: #e2e3e5; color: #383d41; }
+.status-completed { background: #d4edda; color: #155724; }
+
+/* Print styles */
+@media print {
+    .no-print { display: none !important; }
+    .document-paper { 
+        box-shadow: none; 
+        border: none;
+        margin: 0;
+    }
+    .submission-info-card { display: none; }
+}
+</style>
+<?= $this->endSection() ?>
+
 <?= $this->section('content') ?>
-<div class="container-fluid compact-page">
-    <div class="card shadow-sm mb-3">
-    <div class="card-header py-2 px-3 d-flex justify-content-between align-items-center small">
-            <div>
-                <h3 class="h5 mb-1 fw-semibold"><?= $title ?></h3>
-                <p class="text-muted mb-0 small">Form: <?= esc($form['code']) ?> - <?= esc($form['description']) ?></p>
-            </div>
-            <div class="d-flex align-items-center">
-                <?php if (session()->get('user_type') === 'requestor'): ?>
-                    <a href="<?= base_url('forms/my-submissions') ?>" class="btn btn-sm btn-secondary me-2" title="Back to My Submissions">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                <?php elseif (session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
-                    <a href="<?= base_url('forms/pending-approval') ?>" class="btn btn-sm btn-secondary me-2" title="Back to Pending Approvals">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                <?php elseif (session()->get('user_type') === 'service_staff'): ?>
-                    <a href="<?= base_url('forms/pending-service') ?>" class="btn btn-sm btn-secondary me-2" title="Back to Pending Service">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                <?php else: ?>
-                    <a href="<?= base_url('forms') ?>" class="btn btn-sm btn-secondary me-2" title="Back">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                <?php endif; ?>
+<!-- Navigation Bar -->
+<div class="mb-3 no-print d-flex justify-content-between align-items-center">
+    <div>
+        <?php if (session()->get('user_type') === 'requestor'): ?>
+            <a href="<?= base_url('forms/my-submissions') ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> My Submissions
+            </a>
+        <?php elseif (session()->get('user_type') === 'approving_authority' || session()->get('user_type') === 'department_admin'): ?>
+            <a href="<?= base_url('forms/pending-approval') ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Pending Approvals
+            </a>
+        <?php elseif (session()->get('user_type') === 'service_staff'): ?>
+            <a href="<?= base_url('forms/pending-service') ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Pending Service
+            </a>
+        <?php else: ?>
+            <a href="<?= base_url('admin/dynamicforms/submissions') ?>" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> All Submissions
+            </a>
+        <?php endif; ?>
+    </div>
+    <div class="d-flex gap-2">
+        <?php if ($submission['status'] === 'completed'): ?>
+            <a class="btn btn-sm btn-outline-primary" href="<?= base_url('forms/export/' . $submission['id'] . '/word') ?>">
+                <i class="fas fa-file-word me-1"></i> Export
+            </a>
+        <?php endif; ?>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+            <i class="fas fa-print me-1"></i> Print
+        </button>
+    </div>
+</div>
 
-                <?php if ($submission['status'] === 'completed'): ?>
-                    <div class="btn-group">
-                        <?php /* PDF export hidden per request
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/export/' . $submission['id'] . '/pdf') ?>" title="Export PDF">
-                            <i class="fas fa-file-pdf"></i>
-                        </a>
-                        */ ?>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= base_url('forms/export/' . $submission['id'] . '/word') ?>" title="Export Word">
-                            <i class="fas fa-file-word"></i>
-                        </a>
-                    </div>
-                <?php endif; ?>
+<!-- Submission Info Card (outside document) -->
+<div class="card submission-info-card no-print">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="fas fa-info-circle me-2"></i>Submission Information</span>
+        <span class="status-badge status-<?= $submission['status'] ?>">
+            <?= ucfirst(str_replace('_', ' ', $submission['status'])) ?>
+        </span>
+    </div>
+    <div class="card-body py-3">
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-hashtag me-1"></i> Submission ID</div>
+                <div class="info-value"><?= $submission['id'] ?></div>
             </div>
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-user me-1"></i> Submitted By</div>
+                <div class="info-value"><?= esc($submitter['full_name'] ?? 'Unknown') ?></div>
+            </div>
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-calendar me-1"></i> Submission Date</div>
+                <div class="info-value"><?= date('M d, Y h:i A', strtotime($submission['created_at'])) ?></div>
+            </div>
+            <?php if (!empty($submission['approver_id']) && !empty($approver)): ?>
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-check-circle me-1"></i> Approved By</div>
+                <div class="info-value"><?= esc($approver['full_name']) ?></div>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($service_staff)): ?>
+            <div class="info-item">
+                <div class="info-label"><i class="fas fa-tools me-1"></i> Service Staff</div>
+                <div class="info-value"><?= esc($service_staff['full_name']) ?></div>
+            </div>
+            <?php endif; ?>
         </div>
-    <div class="card-body py-3 px-3 small">
-            <?php /* helper functions autoloaded via app/Helpers/form_helper.php */ ?>
-
-            <!-- Status Badge -->
-            <div class="mb-3">
-                <span class="badge 
-                    <?php 
-                    switch($submission['status']) {
-                        case 'submitted': echo 'bg-warning'; break;
-                        case 'approved': echo 'bg-info'; break;
-                        case 'rejected': echo 'bg-danger'; break;
-                        case 'pending_service': echo 'bg-primary'; break;
-                        case 'awaiting_requestor_signature': echo 'bg-info'; break;
-                        case 'completed': echo 'bg-success'; break;
-                        default: echo 'bg-secondary';
-                    }
-                    ?> fs-6 mb-3">
-                    Status: <?= ucfirst(str_replace('_', ' ', $submission['status'])) ?>
-                </span>
-                
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <p class="mb-1"><strong>Submitted By:</strong> <?= esc($submitter['full_name'] ?? 'Unknown') ?></p>
-                        <p class="mb-1"><strong>Submission Date:</strong> <?= date('M d, Y h:i A', strtotime($submission['created_at'])) ?></p>
-                        
-                        <?php if (!empty($submission['approver_id']) && !empty($approver)): ?>
-                            <p class="mb-1"><strong>Approved By:</strong> <?= esc($approver['full_name']) ?></p>
-                            <p class="mb-1"><strong>Approved Date:</strong> <?= date('M d, Y h:i A', strtotime($submission['approved_at'])) ?></p>
-                        <?php endif; ?>
-                        
-                        <?php if (!empty($submission['service_staff_id']) && !empty($service_staff)): ?>
-                            <p class="mb-1"><strong>Service Staff:</strong> <?= esc($service_staff['full_name']) ?></p>
-                        <?php endif; ?>
-                        
-                        <?php if (!empty($submission['service_staff_signature_date'])): ?>
-                            <p class="mb-1"><strong>Service Completed:</strong> <?= date('M d, Y h:i A', strtotime($submission['service_staff_signature_date'])) ?></p>
-                        <?php endif; ?>
-                        
-                        <?php if (!empty($submission['requestor_signature_date'])): ?>
-                            <p class="mb-1"><strong>Requestor Confirmed:</strong> <?= date('M d, Y h:i A', strtotime($submission['requestor_signature_date'])) ?></p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
+        
+        <!-- Action Buttons -->
+        <div class="mt-3 d-flex flex-wrap gap-2">
+            <?php if ($canApprove): ?>
+                <a href="<?= base_url('forms/approve/' . $submission['id']) ?>" class="btn btn-success btn-sm">
+                    <i class="fas fa-check me-1"></i> Approve
+                </a>
+                <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                    <i class="fas fa-times me-1"></i> Reject
+                </button>
+            <?php elseif ($canService): ?>
+                <a href="<?= base_url('forms/service-form/' . $submission['id']) ?>" class="btn btn-primary btn-sm">
+                    <i class="fas fa-tools me-1"></i> Service This Form
+                </a>
+            <?php elseif ($canSignCompletion): ?>
+                <a href="<?= base_url('forms/final-sign/' . $submission['id']) ?>" class="btn btn-success btn-sm">
+                    <i class="fas fa-check-double me-1"></i> Confirm Completion
+                </a>
+            <?php endif; ?>
             
-            <!-- Service Staff Assignment -->
             <?php if ($canAssignServiceStaff && !empty($available_service_staff)): ?>
-            <div class="card mb-4 border-primary">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0 text-white">
-                        <i class="bi bi-person-plus"></i> Assign Service Staff
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>Note:</strong> Assigning service staff will automatically update the form status and notify the selected staff member.
-                    </div>
-                    <form action="<?= base_url('forms/assign-service-staff') ?>" method="post" class="row g-3">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
-                        
-                        <div class="col-md-8">
-                            <label for="service_staff_id" class="form-label">
-                                <i class="bi bi-person"></i> Select Service Staff <span class="text-danger">*</span>
-                            </label>
-                            <select name="service_staff_id" id="service_staff_id" class="form-select" required>
-                                <option value="">-- Choose a service staff member --</option>
-                                <?php foreach ($available_service_staff as $staff): ?>
-                                    <option value="<?= $staff['id'] ?>">
-                                        <?= esc($staff['full_name']) ?> 
-                                        <small>(<?= esc($staff['email']) ?>)</small>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        
-                        <div class="col-md-4 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary" 
-                                    onclick="return confirmAndSubmit(event, 'Are you sure you want to assign this service staff member?', 'Confirm Assignment')">
-                                <i class="bi bi-check-circle"></i> Assign Service Staff
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <?php elseif (!empty($service_staff)): ?>
-            <div class="card mb-4 border-info">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0 text-white">
-                        <i class="bi bi-person-check"></i> Assigned Service Staff
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <div class="d-flex align-items-center">
-                                <div class="bg-info bg-opacity-10 rounded-circle p-3 me-3">
-                                    <i class="bi bi-person text-info fs-4"></i>
-                                </div>
-                                <div>
-                                    <h6 class="mb-1"><?= esc($service_staff['full_name']) ?></h6>
-                                    <p class="mb-1 text-muted">
-                                        <i class="bi bi-envelope"></i> <?= esc($service_staff['email']) ?>
-                                    </p>
-                                    <?php if (!empty($submission['service_notes'])): ?>
-                                        <p class="mb-0">
-                                            <strong>Service Notes:</strong> <?= esc($submission['service_notes']) ?>
-                                        </p>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-end">
-                            <?php if (!empty($submission['service_staff_signature_date'])): ?>
-                                <span class="badge bg-success fs-6 p-2">
-                                    <i class="bi bi-check-circle"></i> Service Completed
-                                </span>
-                                <br>
-                                <small class="text-muted">
-                                    <?= date('M d, Y h:i A', strtotime($submission['service_staff_signature_date'])) ?>
-                                </small>
-                            <?php else: ?>
-                                <span class="badge bg-warning fs-6 p-2">
-                                    <i class="bi bi-clock"></i> Pending Service
-                                </span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                <button type="button" class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#assignModal">
+                    <i class="fas fa-user-plus me-1"></i> Assign Service Staff
+                </button>
             <?php endif; ?>
             
-            <!-- Form Data -->
-            <div class="card mb-3 border-0 shadow-sm">
-                <div class="card-header py-2 px-3 bg-light">
-                    <h5 class="mb-0 small text-uppercase text-muted">Form Data</h5>
-                </div>
-                <div class="card-body py-3 px-3 small">
-                    <div class="row g-2">
-                        <?php 
-                        // Group fields by role for better organization
-                        $requestorFields = [];
-                        $serviceFields = [];
-                        $bothFields = [];
-                        $readonlyFields = [];
-                        
-                        foreach ($panel_fields as $field) {
-                            $fieldRole = $field['field_role'] ?? 'both';
-                            
-                            if ($fieldRole === 'requestor') {
-                                $requestorFields[] = $field;
-                            } else if ($fieldRole === 'service_staff') {
-                                $serviceFields[] = $field;
-                            } else if ($fieldRole === 'readonly') {
-                                $readonlyFields[] = $field;
-                            } else {
-                                $bothFields[] = $field;
-                            }
-                        }
-                        
-                        // Display requestor fields first
-                        if (!empty($requestorFields) || !empty($bothFields) || !empty($readonlyFields)):
-                        ?>
-                            <div class="col-12 mb-3">
-                                <h6 class="border-bottom pb-2">Requestor Information</h6>
-                            </div>
-                            
-                            <?php 
-                            // Display fields that requestor can fill
-                            foreach (array_merge($requestorFields, $bothFields, $readonlyFields) as $field): 
-                            ?>
-                                <div class="col-md-<?= $field['width'] ?? 6 ?>">
-                                    <div class="mb-2">
-                                        <label class="form-label small fw-semibold mb-1"><?= $field['field_label'] ?></label>
-                                        <?php
-                                        $ft = $field['field_type'];
-                                        $name = $field['field_name'];
-                                        $rawVal = $submission_data[$name] ?? '';
-                                        $selectedVals = [];
-                                        if (is_array($rawVal)) { $selectedVals = $rawVal; }
-                                        else {
-                                            $dec = json_decode($rawVal, true);
-                                            if (json_last_error() === JSON_ERROR_NONE && is_array($dec)) { $selectedVals = $dec; }
-                                            elseif (strlen(trim($rawVal))) { $selectedVals = preg_split('/\s*[,;]\s*/', (string)$rawVal); }
-                                        }
-                                        if ($ft === 'radio' && count($selectedVals) > 1) { $selectedVals = [reset($selectedVals)]; }
-                                        // Build options
-                                        $opts = [];
-                                        if (!empty($field['options']) && is_array($field['options'])) { $opts = $field['options']; }
-                                        elseif (!empty($field['default_value'])) {
-                                            $decoded = json_decode($field['default_value'], true);
-                                            if (is_array($decoded) && !empty($decoded)) { $opts = $decoded; }
-                                            else { $lines = array_filter(array_map('trim', explode("\n", $field['default_value']))); if ($lines) $opts = $lines; }
-                                        } elseif (!empty($field['code_table'])) {
-                                            $table = $field['code_table'];
-                                            if (preg_match('/^[A-Za-z0-9_]+$/', $table)) {
-                                                try { $db = \Config\Database::connect(); $query = $db->table($table)->get(); if ($query) { foreach ($query->getResultArray() as $r) { $opts[] = [ 'label' => $r['description'] ?? ($r['name'] ?? ($r['code'] ?? ($r['id'] ?? ''))), 'sub_field' => $r['code'] ?? ($r['id'] ?? '') ]; } } } catch (Throwable $e) { /* ignore */ }
-                                            }
-                                        }
-                                        $mapOption = function($opt){ if (is_array($opt)) { $label = $opt['label'] ?? ($opt['sub_field'] ?? ''); $value = $opt['sub_field'] ?? ($opt['label'] ?? ''); } else { $label = $opt; $value = $opt; } return [$label,$value]; };
-                                        switch ($ft) {
-                                            case 'textarea':
-                                                echo '<textarea class="form-control form-control-sm" readonly rows="2">'.render_field_display($field,$submission_data).'</textarea>'; break;
-                                            case 'radio':
-                                                echo '<div class="d-flex flex-wrap gap-2">';
-                                                foreach ($opts as $oi=>$opt){ list($lbl,$val)=$mapOption($opt); $chk=in_array((string)$val, array_map('strval',$selectedVals))?'checked':''; echo '<div class="form-check">'; echo '<input class="form-check-input" type="radio" disabled id="'.$name.'_v_'.$oi.'" '.$chk.'>'; echo '<label class="form-check-label" for="'.$name.'_v_'.$oi.'">'.esc($lbl).'</label>'; echo '</div>'; }
-                                                echo '</div>'; break;
-                                            case 'checkbox':
-                                            case 'checkboxes':
-                                                echo '<div class="d-flex flex-wrap gap-2">';
-                                                foreach ($opts as $oi=>$opt){ list($lbl,$val)=$mapOption($opt); $chk=in_array((string)$val, array_map('strval',$selectedVals))?'checked':''; echo '<div class="form-check">'; echo '<input class="form-check-input" type="checkbox" disabled id="'.$name.'_v_'.$oi.'" '.$chk.'>'; echo '<label class="form-check-label" for="'.$name.'_v_'.$oi.'">'.esc($lbl).'</label>'; echo '</div>'; }
-                                                echo '</div>'; break;
-                                            case 'dropdown':
-                                            case 'select':
-                                                echo '<select class="form-select form-select-sm" disabled>'; echo '<option value="">Select...</option>'; foreach ($opts as $opt){ list($lbl,$val)=$mapOption($opt); $sel=in_array((string)$val, array_map('strval',$selectedVals))?'selected':''; echo '<option '.$sel.' value="'.esc($val).'">'.esc($lbl).'</option>'; } echo '</select>'; break;
-                                            default:
-                                                echo '<input type="text" class="form-control form-control-sm" value="'.render_field_display($field,$submission_data).'" readonly>';
-                                        }
-                                        ?>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                        
-                        <?php 
-                        // Display service staff fields if they exist and if the form has been serviced
-                        // or if the current user is service staff
-                        if ((!empty($serviceFields) || !empty($bothFields)) && 
-                            (!empty($submission['service_staff_signature_date']) || 
-                             session()->get('user_type') === 'service_staff' || 
-                             session()->get('user_type') === 'admin')):
-                        ?>
-                            <div class="col-12 mb-3 mt-4">
-                                <h6 class="border-bottom pb-2">Service Information</h6>
-                            </div>
-                            
-                            <?php 
-                            // Display fields that service staff can fill
-                            foreach (array_merge($serviceFields, $bothFields) as $field): 
-                            ?>
-                                <div class="col-md-<?= $field['width'] ?? 6 ?>">
-                                    <div class="mb-2">
-                                        <label class="form-label small fw-semibold mb-1"><?= $field['field_label'] ?></label>
-                                        <?php if ($field['field_type'] === 'textarea'): ?>
-                                            <textarea class="form-control form-control-sm" readonly rows="2"><?= render_submission_value($submission_data[$field['field_name']] ?? null) ?></textarea>
-                                        <?php else: ?>
-                                            <input type="text" class="form-control form-control-sm" value="<?= render_submission_value($submission_data[$field['field_name']] ?? null) ?>" readonly>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                            
-                            <?php if (!empty($submission['service_notes'])): ?>
-                                <div class="col-12">
-                                    <div class="mb-3">
-                                        <label class="form-label">Service Notes</label>
-                                        <div class="p-3 bg-light rounded">
-                                            <?= nl2br(esc($submission['service_notes'])) ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Signatures Section -->
-            <?php if (!empty($submission['approver_id']) || !empty($submission['service_staff_signature_date']) || !empty($submission['requestor_signature_date'])): ?>
             <?php
-                // Helper inline: build full URL for signature supporting legacy stored values
-                $sigUrl = function($raw) {
-                    if (empty($raw)) return '';
-                    $raw = ltrim($raw, '/');
-                    if (strpos($raw, 'uploads/signatures/') === 0) {
-                        return base_url($raw);
-                    }
-                    return base_url('uploads/signatures/' . $raw);
-                };
-                $approverSigUrl = !empty($approver['signature']) ? $sigUrl($approver['signature']) : '';
-                $serviceStaffSigUrl = !empty($service_staff['signature']) ? $sigUrl($service_staff['signature']) : '';
-                $requestorSigUrl = !empty($submitter['signature']) ? $sigUrl($submitter['signature']) : '';
-            ?>
-            <div class="card mb-3 shadow-sm">
-                <div class="card-header bg-info text-white py-2 px-3">
-                    <h5 class="mb-0 small text-uppercase">Signatures</h5>
-                </div>
-                <div class="card-body py-3 px-3 small">
-                    <div class="row g-2">
-                        <?php if (!empty($approver) && $approverSigUrl): ?>
-                        <div class="col-md-4 text-center mb-2">
-                            <p class="mb-1 small fw-semibold">Approver</p>
-                            <img src="<?= $approverSigUrl ?>" 
-                                 alt="Approver signature" 
-                                 class="img-fluid mb-2" 
-                                 style="max-height: 100px; border: 1px dashed #ccc; padding: 10px;">
-                            <p class="small text-muted mb-0"><?= esc($approver['full_name']) ?><br>
-                               <?= date('M d, Y h:i A', strtotime($submission['approved_at'])) ?></p>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if (!empty($service_staff) && $serviceStaffSigUrl && !empty($submission['service_staff_signature_date'])): ?>
-                        <div class="col-md-4 text-center mb-2">
-                            <p class="mb-1 small fw-semibold">Service Staff</p>
-                            <img src="<?= $serviceStaffSigUrl ?>" 
-                                 alt="Service staff signature" 
-                                 class="img-fluid mb-2" 
-                                 style="max-height: 100px; border: 1px dashed #ccc; padding: 10px;">
-                            <p class="small text-muted mb-0"><?= esc($service_staff['full_name']) ?><br>
-                               <?= date('M d, Y h:i A', strtotime($submission['service_staff_signature_date'])) ?></p>
-                        </div>
-                        <?php endif; ?>
-                        
-                        <?php if (!empty($submitter) && $requestorSigUrl && !empty($submission['requestor_signature_date'])): ?>
-                        <div class="col-md-4 text-center mb-2">
-                            <p class="mb-1 small fw-semibold">Requestor</p>
-                            <img src="<?= $requestorSigUrl ?>" 
-                                 alt="Requestor signature" 
-                                 class="img-fluid mb-2" 
-                                 style="max-height: 100px; border: 1px dashed #ccc; padding: 10px;">
-                            <p class="small text-muted mb-0"><?= esc($submitter['full_name']) ?><br>
-                               <?= date('M d, Y h:i A', strtotime($submission['requestor_signature_date'])) ?></p>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-            
-            <!-- Action Buttons -->
-            <div class="d-flex justify-content-between mt-2">
-                <?php if ($canApprove): ?>
-                    <a href="<?= base_url('forms/approve/' . $submission['id']) ?>" class="btn btn-success">
-                        <i class="bi bi-check-circle"></i> Approve Form
-                    </a>
-                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
-                        <i class="bi bi-x-circle"></i> Reject Form
-                    </button>
-                <?php elseif ($canService): ?>
-                    <a href="<?= base_url('forms/service-form/' . $submission['id']) ?>" class="btn btn-primary">
-                        <i class="bi bi-tools"></i> Service This Form
-                    </a>
-                <?php elseif ($canSignCompletion): ?>
-                    <a href="<?= base_url('forms/final-sign/' . $submission['id']) ?>" class="btn btn-success">
-                        <i class="bi bi-check2-circle"></i> Confirm Completion
-                    </a>
-                <?php endif; ?>
-                
-                <div>
-                    <!-- Feedback indicator or submit button handled below -->
-                </div>
-            </div>
-            
-            <!-- Submit Feedback Button for Requestors -->
-            <?php
-            // Only show feedback button if requestor, completed, and no feedback yet
             $userType = session()->get('user_type');
             $userId = session()->get('user_id');
-
-            // Use model helper to determine completion status to avoid divergent checks
-            $submissionModel = new \App\Models\FormSubmissionModel();
-            $isCompleted = $submissionModel->isCompleted($submission);
-
-            if ($userType === 'requestor' && $isCompleted) {
-                $feedbackModel = new \App\Models\FeedbackModel();
-                $hasFeedback = $feedbackModel->hasFeedback($submission['id'], $userId);
-                if (!$hasFeedback) {
-            ?>
-                <a href="<?= base_url('feedback/create/' . $submission['id']) ?>" class="btn btn-outline-primary btn-sm mt-2">
-                    <i class="fas fa-comment-dots me-1"></i> Submit Feedback
-                </a>
-            <?php
-                }
-                else {
-                    // Show a small badge and link to view existing feedback
-                    // Try to fetch the feedback id to link to view
-                    // Fetch existing feedback id directly since helper method does not exist
-                    $existingFb = $feedbackModel->getFeedbackBySubmissionAndUser($submission['id'], $userId);
-                    $fbId = $existingFb['id'] ?? null;
-            ?>
-                <a href="<?= $fbId ? base_url('feedback/view/' . $fbId) : base_url('feedback') ?>" class="btn btn-success btn-sm mt-2">
-                    <i class="fas fa-check-circle me-1"></i> Feedback submitted
-                </a>
-            <?php
-                }
-            }
-            
-            // Show cancel button for requestor when submission is cancellable
             $cancellableStatuses = ['submitted', 'approved', 'pending_service'];
-            if ($userType === 'requestor' && in_array($submission['status'] ?? '', $cancellableStatuses) && empty($submission['service_staff_signature_date']) && empty($submission['requestor_signature_date'])):
+            if ($userType === 'requestor' && in_array($submission['status'] ?? '', $cancellableStatuses) && 
+                empty($submission['service_staff_signature_date']) && empty($submission['requestor_signature_date'])):
             ?>
-                <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline-block ms-2 mt-2">
+                <form action="<?= base_url('forms/cancel-submission') ?>" method="post" class="d-inline">
                     <?= csrf_field() ?>
                     <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
-                    <button type="submit" class="btn btn-outline-danger" onclick="return confirmAndSubmit(event, 'Are you sure you want to cancel this request?', 'Confirm Cancel')">
-                        <i class="bi bi-x-circle"></i> Cancel Request
+                    <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure you want to cancel this request?')">
+                        <i class="fas fa-times me-1"></i> Cancel Request
                     </button>
                 </form>
             <?php endif; ?>
@@ -445,13 +305,210 @@
     </div>
 </div>
 
+<!-- Document Paper -->
+<div class="document-paper">
+    <?php 
+    // Get department name
+    $departmentName = '';
+    if (!empty($form['department_id'])) {
+        $deptModel = new \App\Models\DepartmentModel();
+        $dept = $deptModel->find($form['department_id']);
+        $departmentName = $dept['description'] ?? '';
+    }
+    
+    // Helper for signature URLs
+    $sigUrl = function($raw) {
+        if (empty($raw)) return '';
+        $raw = ltrim($raw, '/');
+        if (strpos($raw, 'uploads/signatures/') === 0) {
+            return base_url($raw);
+        }
+        return base_url('uploads/signatures/' . $raw);
+    };
+    ?>
+    
+    <!-- Document Header Image -->
+    <div class="doc-header">
+        <?php if (!empty($form['header_image'])): ?>
+            <img src="<?= base_url('uploads/form_headers/' . $form['header_image']) ?>" alt="Form Header">
+        <?php endif; ?>
+    </div>
+    
+    <!-- Department Box & Form Title -->
+    <div class="doc-title-section">
+        <?php if (!empty($departmentName)): ?>
+            <div class="doc-department-box"><?= esc($departmentName) ?></div>
+        <?php endif; ?>
+        <div class="doc-form-title"><?= esc($form['description']) ?></div>
+    </div>
+    
+    <!-- Form Fields Table -->
+    <div style="padding: 0 20px;">
+        <table class="doc-table">
+            <?php 
+            // Group fields by role
+            $requestorFields = [];
+            $serviceFields = [];
+            $bothFields = [];
+            $readonlyFields = [];
+            
+            foreach ($panel_fields as $field) {
+                $fieldRole = $field['field_role'] ?? 'both';
+                if ($fieldRole === 'requestor') {
+                    $requestorFields[] = $field;
+                } else if ($fieldRole === 'service_staff') {
+                    $serviceFields[] = $field;
+                } else if ($fieldRole === 'readonly') {
+                    $readonlyFields[] = $field;
+                } else {
+                    $bothFields[] = $field;
+                }
+            }
+            
+            $allFields = array_merge($requestorFields, $bothFields, $readonlyFields);
+            $fieldCount = count($allFields);
+            
+            // Helper to render field value
+            $renderFieldValue = function($field, $submission_data) {
+                $ft = $field['field_type'];
+                $name = $field['field_name'];
+                $rawVal = $submission_data[$name] ?? '';
+                
+                if (in_array($ft, ['checkbox', 'checkboxes', 'radio'])) {
+                    $selectedVals = [];
+                    if (is_array($rawVal)) { 
+                        $selectedVals = $rawVal; 
+                    } else {
+                        $dec = json_decode($rawVal, true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_array($dec)) { 
+                            $selectedVals = $dec; 
+                        } elseif (strlen(trim($rawVal))) { 
+                            $selectedVals = preg_split('/\s*[,;]\s*/', (string)$rawVal); 
+                        }
+                    }
+                    return esc(implode(', ', $selectedVals));
+                } else {
+                    return esc(render_field_display($field, $submission_data));
+                }
+            };
+            
+            // Render fields - one field per row for simplicity
+            foreach ($allFields as $field):
+            ?>
+                <tr>
+                    <td class="field-label"><?= esc($field['field_label']) ?>:</td>
+                    <td colspan="3" class="field-value"><?= $renderFieldValue($field, $submission_data) ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </table>
+        
+        <!-- Signatures Section -->
+        <?php 
+        $hasApproverSig = !empty($approver['signature']) && !empty($submission['approver_id']);
+        $hasServiceSig = !empty($service_staff['signature']) && !empty($submission['service_staff_signature_date']);
+        $hasRequestorSig = !empty($submitter['signature']) && !empty($submission['requestor_signature_date']);
+        
+        if ($hasApproverSig || $hasServiceSig):
+        ?>
+        <table class="doc-table" style="margin-top: -1px;">
+            <tr>
+                <?php if ($hasApproverSig): ?>
+                <td style="width: 50%;">
+                    <strong>Approved by:</strong>
+                    <div class="signature-cell">
+                        <img src="<?= $sigUrl($approver['signature']) ?>" alt="Approver Signature">
+                    </div>
+                    <div class="signature-label"><?= esc($approver['full_name']) ?><br><?= date('M d, Y', strtotime($submission['approved_at'])) ?></div>
+                </td>
+                <?php endif; ?>
+                
+                <?php if ($hasServiceSig): ?>
+                <td style="width: 50%;">
+                    <strong>Staff-in-charge:</strong>
+                    <div class="signature-cell">
+                        <img src="<?= $sigUrl($service_staff['signature']) ?>" alt="Service Staff Signature">
+                    </div>
+                    <div class="signature-label"><?= esc($service_staff['full_name']) ?><br><?= date('M d, Y', strtotime($submission['service_staff_signature_date'])) ?></div>
+                </td>
+                <?php endif; ?>
+            </tr>
+        </table>
+        <?php endif; ?>
+        
+        <!-- Service Fields Section (if any) -->
+        <?php 
+        if (!empty($serviceFields) && 
+            (!empty($submission['service_staff_signature_date']) || 
+             session()->get('user_type') === 'service_staff' || 
+             in_array(session()->get('user_type'), ['admin', 'superuser']))):
+        ?>
+        <table class="doc-table" style="margin-top: -1px;">
+            <tr>
+                <?php foreach (array_slice($serviceFields, 0, 3) as $sf): ?>
+                <th><?= esc($sf['field_label']) ?></th>
+                <?php endforeach; ?>
+            </tr>
+            <tr>
+                <?php foreach (array_slice($serviceFields, 0, 3) as $sf): ?>
+                <td><?= esc(render_field_display($sf, $submission_data) ?: 'Click or tap here to enter text.') ?></td>
+                <?php endforeach; ?>
+            </tr>
+        </table>
+        <?php endif; ?>
+        
+        <!-- Requestor Acceptance -->
+        <?php if ($hasRequestorSig || !empty($submission['service_notes'])): ?>
+        <table class="doc-table" style="margin-top: -1px;">
+            <tr>
+                <td style="width: 40%;">
+                    <strong>Accepted by:</strong>
+                    <?php if ($hasRequestorSig): ?>
+                    <div class="signature-cell">
+                        <img src="<?= $sigUrl($submitter['signature']) ?>" alt="Requestor Signature">
+                    </div>
+                    <div class="signature-label"><?= esc($submitter['full_name']) ?><br><?= date('M d, Y', strtotime($submission['requestor_signature_date'])) ?></div>
+                    <?php else: ?>
+                    <div class="signature-cell"></div>
+                    <div class="signature-label">Signature Over Printed Name/Date</div>
+                    <?php endif; ?>
+                </td>
+                <td style="width: 60%;">
+                    <strong>Comments/Suggestions/Recommendations:</strong>
+                    <div style="min-height: 80px; padding: 5px;">
+                        <?= !empty($submission['service_notes']) ? nl2br(esc($submission['service_notes'])) : '' ?>
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <?php endif; ?>
+    </div>
+    
+    <!-- Document Footer -->
+    <div class="doc-footer" style="padding: 20px 20px 10px 20px;">
+        <table>
+            <tr>
+                <td class="footer-label">Form Code:</td>
+                <td class="footer-label">Revision No:</td>
+                <td class="footer-label">Effectivity Date:</td>
+                <td class="footer-label">Page:</td>
+            </tr>
+            <tr>
+                <td><?= esc($form['code']) ?></td>
+                <td>00</td>
+                <td><?= date('M d, Y', strtotime($form['created_at'] ?? 'now')) ?></td>
+                <td>1 of 1</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
 <!-- Reject Modal -->
 <?php if ($canApprove): ?>
-<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="rejectModalLabel">Reject Form</h5>
+                <h5 class="modal-title">Reject Form</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form action="<?= base_url('forms/submit-rejection') ?>" method="post">
@@ -461,7 +518,6 @@
                     <div class="mb-3">
                         <label for="reject_reason" class="form-label">Reason for Rejection</label>
                         <textarea class="form-control" id="reject_reason" name="reject_reason" rows="3" required></textarea>
-                        <small class="text-muted">Please provide a reason why this form is being rejected.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -474,20 +530,37 @@
 </div>
 <?php endif; ?>
 
-<?= $this->endSection() ?>
+<!-- Assign Service Staff Modal -->
+<?php if ($canAssignServiceStaff && !empty($available_service_staff)): ?>
+<div class="modal fade" id="assignModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Assign Service Staff</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="<?= base_url('forms/assign-service-staff') ?>" method="post">
+                <?= csrf_field() ?>
+                <input type="hidden" name="submission_id" value="<?= $submission['id'] ?>">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="service_staff_id" class="form-label">Select Service Staff</label>
+                        <select name="service_staff_id" id="service_staff_id" class="form-select" required>
+                            <option value="">-- Choose --</option>
+                            <?php foreach ($available_service_staff as $staff): ?>
+                                <option value="<?= $staff['id'] ?>"><?= esc($staff['full_name']) ?> (<?= esc($staff['email']) ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
-<?= $this->section('styles') ?>
-<style>
-    .compact-page .card{border-radius:6px;}
-    .compact-page .form-control,.compact-page .form-select{padding:.25rem .5rem;font-size:.75rem;}
-    .compact-page textarea.form-control{min-height:48px;}
-    .compact-page label.form-label{font-size:.65rem;letter-spacing:.3px;}
-    .compact-page h5,.compact-page h6{font-size:.8rem;}
-    .compact-page .badge{font-size:.6rem;padding:.35em .5em;}
-    .compact-page .card-header{border-bottom:1px solid #e5e7eb;}
-    .compact-page .table-sm td,.compact-page .table-sm th{padding:.25rem .4rem;}
-    .compact-page .btn,.compact-page a.btn{padding:.25rem .55rem;font-size:.65rem;}
-    .compact-page .img-fluid{max-width:100%;height:auto;}
-    @media (min-width:992px){.compact-page .container-fluid{max-width:1350px;}}
-</style>
 <?= $this->endSection() ?>

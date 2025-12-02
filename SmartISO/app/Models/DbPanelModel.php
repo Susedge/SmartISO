@@ -25,7 +25,7 @@ class DbpanelModel extends Model
         'panel_name', 'field_name', 'field_label', 'field_type', 
         'bump_next_field', 'code_table', 'length', 'field_order',
         'required', 'width', 'field_role', 'default_value',
-        'department_id', 'office_id'
+        'department_id', 'office_id', 'is_active'
     ];    
     
     protected $useTimestamps = true;
@@ -40,6 +40,23 @@ class DbpanelModel extends Model
         return $this->where('panel_name', $panelName)
                     ->orderBy('field_order', 'ASC')
                     ->findAll();
+    }
+    
+    /**
+     * Get all fields for a specific panel (only active panels)
+     * Use this for new form submissions
+     */
+    public function getActivePanelFields($panelName)
+    {
+        $builder = $this->where('panel_name', $panelName)
+                        ->orderBy('field_order', 'ASC');
+        
+        // Check if is_active column exists
+        if ($this->db->fieldExists('is_active', $this->table)) {
+            $builder->where('is_active', 1);
+        }
+        
+        return $builder->findAll();
     }
     
     /**
@@ -80,15 +97,92 @@ class DbpanelModel extends Model
     {
         $db = \Config\Database::connect();
         
-        return $db->table($this->table . ' p')
-                    ->select('p.panel_name, p.department_id, p.office_id, d.description as department_name, o.description as office_name')
+        // Build select with is_active only if column exists
+        $selectFields = 'p.panel_name, p.department_id, p.office_id, d.description as department_name, o.description as office_name';
+        if ($db->fieldExists('is_active', $this->table)) {
+            $selectFields .= ', p.is_active';
+        }
+        
+        $builder = $db->table($this->table . ' p')
+                    ->select($selectFields)
                     ->join('departments d', 'd.id = p.department_id', 'left')
                     ->join('offices o', 'o.id = p.office_id', 'left')
                     ->distinct()
                     ->where('p.panel_name IS NOT NULL')
                     ->where('p.panel_name !=', '')
-                    ->orderBy('p.panel_name', 'ASC')
-                    ->get()
-                    ->getResultArray();
+                    ->orderBy('p.panel_name', 'ASC');
+        
+        return $builder->get()->getResultArray();
+    }
+    
+    /**
+     * Get only active panels (for dropdowns when creating new forms)
+     */
+    public function getActivePanels()
+    {
+        $db = \Config\Database::connect();
+        
+        $builder = $db->table($this->table . ' p')
+                    ->select('p.panel_name, p.department_id, p.office_id, d.description as department_name, o.description as office_name')
+                    ->join('departments d', 'd.id = p.department_id', 'left')
+                    ->join('offices o', 'o.id = p.office_id', 'left')
+                    ->distinct()
+                    ->where('p.panel_name IS NOT NULL')
+                    ->where('p.panel_name !=', '');
+        
+        // Check if is_active column exists
+        if ($db->fieldExists('is_active', $this->table)) {
+            $builder->where('p.is_active', 1);
+        }
+        
+        return $builder->orderBy('p.panel_name', 'ASC')
+                      ->get()
+                      ->getResultArray();
+    }
+    
+    /**
+     * Check if a panel is active
+     */
+    public function isPanelActive($panelName)
+    {
+        if (!$this->db->fieldExists('is_active', $this->table)) {
+            return true; // Default to active if column doesn't exist yet
+        }
+        
+        $panel = $this->where('panel_name', $panelName)
+                      ->where('is_active', 1)
+                      ->first();
+        
+        return !empty($panel);
+    }
+    
+    /**
+     * Set panel active status
+     */
+    public function setPanelActive($panelName, $isActive = true)
+    {
+        if (!$this->db->fieldExists('is_active', $this->table)) {
+            return false;
+        }
+        
+        return $this->where('panel_name', $panelName)
+                    ->set(['is_active' => $isActive ? 1 : 0])
+                    ->update();
+    }
+    
+    /**
+     * Deactivate a panel (archive it)
+     */
+    public function deactivatePanel($panelName)
+    {
+        return $this->setPanelActive($panelName, false);
+    }
+    
+    /**
+     * Activate a panel
+     */
+    public function activatePanel($panelName)
+    {
+        return $this->setPanelActive($panelName, true);
     }
 }

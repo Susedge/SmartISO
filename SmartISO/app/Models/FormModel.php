@@ -9,11 +9,15 @@ class FormModel extends Model
     protected $table = 'forms';
     protected $primaryKey = 'id';
     // Transitional: supporting department_id (new) and office_id (legacy)
-    protected $allowedFields = ['code', 'description', 'panel_name', 'office_id', 'department_id'];
+    // Added header_image for form document header support
+    protected $allowedFields = ['code', 'description', 'panel_name', 'office_id', 'department_id', 'header_image'];
     protected $useTimestamps = true;
     protected $dateFormat = 'datetime';
     protected $createdField = 'created_at';
     protected $updatedField = 'updated_at';
+    
+    // Disable soft deletes - table doesn't have deleted_at column
+    protected $useSoftDeletes = false;
 
     /**
      * Get forms by office
@@ -86,5 +90,41 @@ class FormModel extends Model
             $query->where('f.department_id', $departmentId);
         }
         return $query->get()->getResultArray();
+    }
+
+    /**
+     * Get all unique header images that have been uploaded
+     * This is used for the header selection dropdown in the form editor
+     */
+    public function getAvailableHeaders()
+    {
+        $headerPath = FCPATH . 'uploads/form_headers/';
+        $headers = [];
+        
+        if (is_dir($headerPath)) {
+            $files = glob($headerPath . '*.{jpg,jpeg,png,gif,webp}', GLOB_BRACE);
+            foreach ($files as $file) {
+                $filename = basename($file);
+                $headers[] = [
+                    'filename' => $filename,
+                    'url' => base_url('uploads/form_headers/' . $filename),
+                    'name' => pathinfo($filename, PATHINFO_FILENAME)
+                ];
+            }
+        }
+        
+        return $headers;
+    }
+
+    /**
+     * Get the header image URL for a form
+     */
+    public function getHeaderImageUrl($formId)
+    {
+        $form = $this->find($formId);
+        if (!$form || empty($form['header_image'])) {
+            return null;
+        }
+        return base_url('uploads/form_headers/' . $form['header_image']);
     }
 }

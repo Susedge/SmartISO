@@ -21,6 +21,9 @@ class OfficeModel extends Model
     protected $createdField  = 'created_at';
     protected $updatedField  = 'updated_at';
     
+    // Disable soft deletes - table doesn't have deleted_at column
+    protected $useSoftDeletes = false;
+    
     // Validation
     protected $validationRules      = [
         'code'          => 'required|alpha_numeric|min_length[2]|max_length[20]|is_unique[offices.code,id,{id}]',

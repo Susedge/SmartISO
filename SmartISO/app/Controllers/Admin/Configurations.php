@@ -546,10 +546,12 @@ class Configurations extends BaseController
                 'mode' => 'edit',
                 'item' => $item,
                 'departments' => $this->departmentModel->findAll(),
-                // panels list so the edit view can render the panel assignment select
-                'panels' => (new \App\Models\DbpanelModel())->getPanels(),
+                // panels list so the edit view can render the panel assignment select - ACTIVE only
+                'panels' => (new \App\Models\DbpanelModel())->getActivePanels(),
                 'allOffices' => $this->officeModel->orderBy('description','ASC')->findAll(),
                 'allForms' => $this->formModel->orderBy('description','ASC')->findAll(),
+                // Available headers for selection
+                'available_headers' => $this->formModel->getAvailableHeaders(),
             ];
             return view('admin/configurations/edit', $data);
         }
@@ -1312,6 +1314,107 @@ public function deleteTemplate($formId = null)
     }
     
     return redirect()->back()->with('error', 'Template file not found');
+}
+
+/**
+ * Update header image for a form
+ */
+public function updateHeader($formId = null)
+{
+    if (!$formId) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Invalid form ID');
+    }
+    
+    $form = $this->formModel->find($formId);
+    if (!$form) {
+        return redirect()->to('/admin/configurations?type=forms')
+            ->with('error', 'Form not found');
+    }
+    
+    // AUTHORIZATION: Department admins can only update headers for forms in their department
+    $userType = session()->get('user_type');
+    if ($userType === 'department_admin') {
+        $userDepartmentId = session()->get('department_id');
+        
+        if (empty($userDepartmentId)) {
+            return redirect()->to('/admin/configurations/edit/' . $formId . '?type=forms')
+                ->with('error', 'Your account is not assigned to a department');
+        }
+        
+        if ($form['department_id'] != $userDepartmentId) {
+            log_message('warning', "Department admin user " . session()->get('user_id') . " attempted to update header for form {$formId} outside their department");
+            return redirect()->to('/admin/configurations?type=forms')
+                ->with('error', 'You can only update headers for forms in your department');
+        }
+    }
+    
+    // Handle header image update
+    $headerImage = $this->handleHeaderImage($form['header_image']);
+    
+    // Update the form with new header image
+    $this->formModel->update($formId, ['header_image' => $headerImage]);
+    
+    if ($this->request->isAJAX()) {
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => $headerImage ? 'Header image updated successfully' : 'Header image removed',
+            'header_image' => $headerImage,
+            'csrf' => ['name' => csrf_token(), 'hash' => csrf_hash()]
+        ]);
+    }
+    
+    $message = $headerImage ? 'Header image updated successfully' : 'Header image removed';
+    return redirect()->to('/admin/configurations/edit/' . $formId . '?type=forms')
+        ->with('message', $message);
+}
+
+/**
+ * Handle header image upload or selection
+ * Returns the filename of the header image to store in DB
+ */
+protected function handleHeaderImage($currentHeader = null)
+{
+    // Check if user wants to remove the header
+    if ($this->request->getPost('remove_header') === '1') {
+        return null;
+    }
+
+    // Check if a new file was uploaded
+    $file = $this->request->getFile('header_upload');
+    if ($file && $file->isValid() && !$file->hasMoved()) {
+        // Validate file type
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!in_array($file->getMimeType(), $allowedTypes)) {
+            return $currentHeader;
+        }
+        
+        // Validate file size (max 2MB)
+        if ($file->getSize() > 2 * 1024 * 1024) {
+            return $currentHeader;
+        }
+        
+        // Create upload directory if it doesn't exist
+        $uploadPath = FCPATH . 'uploads/form_headers/';
+        if (!is_dir($uploadPath)) {
+            mkdir($uploadPath, 0755, true);
+        }
+        
+        // Generate unique filename
+        $newName = uniqid('header_') . '.' . $file->getExtension();
+        $file->move($uploadPath, $newName);
+        
+        return $newName;
+    }
+
+    // Check if an existing header was selected
+    $selectedHeader = $this->request->getPost('header_select');
+    if (!empty($selectedHeader) && $selectedHeader !== 'none') {
+        return $selectedHeader;
+    }
+
+    // Keep existing header if no changes
+    return $currentHeader;
 }
 
 /**

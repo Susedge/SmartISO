@@ -188,6 +188,64 @@
                     </div>
                     <?php endif; ?>
                     <?php if ($tableType === 'forms'): ?>
+                    <!-- Header Image Section -->
+                    <div class="col-12 mb-3">
+                        <div class="border rounded p-3">
+                            <p class="section-title mb-2 d-flex justify-content-between align-items-center">
+                                Header Image
+                                <span class="mini-muted">Document letterhead</span>
+                            </p>
+                            <?php 
+                            $currentHeader = $item['header_image'] ?? null;
+                            $hasHeader = !empty($currentHeader);
+                            ?>
+                            
+                            <?php if ($hasHeader): ?>
+                            <div class="mb-2">
+                                <label class="form-label mini-muted mb-1">Current Header:</label>
+                                <div class="border rounded p-2 bg-light text-center">
+                                    <img src="<?= base_url('uploads/form_headers/' . $currentHeader) ?>" alt="Current Header" style="max-width: 100%; max-height: 100px;">
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <form id="headerForm" action="<?= base_url('admin/configurations/update-header/' . $item['id']) ?>" method="post" enctype="multipart/form-data" class="small">
+                                <?= csrf_field() ?>
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-5">
+                                        <label class="form-label mini-muted mb-1"><?= $hasHeader ? 'Replace with Existing' : 'Select Existing' ?></label>
+                                        <select id="header_select" name="header_select" class="form-select form-select-sm">
+                                            <option value="none"><?= $hasHeader ? '-- Keep Current --' : '-- No Header --' ?></option>
+                                            <?php foreach (($available_headers ?? []) as $header): ?>
+                                                <option value="<?= esc($header['filename']) ?>" <?= ($currentHeader === $header['filename']) ? 'selected' : '' ?>><?= esc($header['name']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label mini-muted mb-1">Or Upload New</label>
+                                        <input type="file" class="form-control form-control-sm" id="header_upload" name="header_upload" accept="image/jpeg,image/png,image/gif,image/webp">
+                                    </div>
+                                    <div class="col-md-3 d-flex gap-1">
+                                        <button type="submit" class="btn btn-sm btn-primary flex-grow-1"><i class="fas fa-save me-1"></i>Save</button>
+                                        <?php if ($hasHeader): ?>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" id="removeHeaderBtn" title="Remove header"><i class="fas fa-times"></i></button>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="remove_header" id="remove_header" value="0">
+                            </form>
+                            
+                            <!-- Header Preview -->
+                            <div id="header_preview" class="mt-2" style="display: none;">
+                                <label class="form-label mini-muted mb-1">Preview:</label>
+                                <div class="border rounded p-2 bg-light text-center">
+                                    <img id="header_preview_img" src="" alt="Header Preview" style="max-width: 100%; max-height: 100px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Template Section -->
                     <div class="col-12">
                         <div class="border rounded p-3 h-100">
                             <p class="section-title mb-2 d-flex justify-content-between align-items-center">Template
@@ -307,6 +365,61 @@ window.CONFIG_EDIT_DATA = {
 })();
 </script>
 <script src="<?= base_url('assets/js/config-edit.js') ?>"></script>
+<script>
+// Header image preview functionality
+;(function(){
+    var headerSelect = document.getElementById('header_select');
+    var headerUpload = document.getElementById('header_upload');
+    var previewContainer = document.getElementById('header_preview');
+    var previewImg = document.getElementById('header_preview_img');
+    var removeHeaderBtn = document.getElementById('removeHeaderBtn');
+    var removeHeaderInput = document.getElementById('remove_header');
+    
+    if (headerSelect && previewContainer && previewImg) {
+        // Handle select change
+        headerSelect.addEventListener('change', function() {
+            if (this.value && this.value !== 'none') {
+                previewImg.src = '<?= base_url('uploads/form_headers/') ?>' + this.value;
+                previewContainer.style.display = 'block';
+                if (headerUpload) headerUpload.value = '';
+                if (removeHeaderInput) removeHeaderInput.value = '0';
+            } else {
+                previewContainer.style.display = 'none';
+            }
+        });
+    }
+    
+    if (headerUpload && previewContainer && previewImg) {
+        // Handle file upload preview
+        headerUpload.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImg.src = e.target.result;
+                    previewContainer.style.display = 'block';
+                    if (headerSelect) headerSelect.value = 'none';
+                    if (removeHeaderInput) removeHeaderInput.value = '0';
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+    }
+    
+    if (removeHeaderBtn && removeHeaderInput) {
+        // Handle remove header button
+        removeHeaderBtn.addEventListener('click', function() {
+            if (confirm('Remove the current header image?')) {
+                removeHeaderInput.value = '1';
+                if (headerSelect) headerSelect.value = 'none';
+                if (headerUpload) headerUpload.value = '';
+                if (previewContainer) previewContainer.style.display = 'none';
+                // Submit the form
+                document.getElementById('headerForm').submit();
+            }
+        });
+    }
+})();
+</script>
 <script>
 // Client-side validation: require department on Offices meta
 ;(function(){

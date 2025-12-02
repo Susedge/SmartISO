@@ -14,79 +14,98 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #2c3e50;
             line-height: 1.6;
-            font-size: 11px;
+            font-size: 10px;
             margin: 0;
-            padding: 20px;
+            padding: 15px;
         }
         
         .header {
-            background: linear-gradient(135deg, #ffb3ba 0%, #bae1ff 100%);
+            background: linear-gradient(135deg, #FFD166 0%, #FFADC7 100%);
             color: #2c3e50;
-            padding: 25px;
+            padding: 20px 25px;
             text-align: center;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             border-radius: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         
         .header h1 {
-            font-size: 22px;
-            margin-bottom: 8px;
-            font-weight: 600;
+            font-size: 20px;
+            margin-bottom: 5px;
+            font-weight: 700;
         }
         
-        .header p {
-            font-size: 12px;
-            opacity: 0.8;
-            margin: 0;
+        .header .subtitle {
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+        
+        .header .meta {
+            font-size: 9px;
+            opacity: 0.85;
+        }
+        
+        .filter-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 15px;
+            font-size: 9px;
+        }
+        
+        .filter-info strong {
+            color: #856404;
         }
         
         .section {
-            margin-bottom: 25px;
+            margin-bottom: 18px;
             page-break-inside: avoid;
             background: #fafbfc;
-            padding: 15px;
+            padding: 12px;
             border-radius: 8px;
-            border-left: 4px solid #ffb3ba;
+            border-left: 3px solid #FFD166;
         }
         
         .section-title {
-            background: #f8f9fa;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
             color: #2c3e50;
-            padding: 10px 15px;
-            font-size: 14px;
+            padding: 8px 12px;
+            font-size: 12px;
             font-weight: 600;
-            border-left: 4px solid #bae1ff;
-            margin: -15px -15px 15px -15px;
+            border-left: 3px solid #06D6A0;
+            margin: -12px -12px 12px -12px;
             border-radius: 8px 8px 0 0;
         }
         
         .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
         }
         
         .metric-card {
+            flex: 1;
+            min-width: 100px;
             background: linear-gradient(135deg, #ffffba, #ffdfba);
             border: 1px solid #f0e68c;
-            border-radius: 8px;
-            padding: 15px;
+            border-radius: 6px;
+            padding: 10px;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
         }
         
         .metric-value {
-            font-size: 24px;
-            font-weight: 600;
+            font-size: 18px;
+            font-weight: 700;
             color: #2c3e50;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         
         .metric-label {
             color: #5a6c7d;
-            font-size: 10px;
+            font-size: 8px;
             text-transform: uppercase;
             letter-spacing: 0.3px;
             font-weight: 500;
@@ -95,50 +114,55 @@
         .table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 12px;
-            border-radius: 8px;
+            margin-top: 8px;
+            border-radius: 6px;
             overflow: hidden;
+            font-size: 9px;
         }
         
         .table th,
         .table td {
-            padding: 8px 12px;
+            padding: 6px 8px;
             text-align: left;
             border-bottom: 1px solid #e3f2fd;
         }
         
         .table th {
-            background: linear-gradient(135deg, #bae1ff, #e0bbff);
+            background: linear-gradient(135deg, #06D6A0, #bae1ff);
             font-weight: 600;
             color: #2c3e50;
-            font-size: 10px;
+            font-size: 8px;
         }
         
         .table tr:nth-child(even) {
             background: #f8fcff;
         }
         
+        .table-ranking th {
+            background: linear-gradient(135deg, #FFD166, #FFADC7);
+        }
+        
         .progress-bar {
             background: #f0f4f8;
-            border-radius: 8px;
-            height: 6px;
+            border-radius: 6px;
+            height: 5px;
             overflow: hidden;
-            margin-top: 5px;
+            margin-top: 3px;
         }
         
         .progress-fill {
-            background: linear-gradient(90deg, #baffc9, #ffffba);
+            background: linear-gradient(90deg, #06D6A0, #FFD166);
             height: 100%;
-            border-radius: 8px;
+            border-radius: 6px;
         }
         
         .footer {
             position: fixed;
-            bottom: 20px;
+            bottom: 15px;
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 10px;
+            font-size: 8px;
             color: #6c757d;
         }
         
@@ -149,49 +173,61 @@
         .two-column {
             display: flex;
             justify-content: space-between;
-            gap: 15px;
+            gap: 12px;
         }
         
         .two-column > div {
             flex: 1;
         }
         
-        .chart-placeholder {
-            background: linear-gradient(135deg, #f8fcff, #fff5f8);
-            border: 2px dashed #e0bbff;
-            border-radius: 8px;
-            padding: 25px;
-            text-align: center;
-            color: #5a6c7d;
-            margin: 10px 0;
+        .two-column h4 {
             font-size: 10px;
+            margin-bottom: 6px;
+            color: #2c3e50;
         }
         
         .highlight {
-            background: linear-gradient(135deg, #fff9e6, #fff3cd);
-            border: 1px solid #ffffba;
+            background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+            border: 1px solid #81c784;
             border-radius: 6px;
-            padding: 8px 12px;
+            padding: 8px 10px;
             margin: 8px 0;
-            font-size: 10px;
+            font-size: 9px;
         }
+        
+        .rank-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 8px;
+            font-weight: 600;
+            text-align: center;
+            min-width: 20px;
+        }
+        
+        .rank-1 { background: #FFD700; color: #333; }
+        .rank-2 { background: #C0C0C0; color: #333; }
+        .rank-3 { background: #CD7F32; color: #fff; }
+        .rank-other { background: #e9ecef; color: #666; }
         
         .text-success { color: #27a844; }
         .text-warning { color: #fd7e14; }
         .text-danger { color: #e74c3c; }
         .text-info { color: #5bc0de; }
         
-        .metrics-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 15px;
+        .status-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 7px;
+            font-weight: 500;
         }
         
-        .metric-card {
-            flex: 1;
-            min-width: 120px;
-        }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-approved { background: #cce5ff; color: #004085; }
+        .status-rejected { background: #f8d7da; color: #721c24; }
+        .status-submitted { background: #e2e3e5; color: #383d41; }
         
         @media print {
             .page-break {
@@ -202,10 +238,28 @@
 </head>
 <body>
     <div class="header">
-        <h1>SmartISO Analytics Report</h1>
-        <p>Generated on <?= $generated_at ?> | Report Type: <?= $report_type_label ?? ucfirst($report_type) ?></p>
-        <p>Date Range: Last <?= $date_range ?> days</p>
+        <h1>📊 SmartISO Analytics Report</h1>
+        <p class="subtitle"><?= $report_type_label ?? ucfirst($report_type) ?></p>
+        <p class="meta">Generated on <?= date('F j, Y \a\t g:i A', strtotime($generated_at)) ?></p>
     </div>
+
+    <?php if (!empty($filters)): ?>
+    <div class="filter-info">
+        <strong>🔍 Applied Filters:</strong>
+        <?php if (!empty($filters['date_from']) || !empty($filters['date_to'])): ?>
+            Date: <?= !empty($filters['date_from']) ? $filters['date_from'] : 'Start' ?> to <?= !empty($filters['date_to']) ? $filters['date_to'] : 'Present' ?> |
+        <?php endif; ?>
+        <?php if (!empty($filters['service'])): ?>
+            Service: Filtered |
+        <?php endif; ?>
+        <?php if (!empty($filters['office'])): ?>
+            Office: Filtered |
+        <?php endif; ?>
+        <?php if (!empty($filters['status'])): ?>
+            Status: <?= ucfirst($filters['status']) ?>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
 
     <!-- Executive Summary -->
     <div class="section">
@@ -235,11 +289,82 @@
 
         <div class="highlight">
             <strong>📊 Executive Summary:</strong>
-            <div style="margin: 8px 0; font-size: 10px; line-height: 1.4;">
+            <div style="margin: 6px 0; font-size: 9px; line-height: 1.4;">
                 • <strong><?= number_format($overview['total_submissions']) ?></strong> total submissions processed with <strong><?= $overview['completion_rate'] ?>%</strong> completion rate<br>
                 • <strong><?= $overview['recent_submissions'] ?></strong> new submissions in the past 30 days showing <?= $overview['recent_submissions'] > 50 ? 'high' : ($overview['recent_submissions'] > 20 ? 'moderate' : 'low') ?> activity<br>
                 • <strong><?= $overview['total_users'] ?></strong> active users across <strong><?= $overview['total_departments'] ?></strong> departments<br>
                 • Performance trend: <?= $overview['completion_rate'] > 80 ? '🟢 Excellent' : ($overview['completion_rate'] > 60 ? '🟡 Good' : '🔴 Needs Attention') ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service & Office Rankings -->
+    <div class="section">
+        <div class="section-title">🏆 Service & Office Rankings</div>
+        
+        <div class="two-column">
+            <div>
+                <h4>📋 Most Requested Services</h4>
+                <table class="table table-ranking">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px">Rank</th>
+                            <th>Service</th>
+                            <th style="width: 60px">Requests</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($formStats['form_usage'])): ?>
+                            <?php $rank = 1; foreach (array_slice($formStats['form_usage'], 0, 8) as $service): ?>
+                                <tr>
+                                    <td>
+                                        <span class="rank-badge rank-<?= $rank <= 3 ? $rank : 'other' ?>">
+                                            <?= $rank <= 3 ? '🏆' : '' ?><?= $rank ?>
+                                        </span>
+                                    </td>
+                                    <td><?= esc($service['form_name']) ?></td>
+                                    <td><strong><?= number_format($service['usage_count']) ?></strong></td>
+                                </tr>
+                            <?php $rank++; endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: #6c757d;">No data available</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div>
+                <h4>🏢 Office with Most Requests</h4>
+                <table class="table table-ranking">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px">Rank</th>
+                            <th>Office/Department</th>
+                            <th style="width: 60px">Requests</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($departmentStats['submissions_by_department'])): ?>
+                            <?php $rank = 1; foreach (array_slice($departmentStats['submissions_by_department'], 0, 8) as $office): ?>
+                                <tr>
+                                    <td>
+                                        <span class="rank-badge rank-<?= $rank <= 3 ? $rank : 'other' ?>">
+                                            <?= $rank <= 3 ? '🏆' : '' ?><?= $rank ?>
+                                        </span>
+                                    </td>
+                                    <td><?= esc($office['department_name'] ?: 'Unassigned') ?></td>
+                                    <td><strong><?= number_format($office['submission_count']) ?></strong></td>
+                                </tr>
+                            <?php $rank++; endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="3" style="text-align: center; color: #6c757d;">No data available</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -518,42 +643,60 @@
     <?php if (!empty($recentSubmissions)): ?>
     <!-- Recent Submissions -->
     <div class="section">
-        <div class="section-title">Recent Submissions (Last 100)</div>
+        <div class="section-title">📋 Recent Submissions (Last 100)</div>
         
         <table class="table">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th style="width: 30px">ID</th>
                     <th>Form Name</th>
                     <th>Submitted By</th>
                     <th>Department</th>
+                    <th style="width: 50px">Priority</th>
                     <th>Status</th>
-                    <th>Created At</th>
+                    <th>Date Requested</th>
+                    <th>Date Completed</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (!empty($recentSubmissions)): ?>
-                    <?php foreach ($recentSubmissions as $submission): ?>
+                    <?php foreach (array_slice($recentSubmissions, 0, 50) as $submission): ?>
+                        <?php 
+                        $statusClass = 'status-submitted';
+                        if ($submission['status'] === 'completed') $statusClass = 'status-completed';
+                        elseif (strpos($submission['status'], 'pending') !== false) $statusClass = 'status-pending';
+                        elseif ($submission['status'] === 'approved') $statusClass = 'status-approved';
+                        elseif ($submission['status'] === 'rejected') $statusClass = 'status-rejected';
+                        
+                        $priorityBadge = '';
+                        if (!empty($submission['priority_level'])) {
+                            $pColor = '#6c757d';
+                            if ($submission['priority_level'] === 'high') $pColor = '#dc3545';
+                            elseif ($submission['priority_level'] === 'medium') $pColor = '#ffc107';
+                            elseif ($submission['priority_level'] === 'low') $pColor = '#28a745';
+                            $priorityBadge = '<span style="color:'.$pColor.'; font-weight:600;">'.ucfirst($submission['priority_level']).'</span>';
+                        } else {
+                            $priorityBadge = '<span style="color:#999;">-</span>';
+                        }
+                        ?>
                         <tr>
                             <td><?= esc($submission['id']) ?></td>
                             <td><?= esc($submission['form_name']) ?></td>
                             <td><?= esc($submission['submitted_by']) ?></td>
                             <td><?= esc($submission['department_name'] ?? 'Unassigned') ?></td>
+                            <td style="text-align: center;"><?= $priorityBadge ?></td>
                             <td>
-                                <span class="<?= 
-                                    $submission['status'] === 'completed' ? 'text-success' : 
-                                    ($submission['status'] === 'pending_service' || $submission['status'] === 'approved' ? 'text-warning' : 
-                                    ($submission['status'] === 'rejected' ? 'text-danger' : 'text-info')) 
-                                ?>">
+                                <span class="status-badge <?= $statusClass ?>">
                                     <?= ucfirst(str_replace('_', ' ', esc($submission['status']))) ?>
                                 </span>
                             </td>
-                            <td><?= date('M j, Y H:i', strtotime($submission['created_at'])) ?></td>
+                            <td><?= date('M j, Y', strtotime($submission['created_at'])) ?></td>
+                            <td><?= !empty($submission['completion_date']) ? date('M j, Y', strtotime($submission['completion_date'])) : '-' ?></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="5" style="text-align: center; color: #6c757d;">No submissions available</td>
+                        <td colspan="8" style="text-align: center; color: #6c757d;">No submissions available</td>
                     </tr>
                 <?php endif; ?>
             </tbody>

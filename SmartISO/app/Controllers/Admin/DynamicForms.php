@@ -132,7 +132,7 @@ class DynamicForms extends BaseController
         $data = [
             'title' => 'Forms',
             'forms' => $forms,
-            'panels' => $this->dbpanelModel->getPanels(), // Get unique panel names
+            'panels' => $this->dbpanelModel->getActivePanels(), // Get unique ACTIVE panel names only
             'departments' => $this->departmentModel->findAll(),
             'offices' => $activeOffices,
             'officeMap' => $officeMap,
@@ -215,7 +215,7 @@ class DynamicForms extends BaseController
         
         $data = [
             'title' => 'Panels',
-            'panels' => $this->dbpanelModel->getPanels(),
+            'panels' => $this->dbpanelModel->getPanels(), // Show ALL panels (including inactive) for management
             'departments' => $departmentModel->orderBy('description', 'ASC')->findAll(),
             'offices' => $officeModel->orderBy('description', 'ASC')->findAll()
         ];
@@ -354,6 +354,7 @@ class DynamicForms extends BaseController
             }
             
             // Copy each field to the new panel (preserve department_id and office_id from source)
+            // New copies start as INACTIVE by default (draft/revision mode)
             $departmentId = $sourceFields[0]['department_id'] ?? null;
             $officeId = $sourceFields[0]['office_id'] ?? null;
             
@@ -372,7 +373,8 @@ class DynamicForms extends BaseController
                     'code_table' => $field['code_table'] ?? '',
                     'length' => $field['length'] ?? '',
                     'department_id' => $departmentId,
-                    'office_id' => $officeId
+                    'office_id' => $officeId,
+                    'is_active' => 0 // Copied panels start as inactive (draft)
                 ];
                 
                 $this->dbpanelModel->save($newFieldData);
@@ -380,11 +382,76 @@ class DynamicForms extends BaseController
             
             $fieldCount = count($sourceFields);
             return redirect()->to('/admin/configurations?type=panels')
-                            ->with('message', "Panel '{$newPanelName}' created successfully with {$fieldCount} fields copied from '{$sourcePanelName}'");
+                            ->with('message', "Panel '{$newPanelName}' created as INACTIVE (draft) with {$fieldCount} fields copied from '{$sourcePanelName}'. Activate it when ready to use.");
         } else {
             $errors = $this->validator->getErrors();
             return redirect()->to('/admin/configurations?type=panels')
                             ->with('error', implode(', ', $errors));
+        }
+    }
+    
+    /**
+     * Toggle panel active status
+     */
+    public function togglePanelStatus()
+    {
+        $panelName = $this->request->getPost('panel_name');
+        $isActive = $this->request->getPost('is_active');
+        
+        if (empty($panelName)) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Panel name is required']);
+            }
+            return redirect()->back()->with('error', 'Panel name is required');
+        }
+        
+        // Check if panel exists
+        $panelExists = $this->dbpanelModel->where('panel_name', $panelName)->first();
+        if (!$panelExists) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Panel not found']);
+            }
+            return redirect()->back()->with('error', 'Panel not found');
+        }
+        
+        // Check department admin permissions
+        $isDepartmentAdmin = session()->get('user_type') === 'department_admin';
+        $userDepartmentId = session()->get('department_id');
+        
+        if ($isDepartmentAdmin && $userDepartmentId) {
+            if ($panelExists['department_id'] && $panelExists['department_id'] != $userDepartmentId) {
+                if ($this->request->isAJAX()) {
+                    return $this->response->setJSON(['success' => false, 'message' => 'You do not have permission to modify this panel']);
+                }
+                return redirect()->back()->with('error', 'You do not have permission to modify this panel');
+            }
+        }
+        
+        // Toggle the status
+        $newStatus = ($isActive === '1' || $isActive === 1) ? 1 : 0;
+        $result = $this->dbpanelModel->setPanelActive($panelName, $newStatus);
+        
+        if ($result) {
+            $statusText = $newStatus ? 'activated' : 'deactivated';
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON([
+                    'success' => true, 
+                    'message' => "Panel '{$panelName}' has been {$statusText}",
+                    'is_active' => $newStatus,
+                    'csrf_token' => csrf_hash() // Return fresh CSRF token
+                ]);
+            }
+            return redirect()->to('/admin/configurations?type=panels')
+                            ->with('message', "Panel '{$panelName}' has been {$statusText}");
+        } else {
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON([
+                    'success' => false, 
+                    'message' => 'Failed to update panel status',
+                    'csrf_token' => csrf_hash() // Return fresh CSRF token even on failure
+                ]);
+            }
+            return redirect()->back()->with('error', 'Failed to update panel status');
         }
     }
     
@@ -981,9 +1048,28 @@ class DynamicForms extends BaseController
             $approver = $userModel->find($submission['approver_id']);
         }
         
+        // Get service staff info if assigned
+        $serviceStaff = null;
+        if (!empty($submission['service_staff_id'])) {
+            $serviceStaff = $userModel->find($submission['service_staff_id']);
+        }
+        
+        // Get available service staff for assignment
+        $availableServiceStaff = [];
+        if ($isAdmin) {
+            $availableServiceStaff = $userModel->where('user_type', 'service_staff')
+                                              ->where('active', 1)
+                                              ->findAll();
+        }
+        
         // Check if current user can approve submissions
         $canApprove = in_array(session()->get('user_type'), ['admin', 'superuser', 'approving_authority']) && 
                      $submission['status'] === 'submitted';
+        
+        // Check if admin can assign service staff
+        $canAssignServiceStaff = ($isAdmin && 
+                                 in_array($submission['status'], ['submitted', 'approved']) && 
+                                 empty($submission['service_staff_id']));
         
         // Check if current user has a signature
         $currentUser = $userModel->find(session()->get('user_id'));
@@ -997,7 +1083,10 @@ class DynamicForms extends BaseController
             'submission_data' => $submissionData,
             'submitter' => $submitter,
             'approver' => $approver,
+            'service_staff' => $serviceStaff,
+            'available_service_staff' => $availableServiceStaff,
             'canApprove' => $canApprove,
+            'canAssignServiceStaff' => $canAssignServiceStaff,
             'hasSignature' => $hasSignature,
             'currentUser' => $currentUser
         ];

@@ -1,11 +1,72 @@
 <?= $this->extend('layouts/default') ?>
 
 <?= $this->section('content') ?>
-<div class="card">
-    <div class="card-header">
-        <h3><?= esc($title ?? 'Schedule Calendar') ?></h3>
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-gradient text-white py-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <h3 class="mb-0 fw-semibold">
+            <i class="fas fa-calendar-alt me-2"></i>
+            <?= esc($title ?? 'Schedule Calendar') ?>
+        </h3>
     </div>
     <div class="card-body">
+        <!-- Enhanced Filter Toolbar -->
+        <div class="calendar-filter-toolbar mb-4 p-3 rounded-3" style="background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%); border: 1px solid #dee2e6;">
+            <div class="d-flex align-items-center mb-2">
+                <span class="filter-toolbar-label">
+                    <i class="fas fa-filter me-2 text-primary"></i>
+                    <strong class="text-dark">Filter Calendar</strong>
+                </span>
+            </div>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <div class="filter-group">
+                    <label class="filter-label"><i class="fas fa-exclamation-circle me-1"></i>Priority</label>
+                    <select id="filter-priority" class="form-select form-select-sm filter-select">
+                        <option value="all">All Priorities</option>
+                        <option value="high">🔴 High</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="low">🟢 Low</option>
+                        <option value="none">⚪ None</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label"><i class="fas fa-concierge-bell me-1"></i>Service</label>
+                    <select id="filter-service" class="form-select form-select-sm filter-select">
+                        <option value="all">All Services</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label"><i class="fas fa-info-circle me-1"></i>Status</label>
+                    <select id="filter-status" class="form-select form-select-sm filter-select">
+                        <option value="all">All Statuses</option>
+                        <option value="submitted">📤 Submitted</option>
+                        <option value="approved">✅ Approved</option>
+                        <option value="pending_service">⏳ Pending Service</option>
+                        <option value="completed">🏁 Completed</option>
+                        <option value="rejected">❌ Rejected</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label"><i class="fas fa-building me-1"></i>Requesting Office</label>
+                    <select id="filter-office" class="form-select form-select-sm filter-select">
+                        <option value="all">All Offices</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label class="filter-label"><i class="fas fa-user-cog me-1"></i>Assigned Staff</label>
+                    <select id="filter-assigned-staff" class="form-select form-select-sm filter-select">
+                        <option value="all">All Staff</option>
+                    </select>
+                </div>
+
+                <button id="filter-clear" class="btn btn-sm btn-outline-danger ms-auto">
+                    <i class="fas fa-times me-1"></i>Clear Filters
+                </button>
+            </div>
+        </div>
         <div id="calendar"></div>
     </div>
 </div>
@@ -43,6 +104,48 @@
 <!-- Local fallback if CDN is blocked -->
 <link href="<?= base_url('assets/vendor/fullcalendar/index.global.min.css') ?>" rel="stylesheet">
 <style>
+/* Enhanced Calendar Filter Toolbar - matches modal styling */
+.calendar-filter-toolbar {
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+.calendar-filter-toolbar .filter-toolbar-label {
+    font-size: 0.9rem;
+}
+.calendar-filter-toolbar .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.calendar-filter-toolbar .filter-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6c757d;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+.calendar-filter-toolbar .filter-select {
+    min-width: 160px;
+    border: 2px solid #dee2e6;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    background-color: #fff;
+}
+.calendar-filter-toolbar .filter-select:hover {
+    border-color: #667eea;
+}
+.calendar-filter-toolbar .filter-select:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+.calendar-filter-toolbar #filter-service,
+.calendar-filter-toolbar #filter-office {
+    min-width: 200px;
+}
+.calendar-filter-toolbar #filter-assigned-staff {
+    min-width: 180px;
+}
+
 /* Enhanced modal and priority select visuals for calendar event modal - COMPACT VERSION */
 /* Make modal extra wide */
 .custom-wide-modal {
@@ -203,6 +306,9 @@ document.addEventListener('DOMContentLoaded', function(){
     var calendarEl = document.getElementById('calendar');
     var events = <?= $events ?? '[]' ?>;
     var eventsCount = <?= $events_count ?? 0 ?>;
+    // We'll fetch events from server via AJAX (server-side filtering).
+    var originalEvents = null; // populated by server response
+    var fcCalendar = null; // will hold FullCalendar instance
 
     // DEBUG: Log getStaffSchedules results
     console.group('📅 Calendar Debug Info');
@@ -223,10 +329,10 @@ document.addEventListener('DOMContentLoaded', function(){
     <?php endif; ?>
 
     function initCalendar(){
-        var calendar = new FullCalendar.Calendar(calendarEl, {
+        fcCalendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
-            events: events,
+            events: [],
             eventDidMount: function(info) {
                 // Set border color based on priority_level
                 var priority = info.event.extendedProps.priority_level;
@@ -240,6 +346,43 @@ document.addEventListener('DOMContentLoaded', function(){
                     info.el.style.borderColor = '#198754';
                     info.el.style.borderLeft = '4px solid #198754';
                 }
+
+                // Create a standard HTML tooltip with summary info for hover (accessible)
+                try {
+                    var ev = info.event.extendedProps || {};
+                    var labelParts = [];
+                    if (ev.form_description) labelParts.push(ev.form_description);
+                    if (ev.requestor_department) labelParts.push(ev.requestor_department);
+                    if (ev.requestor_name) labelParts.push(ev.requestor_name);
+                    if (info.event.start) {
+                        var dt = info.event.start;
+                        labelParts.push(new Date(dt).toLocaleString());
+                    }
+                    if (ev.status) labelParts.push(ev.status.charAt(0).toUpperCase() + ev.status.slice(1));
+
+                    var tooltipText = labelParts.join(' — ');
+                    // Set native title for accessibility
+                    info.el.setAttribute('title', tooltipText);
+
+                    // If Bootstrap tooltip is available initialize it so it shows a styled tooltip
+                    if (window.bootstrap && window.bootstrap.Tooltip) {
+                        // Store tooltip instance in element dataset for cleanup
+                        var t = new bootstrap.Tooltip(info.el, { title: tooltipText, placement: 'top', trigger: 'hover focus' });
+                        info.el.__fc_tooltip = t; // saved reference
+                    }
+                } catch (e) {
+                    // non-fatal
+                }
+            },
+            eventWillUnmount: function(info) {
+                // Dispose any bootstrap tooltip to avoid leaks
+                try {
+                    var el = info.el;
+                    if (el && el.__fc_tooltip && typeof el.__fc_tooltip.dispose === 'function') {
+                        el.__fc_tooltip.dispose();
+                        delete el.__fc_tooltip;
+                    }
+                } catch (e) {}
             },
             eventClick: function(info){
                 var ev = info.event.extendedProps || {};
@@ -628,7 +771,10 @@ document.addEventListener('DOMContentLoaded', function(){
             }
         });
 
-        calendar.render();
+        fcCalendar.render();
+
+        // Load events (no filters) from server on initial render
+        loadEventsFromServer({});
         
         // Add event listener for Save button to reload page
         document.addEventListener('click', function(e) {
@@ -637,6 +783,121 @@ document.addEventListener('DOMContentLoaded', function(){
                 location.reload();
             }
         });
+        // After rendering, wire up filter UI
+        setupCalendarFilters();
+    }
+
+    function populateFilterOptions(events) {
+        // Build unique sets for service (form_description) and requesting office
+        var services = new Set();
+        var offices = new Set();
+        var priorities = new Set();
+        var statuses = new Set();
+        var staffSet = new Set();
+
+        events.forEach(function(ev){
+            if (ev.priority_level) priorities.add(ev.priority_level);
+            if (ev.form_description) services.add(ev.form_description);
+            if (ev.requestor_department) offices.add(ev.requestor_department);
+            if (ev.status) statuses.add(ev.status);
+            if (ev.assigned_staff_name) staffSet.add(ev.assigned_staff_name + '::' + (ev.assigned_staff_id || ''));
+        });
+
+        // Populate services select
+        var serviceSelect = $('#filter-service');
+        serviceSelect.find('option:not([value="all"])').remove();
+        Array.from(services).sort().forEach(function(s){
+            serviceSelect.append($('<option>').attr('value', s).text(s));
+        });
+
+        // Offices select
+        var officeSelect = $('#filter-office');
+        officeSelect.find('option:not([value="all"])').remove();
+        Array.from(offices).sort().forEach(function(o){
+            officeSelect.append($('<option>').attr('value', o).text(o));
+        });
+
+        // Assigned staff select
+        var staffSelect = $('#filter-assigned-staff');
+        staffSelect.find('option:not([value="all"])').remove();
+        Array.from(staffSet).sort().forEach(function(val){
+            var parts = val.split('::');
+            var name = parts[0]; var id = parts[1];
+            if (!name) return;
+            staffSelect.append($('<option>').attr('value', id).text(name));
+        });
+
+        // Status select - add values not already present
+        var statusSelect = $('#filter-status');
+        Array.from(statuses).sort().forEach(function(st){
+            // only add if option doesn't already exist
+            if (statusSelect.find('option[value="' + st + '"]').length === 0) {
+                statusSelect.append($('<option>').attr('value', st).text(st.charAt(0).toUpperCase() + st.slice(1)));
+            }
+        });
+
+        // Priorities select (already has static items) - ensure selected default exists
+    }
+
+    function setupCalendarFilters() {
+        // filters will be populated after first successful events fetch
+
+        // Apply filters and re-render events
+        function applyFilters(){
+            var p = $('#filter-priority').val();
+            var s = $('#filter-service').val();
+            var o = $('#filter-office').val();
+            var st = $('#filter-status').length ? $('#filter-status').val() : null;
+            var staff = $('#filter-assigned-staff').length ? $('#filter-assigned-staff').val() : null;
+
+            // Request filtered events from server
+            loadEventsFromServer({ priority_level: p, service: s, office: o, status: st, assigned_staff: staff });
+        }
+
+        $('#filter-priority, #filter-service, #filter-office, #filter-status, #filter-assigned-staff').on('change', applyFilters);
+        $('#filter-clear').on('click', function(){ 
+            $('#filter-priority').val('all'); 
+            $('#filter-service').val('all'); 
+            $('#filter-office').val('all'); 
+            $('#filter-status').val('all');
+            $('#filter-assigned-staff').val('all');
+            applyFilters(); 
+        });
+    }
+
+    function loadEventsFromServer(filters) {
+        // Build query string from filters
+        filters = filters || {};
+        var params = [];
+        Object.keys(filters).forEach(function(k){ if (filters[k] && filters[k] !== 'all') params.push(encodeURIComponent(k) + '=' + encodeURIComponent(filters[k])); });
+        var url = '<?= base_url('schedule/events-ajax') ?>';
+        if (params.length) url += '?' + params.join('&');
+
+        // Show loading indicator
+        if (typeof NProgress !== 'undefined') { NProgress.start(); }
+
+        Utils.ajax(url, { method: 'GET', json: true }).then(function(resp){
+            if (!resp || !resp.success) {
+                toastr.error(resp && resp.message ? resp.message : 'Failed to load calendar events');
+                return;
+            }
+
+            var evs = resp.events || [];
+            originalEvents = JSON.parse(JSON.stringify(evs));
+
+            // Clear current events and add new ones
+            if (fcCalendar) {
+                fcCalendar.getEvents().forEach(function(e){ e.remove(); });
+                evs.forEach(function(ev){ fcCalendar.addEvent(ev); });
+            }
+
+            // Populate filter options from server-provided events
+            populateFilterOptions(evs);
+
+        }).catch(function(err){
+            console.error('Calendar events fetch error', err);
+            toastr.error('Failed to fetch calendar events');
+        }).finally(function(){ if (typeof NProgress !== 'undefined') { NProgress.done(); } });
     }
 
     ensureFullCalendar(function(){

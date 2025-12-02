@@ -358,9 +358,32 @@ $(document).ready(function() {
             success: function(response) {
                 updateCsrfToken(response);
                 if (response.success) {
-                    toastr.success(response.message);
-                    $('#restore-confirm-modal').modal('hide');
-                    setTimeout(() => location.reload(), 2000);
+                    // Use SimpleModal to present a clear success message including
+                    // the safety backup filename created before restoration.
+                    const safety = response.safety_backup || response.safetyBackup || '';
+                    let msg = '<div class="mb-2">' + Utils.escapeHtml(response.message || 'Restore completed') + '</div>';
+                    if (safety) {
+                        const downloadUrl = '<?= base_url('admin/database-backup/download/') ?>' + encodeURIComponent(safety);
+                        msg += '<div class="small text-muted">A safety backup was created before restore: <strong>' + Utils.escapeHtml(safety) + '</strong></div>';
+                        // Show a modal with option to download the safety backup
+                        window.SimpleModal.show({
+                            title: 'Restore Completed',
+                            message: msg,
+                            variant: 'success',
+                            wide: false,
+                            buttons: [
+                                { text: 'Download Safety Backup', primary: true, value: 'download', onClick: function(){ window.open(downloadUrl, '_blank'); } },
+                                { text: 'OK', primary: false, value: 'ok' }
+                            ]
+                        }).then(function(){
+                            $('#restore-confirm-modal').modal('hide');
+                            setTimeout(() => location.reload(), 1500);
+                        });
+                    } else {
+                        // Generic success modal when safety filename is not available
+                        window.SimpleModal.show({ title: 'Restore Completed', message: msg, variant: 'success', buttons: [{ text: 'OK', primary: true, value: 'ok' }] })
+                            .then(function(){ $('#restore-confirm-modal').modal('hide'); setTimeout(() => location.reload(), 1500); });
+                    }
                 } else {
                     toastr.error(response.message || 'Failed to restore backup');
                 }

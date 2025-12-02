@@ -44,19 +44,215 @@ class Analytics extends BaseController
             $filterDepartmentId = session()->get('scoped_department_id');
         }
         
+        // Get filter parameters from request
+        $filters = [
+            'date_from' => $this->request->getGet('date_from'),
+            'date_to' => $this->request->getGet('date_to'),
+            'status' => $this->request->getGet('status'),
+            'service' => $this->request->getGet('service'),
+            'office' => $this->request->getGet('office'),
+            'priority' => $this->request->getGet('priority'),
+        ];
+        
+        // Get all available services and offices for filter dropdowns
+        $availableServices = $this->getAvailableServices($filterDepartmentId);
+        $availableOffices = $this->getAvailableOffices($filterDepartmentId);
+        
         $data = [
             'title' => 'Analytics Dashboard',
-            'overview' => $this->getOverviewData($filterDepartmentId),
-            'formStats' => $this->getFormStatistics($filterDepartmentId),
-            'departmentStats' => $this->getDepartmentStatistics($filterDepartmentId),
-            'timelineData' => $this->getTimelineData($filterDepartmentId),
-            'performanceMetrics' => $this->getPerformanceMetrics($filterDepartmentId),
-            // add submissions overview table data
-            'submissionsOverview' => $this->getSubmissionsOverview($filterDepartmentId),
-            'isDepartmentFiltered' => !$isGlobalAdmin
+            'overview' => $this->getOverviewData($filterDepartmentId, $filters),
+            'formStats' => $this->getFormStatistics($filterDepartmentId, $filters),
+            'departmentStats' => $this->getDepartmentStatistics($filterDepartmentId, $filters),
+            'timelineData' => $this->getTimelineData($filterDepartmentId, $filters),
+            'performanceMetrics' => $this->getPerformanceMetrics($filterDepartmentId, $filters),
+            'submissionsOverview' => $this->getSubmissionsOverview($filterDepartmentId, $filters),
+            'mostRequestedServices' => $this->getMostRequestedServices($filterDepartmentId, $filters),
+            'officeWithMostRequests' => $this->getOfficeWithMostRequests($filterDepartmentId, $filters),
+            'processingTimeAnalysis' => $this->getProcessingTimeAnalysis($filterDepartmentId, $filters),
+            'isDepartmentFiltered' => !$isGlobalAdmin,
+            'filters' => $filters,
+            'availableServices' => $availableServices,
+            'availableOffices' => $availableOffices,
         ];
 
         return view('analytics/index', $data);
+    }
+
+    /**
+     * Get available services for filter dropdown
+     */
+    private function getAvailableServices($filterDepartmentId = null)
+    {
+        $builder = $this->db->table('forms')
+            ->select('id, code, description');
+        
+        if ($filterDepartmentId) {
+            $builder->where('department_id', $filterDepartmentId);
+        }
+        
+        return $builder->orderBy('description', 'ASC')->get()->getResultArray();
+    }
+    
+    /**
+     * Get available offices/departments for filter dropdown
+     */
+    private function getAvailableOffices($filterDepartmentId = null)
+    {
+        $builder = $this->db->table('departments')
+            ->select('id, code, description');
+        
+        if ($filterDepartmentId) {
+            $builder->where('id', $filterDepartmentId);
+        }
+        
+        return $builder->orderBy('description', 'ASC')->get()->getResultArray();
+    }
+    
+    /**
+     * Get most requested services/forms
+     */
+    private function getMostRequestedServices($filterDepartmentId = null, $filters = [])
+    {
+        $builder = $this->db->table('form_submissions fs')
+            ->select('f.id as form_id, COALESCE(f.description, f.code, "Unknown") as service_name, f.code as form_code, COUNT(fs.id) as request_count, 
+                      SUM(CASE WHEN fs.status = "completed" OR fs.completed = 1 THEN 1 ELSE 0 END) as completed_count,
+                      AVG(CASE WHEN fs.completion_date IS NOT NULL THEN TIMESTAMPDIFF(HOUR, fs.created_at, fs.completion_date) ELSE NULL END) as avg_completion_hours')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left');
+        
+        if ($filterDepartmentId) {
+            $builder->where('u.department_id', $filterDepartmentId);
+        }
+        
+        $this->applyFilters($builder, $filters, 'fs');
+        
+        return $builder->groupBy('f.id')
+                      ->orderBy('request_count', 'DESC')
+                      ->limit(10)
+                      ->get()
+                      ->getResultArray();
+    }
+    
+    /**
+     * Get offices with most requests
+     */
+    private function getOfficeWithMostRequests($filterDepartmentId = null, $filters = [])
+    {
+        $builder = $this->db->table('form_submissions fs')
+            ->select('d.id as department_id, COALESCE(d.description, "Unassigned") as office_name, d.code as office_code, 
+                      COUNT(fs.id) as request_count,
+                      SUM(CASE WHEN fs.status = "completed" OR fs.completed = 1 THEN 1 ELSE 0 END) as completed_count,
+                      SUM(CASE WHEN fs.status = "submitted" THEN 1 ELSE 0 END) as pending_count,
+                      SUM(CASE WHEN fs.status = "rejected" THEN 1 ELSE 0 END) as rejected_count,
+                      AVG(CASE WHEN fs.completion_date IS NOT NULL THEN TIMESTAMPDIFF(HOUR, fs.created_at, fs.completion_date) ELSE NULL END) as avg_completion_hours')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left');
+        
+        if ($filterDepartmentId) {
+            $builder->where('u.department_id', $filterDepartmentId);
+        }
+        
+        $this->applyFilters($builder, $filters, 'fs');
+        
+        return $builder->groupBy('d.id')
+                      ->orderBy('request_count', 'DESC')
+                      ->limit(10)
+                      ->get()
+                      ->getResultArray();
+    }
+    
+    /**
+     * Get processing time analysis (date requested to date completed)
+     */
+    private function getProcessingTimeAnalysis($filterDepartmentId = null, $filters = [])
+    {
+        // Get completed submissions with processing time
+        $builder = $this->db->table('form_submissions fs')
+            ->select('fs.id, COALESCE(f.description, f.code) as service_name, 
+                      COALESCE(d.description, "Unassigned") as office_name,
+                      fs.created_at as date_requested, fs.completion_date as date_completed,
+                      TIMESTAMPDIFF(HOUR, fs.created_at, fs.completion_date) as processing_hours,
+                      TIMESTAMPDIFF(DAY, fs.created_at, fs.completion_date) as processing_days,
+                      fs.status, fs.priority')
+            ->join('forms f', 'f.id = fs.form_id', 'left')
+            ->join('users u', 'u.id = fs.submitted_by', 'left')
+            ->join('departments d', 'd.id = u.department_id', 'left')
+            ->where('fs.completion_date IS NOT NULL');
+        
+        if ($filterDepartmentId) {
+            $builder->where('u.department_id', $filterDepartmentId);
+        }
+        
+        $this->applyFilters($builder, $filters, 'fs');
+        
+        $completedSubmissions = $builder->orderBy('fs.completion_date', 'DESC')
+                                       ->limit(50)
+                                       ->get()
+                                       ->getResultArray();
+        
+        // Calculate statistics
+        $totalProcessingHours = 0;
+        $count = 0;
+        $minHours = null;
+        $maxHours = null;
+        
+        foreach ($completedSubmissions as $sub) {
+            if ($sub['processing_hours'] !== null) {
+                $totalProcessingHours += $sub['processing_hours'];
+                $count++;
+                if ($minHours === null || $sub['processing_hours'] < $minHours) {
+                    $minHours = $sub['processing_hours'];
+                }
+                if ($maxHours === null || $sub['processing_hours'] > $maxHours) {
+                    $maxHours = $sub['processing_hours'];
+                }
+            }
+        }
+        
+        return [
+            'recent_completed' => $completedSubmissions,
+            'statistics' => [
+                'avg_hours' => $count > 0 ? round($totalProcessingHours / $count, 1) : 0,
+                'avg_days' => $count > 0 ? round($totalProcessingHours / $count / 24, 1) : 0,
+                'min_hours' => $minHours ?? 0,
+                'max_hours' => $maxHours ?? 0,
+                'total_completed' => $count,
+            ]
+        ];
+    }
+    
+    /**
+     * Apply common filters to a query builder
+     */
+    private function applyFilters($builder, $filters, $tableAlias = 'fs')
+    {
+        if (!empty($filters['date_from'])) {
+            $builder->where("{$tableAlias}.created_at >=", $filters['date_from'] . ' 00:00:00');
+        }
+        if (!empty($filters['date_to'])) {
+            $builder->where("{$tableAlias}.created_at <=", $filters['date_to'] . ' 23:59:59');
+        }
+        if (!empty($filters['status']) && $filters['status'] !== 'all') {
+            $builder->where("{$tableAlias}.status", $filters['status']);
+        }
+        if (!empty($filters['service']) && $filters['service'] !== 'all') {
+            $builder->where("{$tableAlias}.form_id", $filters['service']);
+        }
+        if (!empty($filters['office']) && $filters['office'] !== 'all') {
+            $builder->where('u.department_id', $filters['office']);
+        }
+        if (!empty($filters['priority']) && $filters['priority'] !== 'all') {
+            if ($filters['priority'] === 'none') {
+                $builder->groupStart()
+                       ->where("{$tableAlias}.priority IS NULL")
+                       ->orWhere("{$tableAlias}.priority", '')
+                       ->groupEnd();
+            } else {
+                $builder->where("{$tableAlias}.priority", $filters['priority']);
+            }
+        }
+        
+        return $builder;
     }
 
     public function api($endpoint = null)
@@ -96,6 +292,22 @@ class Analytics extends BaseController
         $format = $this->request->getPost('format') ?? 'pdf';
         $reportType = $this->request->getPost('report_type') ?? 'overview';
         $dateRange = $this->request->getPost('date_range') ?? '30';
+        
+        // Get filter parameters from POST
+        $filters = [
+            'date_from' => $this->request->getPost('date_from'),
+            'date_to' => $this->request->getPost('date_to'),
+            'service' => $this->request->getPost('service'),
+            'office' => $this->request->getPost('office'),
+            'status' => $this->request->getPost('status'),
+            'priority' => $this->request->getPost('priority'),
+        ];
+        
+        // Clean up empty values
+        $filters = array_filter($filters, function($value) {
+            return $value !== null && $value !== '' && $value !== 'all';
+        });
+        
         // Determine department filter from session (same logic as index)
         $userType = session()->get('user_type');
         $userDepartmentId = session()->get('department_id');
@@ -112,9 +324,9 @@ class Analytics extends BaseController
         try {
             switch ($format) {
                 case 'pdf':
-                    return $this->exportToPDF($reportType, $dateRange, $filterDepartmentId);
+                    return $this->exportToPDF($reportType, $dateRange, $filterDepartmentId, $filters);
                 case 'word':
-                    return $this->exportToWord($reportType, $dateRange, $filterDepartmentId);
+                    return $this->exportToWord($reportType, $dateRange, $filterDepartmentId, $filters);
                 default:
                     return redirect()->back()->with('error', 'Invalid export format');
             }
@@ -124,20 +336,19 @@ class Analytics extends BaseController
         }
     }
 
-    private function getOverviewData($filterDepartmentId = null)
+    private function getOverviewData($filterDepartmentId = null, $filters = [])
     {
         // Build query with optional department filtering - use fresh builder each time
         // Count ALL submissions regardless of status
+        $builder = $this->db->table('form_submissions');
+        $builder->join('users', 'users.id = form_submissions.submitted_by', 'left');
+        
         if ($filterDepartmentId) {
-            // Use fresh builder for each query to avoid query conflicts
-            $builder = $this->db->table('form_submissions');
-            $builder->join('users', 'users.id = form_submissions.submitted_by', 'left');
             $builder->where('users.department_id', $filterDepartmentId);
-            $totalSubmissions = $builder->countAllResults();
-        } else {
-            // Use fresh query without model caching
-            $totalSubmissions = $this->db->table('form_submissions')->countAllResults();
         }
+        
+        $this->applyFilters($builder, $filters, 'form_submissions');
+        $totalSubmissions = $builder->countAllResults();
         
         // Count users, departments and forms with optional department filtering
         if ($filterDepartmentId) {
@@ -155,10 +366,11 @@ class Analytics extends BaseController
         // Status distribution with department filtering - use fresh builder
         $statusBuilder = $this->db->table('form_submissions');
         $statusBuilder->select('form_submissions.status, COUNT(*) as count');
+        $statusBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
         if ($filterDepartmentId) {
-            $statusBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
             $statusBuilder->where('users.department_id', $filterDepartmentId);
         }
+        $this->applyFilters($statusBuilder, $filters, 'form_submissions');
         $statusCounts = $statusBuilder->groupBy('form_submissions.status')
                                      ->get()
                                      ->getResultArray();
@@ -167,24 +379,26 @@ class Analytics extends BaseController
 
         // Recent submissions (last 30 days) with department filtering - use fresh builder
         $recentBuilder = $this->db->table('form_submissions');
+        $recentBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
         $recentBuilder->where('form_submissions.created_at >=', date('Y-m-d H:i:s', strtotime('-30 days')));
         if ($filterDepartmentId) {
-            $recentBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
             $recentBuilder->where('users.department_id', $filterDepartmentId);
         }
+        $this->applyFilters($recentBuilder, $filters, 'form_submissions');
         $recentSubmissions = $recentBuilder->countAllResults();
 
         // Calculate completion rate with department filtering - use fresh builder
         // Use completed flag OR status='completed' for accurate count
         $completedBuilder = $this->db->table('form_submissions');
+        $completedBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
         if ($filterDepartmentId) {
-            $completedBuilder->join('users', 'users.id = form_submissions.submitted_by', 'left');
             $completedBuilder->where('users.department_id', $filterDepartmentId);
         }
         $completedBuilder->groupStart();
         $completedBuilder->where('form_submissions.completed', 1);
         $completedBuilder->orWhere('form_submissions.status', 'completed');
         $completedBuilder->groupEnd();
+        $this->applyFilters($completedBuilder, $filters, 'form_submissions');
         $completedForms = $completedBuilder->countAllResults();
         
         $completionRate = $totalSubmissions > 0 ? ($completedForms / $totalSubmissions) * 100 : 0;
@@ -200,17 +414,19 @@ class Analytics extends BaseController
         ];
     }
 
-    private function getFormStatistics($filterDepartmentId = null)
+    private function getFormStatistics($filterDepartmentId = null, $filters = [])
     {
         // Most used forms with department filtering
         $formUsageBuilder = $this->db->table('form_submissions')
             ->select('COALESCE(forms.description, "Unknown Form") as form_name, forms.code as form_code, COUNT(form_submissions.id) as usage_count')
-            ->join('forms', 'forms.id = form_submissions.form_id', 'left');
+            ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left');
         
         if ($filterDepartmentId) {
-            $formUsageBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                            ->where('users.department_id', $filterDepartmentId);
+            $formUsageBuilder->where('users.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($formUsageBuilder, $filters, 'form_submissions');
         
         $formUsage = $formUsageBuilder->groupBy('form_submissions.form_id')
                                      ->orderBy('usage_count', 'DESC')
@@ -224,12 +440,14 @@ class Analytics extends BaseController
                      AVG(TIMESTAMPDIFF(HOUR, form_submissions.created_at, form_submissions.updated_at)) as avg_hours,
                      COUNT(*) as completed_count')
             ->join('forms', 'forms.id = form_submissions.form_id', 'left')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->where('form_submissions.status', 'completed');
         
         if ($filterDepartmentId) {
-            $processingTimesBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                                  ->where('users.department_id', $filterDepartmentId);
+            $processingTimesBuilder->where('users.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($processingTimesBuilder, $filters, 'form_submissions');
         
         $processingTimes = $processingTimesBuilder->groupBy('form_submissions.form_id')
                                                  ->orderBy('completed_count', 'DESC')
@@ -243,7 +461,7 @@ class Analytics extends BaseController
         ];
     }
 
-    private function getDepartmentStatistics($filterDepartmentId = null)
+    private function getDepartmentStatistics($filterDepartmentId = null, $filters = [])
     {
         // Submissions by department - use fresh builder
         $departmentSubmissions = $this->db->table('form_submissions')
@@ -254,6 +472,8 @@ class Analytics extends BaseController
         if ($filterDepartmentId) {
             $departmentSubmissions->where('departments.id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($departmentSubmissions, $filters, 'form_submissions');
 
         $departmentSubmissions = $departmentSubmissions
             ->groupBy('COALESCE(departments.description, "Unassigned")')
@@ -272,6 +492,8 @@ class Analytics extends BaseController
         if ($filterDepartmentId) {
             $departmentCompletion->where('departments.id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($departmentCompletion, $filters, 'form_submissions');
 
         $departmentCompletion = $departmentCompletion->groupBy('COALESCE(departments.description, "Unassigned")')
             ->get()
@@ -290,17 +512,19 @@ class Analytics extends BaseController
         ];
     }
 
-    private function getTimelineData($filterDepartmentId = null)
+    private function getTimelineData($filterDepartmentId = null, $filters = [])
     {
         // Daily submissions for last 30 days
         $dailyBuilder = $this->db->table('form_submissions')
             ->select('DATE(form_submissions.created_at) as date, COUNT(*) as count')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-30 days')));
 
         if ($filterDepartmentId) {
-            $dailyBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                         ->where('users.department_id', $filterDepartmentId);
+            $dailyBuilder->where('users.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($dailyBuilder, $filters, 'form_submissions');
 
         $dailySubmissions = $dailyBuilder->groupBy('DATE(form_submissions.created_at)')
             ->orderBy('date', 'ASC')
@@ -310,12 +534,14 @@ class Analytics extends BaseController
         // Monthly trends for last 12 months
         $monthlyBuilder = $this->db->table('form_submissions')
             ->select('DATE_FORMAT(form_submissions.created_at, "%Y-%m") as month, COUNT(*) as count')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-12 months')));
 
         if ($filterDepartmentId) {
-            $monthlyBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                           ->where('users.department_id', $filterDepartmentId);
+            $monthlyBuilder->where('users.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($monthlyBuilder, $filters, 'form_submissions');
 
         $monthlyTrends = $monthlyBuilder->groupBy('DATE_FORMAT(form_submissions.created_at, "%Y-%m")')
             ->orderBy('month', 'ASC')
@@ -332,10 +558,10 @@ class Analytics extends BaseController
      * Get a submissions overview table (recent submissions) with optional department filtering
      * Returns array of rows: form_name, submitted_by_name, created_at, completion_date, status
      */
-    private function getSubmissionsOverview($filterDepartmentId = null)
+    private function getSubmissionsOverview($filterDepartmentId = null, $filters = [])
     {
         $builder = $this->db->table('form_submissions fs')
-            ->select('fs.id, COALESCE(f.description, f.code, "Unknown Form") as form_name, fs.created_at, fs.completion_date, fs.status, COALESCE(u.full_name, "Unknown User") as submitted_by, d.description as department_name')
+            ->select('fs.id, COALESCE(f.description, f.code, "Unknown Form") as form_name, fs.created_at, fs.completion_date, fs.status, fs.priority, COALESCE(u.full_name, "Unknown User") as submitted_by, d.description as department_name')
             ->join('forms f', 'f.id = fs.form_id', 'left')
             ->join('users u', 'u.id = fs.submitted_by', 'left')
             ->join('departments d', 'd.id = u.department_id', 'left')
@@ -345,55 +571,73 @@ class Analytics extends BaseController
         if ($filterDepartmentId) {
             $builder->where('u.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($builder, $filters, 'fs');
 
         return $builder->get()->getResultArray();
     }
 
-    private function getPerformanceMetrics($filterDepartmentId = null)
+    private function getPerformanceMetrics($filterDepartmentId = null, $filters = [])
     {
         // Average processing time by status (only for statuses beyond 'submitted')
         $statusBuilder = $this->db->table('form_submissions')
             ->select('status, AVG(TIMESTAMPDIFF(HOUR, form_submissions.created_at, form_submissions.updated_at)) as avg_hours, COUNT(*) as count')
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
             ->whereNotIn('status', ['submitted']);
 
         if ($filterDepartmentId) {
-            $statusBuilder->join('users', 'users.id = form_submissions.submitted_by')
-                          ->where('users.department_id', $filterDepartmentId);
+            $statusBuilder->where('users.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($statusBuilder, $filters, 'form_submissions');
 
         $statusTimes = $statusBuilder->groupBy('status')->get()->getResultArray();
 
-        // User productivity (last 30 days)
+        // User productivity (last 30 days or filtered date range)
         $userProdBuilder = $this->db->table('form_submissions')
             ->select('COALESCE(users.full_name, "Unknown User") as full_name, users.user_type, COUNT(form_submissions.id) as submissions')
-            ->join('users', 'users.id = form_submissions.submitted_by', 'left')
-            ->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-30 days')))
-            ->groupBy('form_submissions.submitted_by')
-            ->orderBy('submissions', 'DESC')
-            ->limit(10);
-
+            ->join('users', 'users.id = form_submissions.submitted_by', 'left');
+        
+        // Only apply default 30-day filter if no date filters provided
+        if (empty($filters['date_from']) && empty($filters['date_to'])) {
+            $userProdBuilder->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-30 days')));
+        }
+        
         if ($filterDepartmentId) {
             $userProdBuilder->where('users.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($userProdBuilder, $filters, 'form_submissions');
 
-        $userProductivity = $userProdBuilder->get()->getResultArray();
+        $userProductivity = $userProdBuilder->groupBy('form_submissions.submitted_by')
+            ->orderBy('submissions', 'DESC')
+            ->limit(10)
+            ->get()
+            ->getResultArray();
 
         // Service staff performance (completion metrics)
         $staffBuilder = $this->db->table('form_submissions')
             ->select('COALESCE(users.full_name, "Unknown Staff") as staff_name, COUNT(form_submissions.id) as assigned_count, SUM(CASE WHEN form_submissions.status = "completed" THEN 1 ELSE 0 END) as completed_count')
             ->join('users', 'users.id = form_submissions.service_staff_id', 'left')
-            ->where('form_submissions.service_staff_id IS NOT NULL')
-            ->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-30 days')))
-            ->groupBy('form_submissions.service_staff_id')
-            ->orderBy('completed_count', 'DESC')
-            ->limit(5);
+            ->where('form_submissions.service_staff_id IS NOT NULL');
+        
+        // Only apply default 30-day filter if no date filters provided
+        if (empty($filters['date_from']) && empty($filters['date_to'])) {
+            $staffBuilder->where('form_submissions.created_at >=', date('Y-m-d', strtotime('-30 days')));
+        }
 
         if ($filterDepartmentId) {
             // service_staff_id references users table; filter by that user's department
             $staffBuilder->where('users.department_id', $filterDepartmentId);
         }
+        
+        $this->applyFilters($staffBuilder, $filters, 'form_submissions');
 
-        $staffPerformance = $staffBuilder->get()->getResultArray();
+        $staffPerformance = $staffBuilder->groupBy('form_submissions.service_staff_id')
+            ->orderBy('completed_count', 'DESC')
+            ->limit(5)
+            ->get()
+            ->getResultArray();
 
         return [
             'status_processing_times' => $statusTimes,
@@ -402,7 +646,7 @@ class Analytics extends BaseController
         ];
     }
 
-    private function exportToPDF($reportType, $dateRange, $filterDepartmentId = null)
+    private function exportToPDF($reportType, $dateRange, $filterDepartmentId = null, $filters = [])
     {
         $options = new Options();
         $options->set('defaultFont', 'Arial');
@@ -412,7 +656,7 @@ class Analytics extends BaseController
         
         $dompdf = new Dompdf($options);
         
-        $data = $this->getReportData($reportType, $dateRange, $filterDepartmentId);
+        $data = $this->getReportData($reportType, $dateRange, $filterDepartmentId, $filters);
         
         // Log data structure for debugging
         log_message('info', 'Export PDF - Report Type: ' . $reportType);
@@ -458,12 +702,12 @@ class Analytics extends BaseController
             ->setBody($dompdf->output());
     }
 
-    private function exportToWord($reportType, $dateRange, $filterDepartmentId = null)
+    private function exportToWord($reportType, $dateRange, $filterDepartmentId = null, $filters = [])
     {
         $phpWord = new PhpWord();
         $section = $phpWord->addSection();
         
-    $data = $this->getReportData($reportType, $dateRange, $filterDepartmentId);
+        $data = $this->getReportData($reportType, $dateRange, $filterDepartmentId, $filters);
         
         // Generate chart images
         $chartImages = $this->generateChartImages($data);
@@ -601,32 +845,33 @@ class Analytics extends BaseController
             ->setBody(file_get_contents($tempFile));
     }
 
-    private function getReportData($reportType, $dateRange, $filterDepartmentId = null)
+    private function getReportData($reportType, $dateRange, $filterDepartmentId = null, $filters = [])
     {
         // Base data always included
         $data = [
             'report_type' => $reportType,
             'date_range' => $dateRange,
             'generated_at' => date('Y-m-d H:i:s'),
+            'filters' => $filters,
         ];
 
         // Add data based on report type
         switch ($reportType) {
             case 'overview':
                 // Complete Overview - includes everything
-                $data['overview'] = $this->getOverviewData($filterDepartmentId);
-                $data['formStats'] = $this->getFormStatistics($filterDepartmentId);
-                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId);
-                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
-                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId);
-                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId);
+                $data['overview'] = $this->getOverviewData($filterDepartmentId, $filters);
+                $data['formStats'] = $this->getFormStatistics($filterDepartmentId, $filters);
+                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId, $filters);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId, $filters);
+                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId, $filters);
+                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId, $filters);
                 break;
 
             case 'forms':
                 // Form Analytics - overview + form statistics
-                $data['overview'] = $this->getOverviewData($filterDepartmentId);
-                $data['formStats'] = $this->getFormStatistics($filterDepartmentId);
-                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
+                $data['overview'] = $this->getOverviewData($filterDepartmentId, $filters);
+                $data['formStats'] = $this->getFormStatistics($filterDepartmentId, $filters);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId, $filters);
                 $data['recentSubmissions'] = [];
                 $data['departmentStats'] = [];
                 $data['performanceMetrics'] = [];
@@ -634,9 +879,9 @@ class Analytics extends BaseController
 
             case 'departments':
                 // Department Statistics - overview + department data
-                $data['overview'] = $this->getOverviewData($filterDepartmentId);
-                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId);
-                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
+                $data['overview'] = $this->getOverviewData($filterDepartmentId, $filters);
+                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId, $filters);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId, $filters);
                 $data['formStats'] = [];
                 $data['recentSubmissions'] = [];
                 $data['performanceMetrics'] = [];
@@ -644,22 +889,22 @@ class Analytics extends BaseController
 
             case 'performance':
                 // Performance Metrics - overview + performance data
-                $data['overview'] = $this->getOverviewData($filterDepartmentId);
-                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId);
-                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
-                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId);
+                $data['overview'] = $this->getOverviewData($filterDepartmentId, $filters);
+                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId, $filters);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId, $filters);
+                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId, $filters);
                 $data['formStats'] = [];
                 $data['departmentStats'] = [];
                 break;
 
             default:
                 // Fallback to complete overview
-                $data['overview'] = $this->getOverviewData($filterDepartmentId);
-                $data['formStats'] = $this->getFormStatistics($filterDepartmentId);
-                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId);
-                $data['timelineData'] = $this->getTimelineData($filterDepartmentId);
-                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId);
-                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId);
+                $data['overview'] = $this->getOverviewData($filterDepartmentId, $filters);
+                $data['formStats'] = $this->getFormStatistics($filterDepartmentId, $filters);
+                $data['departmentStats'] = $this->getDepartmentStatistics($filterDepartmentId, $filters);
+                $data['timelineData'] = $this->getTimelineData($filterDepartmentId, $filters);
+                $data['performanceMetrics'] = $this->getPerformanceMetrics($filterDepartmentId, $filters);
+                $data['recentSubmissions'] = $this->getSubmissionsOverview($filterDepartmentId, $filters);
                 break;
         }
 

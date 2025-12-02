@@ -8,11 +8,19 @@ class EmailService
 {
     protected $email;
     protected $config;
+    protected $systemName;
 
     public function __construct()
     {
         $this->config = new EmailConfig();
         $this->email = \Config\Services::email();
+        // Prefer configured system name from DB for branding in email 'From' and templates
+        try {
+            $cfg = new \App\Models\ConfigurationModel();
+            $this->systemName = $cfg->getConfig('system_name', $this->config->fromName ?? '');
+        } catch (\Throwable $e) {
+            $this->systemName = $this->config->fromName ?? '';
+        }
     }
 
     /**
@@ -30,8 +38,9 @@ class EmailService
             // Clear any previous email settings
             $this->email->clear();
 
-            // Set email parameters
-            $this->email->setFrom($this->config->fromEmail, $this->config->fromName);
+            // Set email parameters - prefer the official system name if available
+            $fromName = $this->systemName ?: ($this->config->fromName ?? '');
+            $this->email->setFrom($this->config->fromEmail, $fromName);
             $this->email->setTo($toEmail);
             $this->email->setSubject($subject);
 
@@ -69,6 +78,9 @@ class EmailService
     protected function createEmailTemplate($title, $content, $recipientName = '')
     {
         $greeting = !empty($recipientName) ? "Hello {$recipientName}," : "Hello,";
+        $baseUrl = base_url();
+        $systemName = $this->systemName ?: ($this->config->fromName ?? '');
+        $year = date('Y');
         
         $html = <<<HTML
 <!DOCTYPE html>
@@ -136,7 +148,7 @@ class EmailService
 <body>
     <div class="email-container">
         <div class="email-header">
-            <h1>SmartISO System</h1>
+            <h1>{$systemName}</h1>
         </div>
         <div class="email-body">
             <p>{$greeting}</p>
@@ -144,12 +156,12 @@ class EmailService
                 <strong>{$title}</strong>
             </div>
             <p>{$content}</p>
-            <p>Please log in to the SmartISO system to view more details and take action if required.</p>
-            <a href="<?= base_url() ?>" class="button">Go to SmartISO</a>
+            <p>Please log in to {$systemName} to view more details and take action if required.</p>
+            <a href="{$baseUrl}" class="button">Go to {$systemName}</a>
         </div>
         <div class="email-footer">
-            <p>This is an automated email from SmartISO System. Please do not reply to this email.</p>
-            <p>&copy; 2025 SmartISO System. All rights reserved.</p>
+            <p>This is an automated email from {$systemName}. Please do not reply to this email.</p>
+            <p>&copy; {$year} {$systemName}. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -189,8 +201,9 @@ HTML;
      */
     public function sendTestEmail($testEmail)
     {
-        $subject = 'SmartISO Email Test';
-        $message = 'This is a test email from SmartISO system. If you received this, email notifications are working correctly!';
+        $systemName = $this->systemName ?: ($this->config->fromName ?? 'System');
+        $subject = $systemName . ' Email Test';
+        $message = 'This is a test email from ' . $systemName . '. If you received this, email notifications are working correctly!';
         
         return $this->sendNotificationEmail($testEmail, 'Test User', $subject, $message);
     }

@@ -20,6 +20,9 @@ class FormSubmissionDataModel extends Model
     protected $createdField  = 'created_at';
     protected $updatedField  = 'updated_at';
     
+    // Disable soft deletes - table doesn't have deleted_at column
+    protected $useSoftDeletes = false;
+    
     /**
      * Get all field data for a submission
      */

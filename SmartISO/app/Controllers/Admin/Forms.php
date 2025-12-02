@@ -15,9 +15,9 @@ class Forms extends BaseController
     
     public function __construct()
     {
-    $this->formModel = new FormModel();
-    $this->officeModel = new OfficeModel();
-    $this->departmentModel = new DepartmentModel();
+        $this->formModel = new FormModel();
+        $this->officeModel = new OfficeModel();
+        $this->departmentModel = new DepartmentModel();
     }
     
     public function index()
@@ -65,8 +65,10 @@ class Forms extends BaseController
         $data = [
             'title' => 'Add New Form'
         ];
-    // Departments now primary (existing offices migrated to departments)
-    $data['departments'] = $this->departmentModel->findAll();
+        // Departments now primary (existing offices migrated to departments)
+        $data['departments'] = $this->departmentModel->findAll();
+        // Get available headers for selection
+        $data['available_headers'] = $this->formModel->getAvailableHeaders();
 
         return view('admin/forms/create', $data);
     }
@@ -95,11 +97,15 @@ class Forms extends BaseController
             $office = $this->officeModel->where('department_id', $departmentId)->orderBy('id','ASC')->first();
             $officeId = $office['id'] ?? null;
 
+            // Handle header image
+            $headerImage = $this->handleHeaderImage();
+
             $this->formModel->save([
                 'code' => $this->request->getPost('code'),
                 'description' => $this->request->getPost('description'),
                 'department_id' => $departmentId,
-                'office_id' => $officeId
+                'office_id' => $officeId,
+                'header_image' => $headerImage
             ]);
 
             return redirect()->to('/admin/forms')->with('message', 'Form added successfully');
@@ -133,6 +139,8 @@ class Forms extends BaseController
         ];
         // Provide departments for selection
         $data['departments'] = $this->departmentModel->findAll();
+        // Get available headers for selection
+        $data['available_headers'] = $this->formModel->getAvailableHeaders();
 
         return view('admin/forms/edit', $data);
     }
@@ -175,11 +183,15 @@ class Forms extends BaseController
             $office = $this->officeModel->where('department_id', $departmentId)->orderBy('id','ASC')->first();
             $officeId = $office['id'] ?? null;
 
+            // Handle header image
+            $headerImage = $this->handleHeaderImage($form['header_image']);
+
             $this->formModel->update($id, [
                 'code' => $this->request->getPost('code'),
                 'description' => $this->request->getPost('description'),
                 'department_id' => $departmentId,
-                'office_id' => $officeId
+                'office_id' => $officeId,
+                'header_image' => $headerImage
             ]);
 
             return redirect()->to('/admin/forms')->with('message', 'Form updated successfully');
@@ -189,6 +201,54 @@ class Forms extends BaseController
                 ->withInput()
                 ->with('validation', $this->validator);
         }
+    }
+
+    /**
+     * Handle header image upload or selection
+     * Returns the filename of the header image to store in DB
+     */
+    protected function handleHeaderImage($currentHeader = null)
+    {
+        // Check if user wants to remove the header
+        if ($this->request->getPost('remove_header') === '1') {
+            return null;
+        }
+
+        // Check if a new file was uploaded
+        $file = $this->request->getFile('header_upload');
+        if ($file && $file->isValid() && !$file->hasMoved()) {
+            // Validate file type
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!in_array($file->getMimeType(), $allowedTypes)) {
+                return $currentHeader;
+            }
+            
+            // Validate file size (max 2MB)
+            if ($file->getSize() > 2 * 1024 * 1024) {
+                return $currentHeader;
+            }
+            
+            // Create upload directory if it doesn't exist
+            $uploadPath = FCPATH . 'uploads/form_headers/';
+            if (!is_dir($uploadPath)) {
+                mkdir($uploadPath, 0755, true);
+            }
+            
+            // Generate unique filename
+            $newName = uniqid('header_') . '.' . $file->getExtension();
+            $file->move($uploadPath, $newName);
+            
+            return $newName;
+        }
+
+        // Check if an existing header was selected
+        $selectedHeader = $this->request->getPost('header_select');
+        if (!empty($selectedHeader) && $selectedHeader !== 'none') {
+            return $selectedHeader;
+        }
+
+        // Keep existing header if no changes
+        return $currentHeader;
     }
     
     public function delete($id = null)
@@ -211,76 +271,104 @@ class Forms extends BaseController
         return redirect()->to('/admin/forms')->with('message', 'Form deleted successfully');
     }
 
-    public function signForm($id)
+    /**
+     * Upload a new header image via AJAX
+     */
+    public function uploadHeader()
     {
-        $userId = session()->get('user_id');
-        $userType = session()->get('user_type');
-        $submission = $this->formSubmissionModel->find($id);
+        $file = $this->request->getFile('header_file');
         
-        if (!$submission) {
-            return redirect()->to('/forms/my-submissions')
-                            ->with('error', 'Submission not found');
+        if (!$file || !$file->isValid()) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Invalid file upload'
+            ]);
         }
-        
-        // Check permissions based on user role
-        if ($userType === 'requestor') {
-            // Requestor can only sign their own forms
-            if ($submission['submitted_by'] != $userId) {
-                return redirect()->to('/forms/my-submissions')
-                                ->with('error', 'You do not have permission to sign this form');
-            }
-            
-            // Record requestor signature date
-            $this->formSubmissionModel->update($id, [
-                'requestor_signature_date' => date('Y-m-d H:i:s')
-            ]);
-            
-            return redirect()->to('/forms/submission/' . $id)
-                            ->with('message', 'Form signed successfully');
-                            
-        } elseif ($userType === 'approving_authority') {
-            // Approver can only sign forms with status 'submitted'
-            if ($submission['status'] !== 'submitted') {
-                return redirect()->to('/forms/submissions')
-                                ->with('error', 'This form cannot be signed at this time');
-            }
-            
-            // Record approver signature and update status
-            $this->formSubmissionModel->update($id, [
-                'approver_id' => $userId,
-                'approver_signature_date' => date('Y-m-d H:i:s'),
-                'status' => 'approved'
-            ]);
 
-            // Ensure schedule exists for the approval action so item appears on calendars
-            try {
-                $this->formSubmissionModel->createScheduleOnApproval($id);
-            } catch (\Throwable $e) {
-                log_message('error', 'Admin\Forms::signForm - failed to auto-create schedule for submission ' . $id . ': ' . $e->getMessage());
-            }
-            
-            return redirect()->to('/forms/submissions')
-                            ->with('message', 'Form approved and signed successfully');
-                            
-        } elseif ($userType === 'service_staff') {
-            // Service staff can only sign approved forms
-            if ($submission['status'] !== 'approved') {
-                return redirect()->to('/forms/submissions')
-                                ->with('error', 'This form cannot be signed at this time');
-            }
-            
-            // Record service staff signature and mark as completed
-            $this->formSubmissionModel->update($id, [
-                'service_staff_id' => $userId,
-                'service_staff_signature_date' => date('Y-m-d H:i:s'),
-                'completed' => 1,
-                'completion_date' => date('Y-m-d H:i:s')
+        // Validate file type
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!in_array($file->getMimeType(), $allowedTypes)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Invalid file type. Only JPG, PNG, GIF, and WebP are allowed.'
             ]);
-            
-            return redirect()->to('/forms/submissions')
-                            ->with('message', 'Work completed and form signed successfully');
         }
         
-        return redirect()->back()->with('error', 'Unauthorized action');
+        // Validate file size (max 2MB)
+        if ($file->getSize() > 2 * 1024 * 1024) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'File too large. Maximum size is 2MB.'
+            ]);
+        }
+        
+        // Create upload directory if it doesn't exist
+        $uploadPath = FCPATH . 'uploads/form_headers/';
+        if (!is_dir($uploadPath)) {
+            mkdir($uploadPath, 0755, true);
+        }
+        
+        // Generate unique filename
+        $newName = uniqid('header_') . '.' . $file->getExtension();
+        $file->move($uploadPath, $newName);
+        
+        return $this->response->setJSON([
+            'success' => true,
+            'filename' => $newName,
+            'url' => base_url('uploads/form_headers/' . $newName),
+            'message' => 'Header uploaded successfully'
+        ]);
+    }
+
+    /**
+     * Delete a header image
+     */
+    public function deleteHeader()
+    {
+        $filename = $this->request->getPost('filename');
+        
+        if (empty($filename)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'No filename provided'
+            ]);
+        }
+
+        // Security: only allow deleting files in the headers directory
+        $filePath = FCPATH . 'uploads/form_headers/' . basename($filename);
+        
+        if (file_exists($filePath)) {
+            // Check if this header is being used by any form
+            $formsUsingHeader = $this->formModel->where('header_image', $filename)->countAllResults();
+            if ($formsUsingHeader > 0) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => "This header is currently used by {$formsUsingHeader} form(s). Remove it from those forms first."
+                ]);
+            }
+            
+            unlink($filePath);
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Header deleted successfully'
+            ]);
+        }
+        
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'File not found'
+        ]);
+    }
+
+    /**
+     * Get list of available headers for AJAX
+     */
+    public function getHeaders()
+    {
+        $headers = $this->formModel->getAvailableHeaders();
+        return $this->response->setJSON([
+            'success' => true,
+            'headers' => $headers
+        ]);
     }
 }
