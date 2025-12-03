@@ -292,6 +292,13 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     
     // Admin notification cleanup
     $routes->post('notifications/cleanup', 'Notifications::cleanup');
+    
+    // TAU-DCO Form Approval routes
+    $routes->get('dco-approval', 'Admin\DcoApproval::index');
+    $routes->get('dco-approval/edit/(:num)', 'Admin\DcoApproval::edit/$1');
+    $routes->post('dco-approval/update/(:num)', 'Admin\DcoApproval::update/$1');
+    $routes->post('dco-approval/approve/(:num)', 'Admin\DcoApproval::approve/$1');
+    $routes->post('dco-approval/revoke/(:num)', 'Admin\DcoApproval::revoke/$1');
 });
 
 // Superuser-only routes

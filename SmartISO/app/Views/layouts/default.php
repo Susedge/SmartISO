@@ -159,10 +159,22 @@
                             <span>Dashboard</span>
                         </a>
                         
+                        <?php if(session()->get('user_type') !== 'tau_dco'): ?>
                         <a class="nav-link d-flex align-items-center <?= uri_string() == 'schedule' ? 'active' : '' ?>" href="<?= base_url('schedule') ?>">
                             <div class="nav-link-icon"><i class="fas fa-calendar-alt me-2"></i></div>
                             <span>Schedule</span>
                         </a>
+                        <?php endif; ?>
+                        
+                        <!-- TAU-DCO Section - Show prominently for tau_dco users -->
+                        <?php if(session()->get('user_type') === 'tau_dco'): ?>
+                        <div class="sidebar-heading">TAU-DCO</div>
+                        
+                        <a class="nav-link d-flex align-items-center <?= strpos(uri_string(), 'admin/dco-approval') !== false ? 'active' : '' ?>" href="<?= base_url('admin/dco-approval') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-stamp me-2"></i></div>
+                            <span>Form Approval</span>
+                        </a>
+                        <?php endif; ?>
                         
                         <!-- For regular users (requestor) -->
                         <?php if(session()->get('user_type') === 'requestor'): ?>

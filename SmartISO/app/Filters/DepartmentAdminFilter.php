@@ -12,8 +12,8 @@ class DepartmentAdminFilter implements FilterInterface
     {
         $userType = session()->get('user_type');
         
-        // Only allow admin, department_admin, and superuser to access admin routes
-        if (!in_array($userType, ['admin', 'department_admin', 'superuser'])) {
+        // Only allow admin, department_admin, superuser, and tau_dco to access admin routes
+        if (!in_array($userType, ['admin', 'department_admin', 'superuser', 'tau_dco'])) {
             return redirect()->to('/dashboard')->with('error', 'You do not have permission to access admin panel');
         }
         

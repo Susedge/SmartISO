@@ -10,6 +10,7 @@
 - Create 'smartiso' db in phpMyAdmin
 - Run - php spark migrate
 - Run - php spark db:seed DepartmentAdminSeeder (optional - creates sample department admin)
+- Run - php spark db:seed TauDcoSeeder (optional - creates TAU-DCO test user)
 - Run - php spark serve
 
 ## Email Notifications Setup (Optional - For Testing)
@@ -34,7 +35,7 @@ SmartISO now supports Gmail email notifications for all system events.
 For detailed information, see: `GMAIL_NOTIFICATIONS_GUIDE.md`
 
 ADMIN 
-- Create accounts for “APPROVING AUTHORITIES” and “SERVICE STAFF”.
+- Create accounts for "APPROVING AUTHORITIES", "SERVICE STAFF", and "TAU-DCO".
 - Add and create forms
 - Add and create panels for forms
 - Add departments
@@ -52,10 +53,18 @@ APPROVING AUTHORITIES
 - View all completed ISO request form for record
 
 SERVICE STAFF
-- Input data “DIGITAL SIGNATURE”.
+- Input data "DIGITAL SIGNATURE".
 - View and edit approved request form.
-Send the completed request form back to the requestor for signature that the work is done by the Service staff. “If the Requestor already has signed the completed request form it will notify both Approving Authorities and Service Staff”.
+Send the completed request form back to the requestor for signature that the work is done by the Service staff. "If the Requestor already has signed the completed request form it will notify both Approving Authorities and Service Staff".
 - View all completed ISO request form for record
+
+TAU-DCO (Document Control Officer)
+- Review and approve forms for ISO compliance
+- Edit form footer information:
+  - Revision No. (e.g., 00, 01, 02)
+  - Effectivity Date
+- Set forms as TAU-DCO approved
+- Revoke DCO approval when forms need revision
 
 
 # Test Accounts
@@ -65,6 +74,7 @@ password: password123
 - requestor_user (Requestor)
 - service_user (Service Staff)
 - dept_admin_it (Department Admin - IT Department)
+- tau_dco_user (TAU-DCO - Document Control Officer)
 
 # Email Configuration
 - SMTP: Gmail (smtp.gmail.com:587)

@@ -10,7 +10,11 @@ class FormModel extends Model
     protected $primaryKey = 'id';
     // Transitional: supporting department_id (new) and office_id (legacy)
     // Added header_image for form document header support
-    protected $allowedFields = ['code', 'description', 'panel_name', 'office_id', 'department_id', 'header_image'];
+    // Added DCO fields: revision_no, effectivity_date, dco_approved, dco_approved_by, dco_approved_at
+    protected $allowedFields = [
+        'code', 'description', 'panel_name', 'office_id', 'department_id', 'header_image',
+        'revision_no', 'effectivity_date', 'dco_approved', 'dco_approved_by', 'dco_approved_at'
+    ];
     protected $useTimestamps = true;
     protected $dateFormat = 'datetime';
     protected $createdField = 'created_at';

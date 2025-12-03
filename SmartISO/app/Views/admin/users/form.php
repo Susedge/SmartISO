@@ -114,7 +114,8 @@
                         <option value="approving_authority" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'approving_authority' ? 'selected' : '' ?>>Approving Authority</option>
                         <option value="service_staff" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'service_staff' ? 'selected' : '' ?>>Service Staff</option>
                         <?php if (!session()->get('is_department_admin')): ?>
-                            <!-- Only global admins and superusers can create department_admins, admins, and superusers -->
+                            <!-- Only global admins and superusers can create department_admins, tau_dco, admins, and superusers -->
+                            <option value="tau_dco" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'tau_dco' ? 'selected' : '' ?>>TAU-DCO</option>
                             <option value="department_admin" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'department_admin' ? 'selected' : '' ?>>Department Admin</option>
                             <option value="admin" <?= old('user_type', isset($user) ? $user['user_type'] : '') == 'admin' ? 'selected' : '' ?>>Admin</option>
                             <?php if(session()->get('user_type') === 'superuser'): ?>

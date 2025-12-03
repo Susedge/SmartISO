@@ -47,6 +47,9 @@
                                     case 'department_admin':
                                         $badgeClass = 'dark';
                                         break;
+                                    case 'tau_dco':
+                                        $badgeClass = 'purple';
+                                        break;
                                     case 'approving_authority':
                                         $badgeClass = 'success';
                                         break;
@@ -58,7 +61,7 @@
                                         break;
                                 }
                                 ?>
-                                <span class="badge bg-<?= $badgeClass ?>">
+                                <span class="badge bg-<?= $badgeClass ?>" <?= $badgeClass === 'purple' ? 'style="background-color: #6f42c1 !important;"' : '' ?>>
                                     <?= ucwords(str_replace('_', ' ', $user['user_type'])) ?>
                                 </span>
                             </td>

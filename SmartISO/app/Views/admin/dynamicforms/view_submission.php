@@ -131,6 +131,53 @@
     font-style: italic;
 }
 
+/* Checkbox Grid Styles */
+.document-paper .checkbox-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    padding: 4px 0;
+}
+
+.document-paper .checkbox-item {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.document-paper .checkbox-box {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 1px solid #000;
+    text-align: center;
+    line-height: 10px;
+    font-size: 10px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.document-paper .checkbox-box.checked {
+    background: #fff;
+}
+
+.document-paper .checkbox-box.checked::after {
+    content: '✓';
+    font-weight: bold;
+}
+
+.document-paper .checkbox-label {
+    font-size: 10pt;
+}
+
+/* For multi-column checkbox layouts */
+.document-paper .checkbox-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 4px 15px;
+}
+
 /* Info card outside document */
 .submission-info-card {
     max-width: 850px;
@@ -329,36 +376,96 @@
             
             $allFields = array_merge($requestorFields, $bothFields, $readonlyFields);
             
-            // Helper to render field value
-            $renderFieldValue = function($field, $submission_data) {
-                $ft = $field['field_type'];
-                $name = $field['field_name'];
-                $rawVal = $submission_data[$name] ?? '';
-                
-                if (in_array($ft, ['checkbox', 'checkboxes', 'radio'])) {
-                    $selectedVals = [];
-                    if (is_array($rawVal)) { 
-                        $selectedVals = $rawVal; 
+            // Helper to get field options
+            $getFieldOptions = function($field) {
+                $opts = [];
+                if (!empty($field['options']) && is_array($field['options'])) {
+                    $opts = $field['options'];
+                } elseif (!empty($field['default_value'])) {
+                    $decoded = json_decode($field['default_value'], true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $opts = $decoded;
                     } else {
-                        $dec = json_decode($rawVal, true);
-                        if (json_last_error() === JSON_ERROR_NONE && is_array($dec)) { 
-                            $selectedVals = $dec; 
-                        } elseif (strlen(trim($rawVal))) { 
-                            $selectedVals = preg_split('/\s*[,;]\s*/', (string)$rawVal); 
-                        }
+                        $lines = array_filter(array_map('trim', explode("\n", $field['default_value'])));
+                        if (!empty($lines)) $opts = $lines;
                     }
-                    return esc(implode(', ', $selectedVals));
-                } else {
-                    return esc(render_field_display($field, $submission_data));
+                } elseif (!empty($field['code_table'])) {
+                    $table = $field['code_table'];
+                    if (preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+                        try {
+                            $db = \Config\Database::connect();
+                            $query = $db->table($table)->get();
+                            if ($query) {
+                                foreach ($query->getResultArray() as $r) {
+                                    $opts[] = [
+                                        'label' => $r['description'] ?? ($r['name'] ?? ($r['code'] ?? ($r['id'] ?? ''))),
+                                        'value' => $r['code'] ?? ($r['id'] ?? '')
+                                    ];
+                                }
+                            }
+                        } catch (\Throwable $e) {}
+                    }
                 }
+                return $opts;
             };
             
-            // Render fields - one field per row for simplicity
+            // Helper to get selected values as array
+            $getSelectedValues = function($field, $submission_data) {
+                $name = $field['field_name'];
+                $rawVal = $submission_data[$name] ?? '';
+                $selected = [];
+                if (is_array($rawVal)) { 
+                    $selected = $rawVal; 
+                } else {
+                    $dec = json_decode($rawVal, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($dec)) { 
+                        $selected = $dec; 
+                    } elseif (strlen(trim($rawVal))) { 
+                        $selected = preg_split('/\s*[,;]\s*/', (string)$rawVal); 
+                    }
+                }
+                return array_map('trim', $selected);
+            };
+            
+            // Helper to check if value is selected
+            $isSelected = function($optValue, $optLabel, $selectedVals) {
+                foreach ($selectedVals as $s) {
+                    if (strcasecmp(trim($s), trim($optValue)) === 0 || strcasecmp(trim($s), trim($optLabel)) === 0) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            
+            // Render fields
             foreach ($allFields as $field):
+                $ft = $field['field_type'];
+                $isCheckboxType = in_array($ft, ['checkbox', 'checkboxes', 'radio']);
+                $opts = $isCheckboxType ? $getFieldOptions($field) : [];
+                $selectedVals = $isCheckboxType ? $getSelectedValues($field, $submission_data) : [];
             ?>
                 <tr>
                     <td class="field-label"><?= esc($field['field_label']) ?>:</td>
-                    <td colspan="3" class="field-value"><?= $renderFieldValue($field, $submission_data) ?></td>
+                    <td colspan="3" class="field-value">
+                        <?php if ($isCheckboxType && !empty($opts)): ?>
+                            <div class="checkbox-grid">
+                                <?php foreach ($opts as $opt): 
+                                    $optLabel = is_array($opt) ? ($opt['label'] ?? ($opt['value'] ?? '')) : $opt;
+                                    $optValue = is_array($opt) ? ($opt['value'] ?? ($opt['label'] ?? '')) : $opt;
+                                    $checked = $isSelected($optValue, $optLabel, $selectedVals);
+                                ?>
+                                    <span class="checkbox-item">
+                                        <span class="checkbox-box <?= $checked ? 'checked' : '' ?>"></span>
+                                        <span class="checkbox-label"><?= esc($optLabel) ?></span>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php elseif ($isCheckboxType && !empty($selectedVals)): ?>
+                            <?= esc(implode(', ', $selectedVals)) ?>
+                        <?php else: ?>
+                            <?= esc(render_field_display($field, $submission_data)) ?: '-' ?>
+                        <?php endif; ?>
+                    </td>
                 </tr>
             <?php endforeach; ?>
         </table>
@@ -454,8 +561,8 @@
             </tr>
             <tr>
                 <td><?= esc($form['code']) ?></td>
-                <td>00</td>
-                <td><?= date('M d, Y', strtotime($form['created_at'] ?? 'now')) ?></td>
+                <td><?= esc($form['revision_no'] ?? '00') ?></td>
+                <td><?= !empty($form['effectivity_date']) ? date('M d, Y', strtotime($form['effectivity_date'])) : date('M d, Y', strtotime($form['created_at'] ?? 'now')) ?></td>
                 <td>1 of 1</td>
             </tr>
         </table>
