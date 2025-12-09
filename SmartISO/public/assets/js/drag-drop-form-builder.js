@@ -1949,7 +1949,7 @@ class FormBuilder {
                                             <option value="dropdown">Dropdown</option>
                                             <option value="radio">Radio</option>
                                             <option value="datepicker">Date Picker</option>
-                                            
+                                            <option value="section_header">Section Header</option>
                                         </select>
                                     </div>
                                 </div>

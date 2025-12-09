@@ -74,6 +74,17 @@
                     </a>
                 </div>
                 
+                <?php elseif(session()->get('user_type') === 'tau_dco'): ?>
+                <!-- TAU-DCO Quick Actions -->
+                <div class="d-grid gap-2">
+                    <a href="<?= base_url('admin/dco-approval') ?>" class="btn btn-outline-primary">
+                        <i class="fas fa-stamp me-2"></i> Form Approval Management
+                    </a>
+                    <a href="<?= base_url('admin/audit-logs') ?>" class="btn btn-outline-info">
+                        <i class="fas fa-history me-2"></i> View Audit Logs
+                    </a>
+                </div>
+                
                 <?php elseif(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
                 <!-- Admin Quick Actions -->
                 <div class="d-grid gap-2">
@@ -204,6 +215,31 @@
                             <div class="card-body text-center">
                                 <h5>Completed</h5>
                                 <h2><?= $statusSummary['completed'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <?php elseif(session()->get('user_type') === 'tau_dco'): ?>
+                    <div class="col-md-4">
+                        <div class="card bg-warning text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Pending DCO Approval</h5>
+                                <h2><?= $statusSummary['pending_dco'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>DCO Approved</h5>
+                                <h2><?= $statusSummary['dco_approved'] ?? 0 ?></h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-primary text-white mb-3">
+                            <div class="card-body text-center">
+                                <h5>Total Forms</h5>
+                                <h2><?= $statusSummary['total_forms'] ?? 0 ?></h2>
                             </div>
                         </div>
                     </div>

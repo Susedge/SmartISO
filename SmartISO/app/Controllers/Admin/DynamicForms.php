@@ -10,6 +10,7 @@ use App\Models\OfficeModel;
 use App\Models\DepartmentModel;
 use App\Models\FormSubmissionModel;
 use App\Models\FormSubmissionDataModel;
+use App\Libraries\AuditLogger;
 
 class DynamicForms extends BaseController
 {
@@ -267,6 +268,10 @@ class DynamicForms extends BaseController
             'required' => 0,
             'width' => 12
         ]);
+
+        // Log panel creation
+        $auditLogger = new AuditLogger();
+        $auditLogger->logCreate('panel', null, $panelName, "Created new panel: {$panelName}");
 
     return redirect()->to('/admin/configurations?type=panels')->with('message', 'Panel created successfully');
     }
@@ -1956,6 +1961,10 @@ class DynamicForms extends BaseController
         log_message('info', '========== DELETE PANEL END ==========');
         
         if ($deleted) {
+            // Log panel deletion
+            $auditLogger = new AuditLogger();
+            $auditLogger->logDelete('panel', null, $panelName, "Deleted panel: {$panelName} (Forms updated: " . count($formsUsingPanel) . ", Submissions updated: " . count($submissionsUsingPanel) . ")");
+            
             $message = 'Panel "' . $panelName . '" and all its references deleted successfully';
             $details = [];
             if (!empty($formsUsingPanel)) {

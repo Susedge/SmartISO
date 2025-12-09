@@ -1935,4 +1935,110 @@ class Schedule extends BaseController
         
         return $virtualSchedules;
     }
+
+    /**
+     * AJAX endpoint to check staff availability for scheduling
+     */
+    public function checkAvailability()
+    {
+        if (!$this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request']);
+        }
+
+        $date = $this->request->getPost('date');
+        $time = $this->request->getPost('time');
+        $staffId = $this->request->getPost('staff_id');
+        $excludeId = $this->request->getPost('exclude_id');
+
+        if (!$date) {
+            return $this->response->setJSON([
+                'success' => false, 
+                'message' => 'Date is required',
+                'csrf_name' => csrf_token(), 
+                'csrf_hash' => csrf_hash()
+            ]);
+        }
+
+        $time = $time ?: '09:00:00';
+        $staffId = $staffId ? (int)$staffId : null;
+        $excludeId = $excludeId ? (int)$excludeId : null;
+
+        // Use enhanced conflict checking
+        $result = $this->scheduleModel->checkConflictsEnhanced($date, $time, $staffId, $excludeId);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'has_conflicts' => $result['has_conflicts'],
+            'schedule_conflicts' => $result['schedule_conflicts'],
+            'availability_conflicts' => $result['availability_conflicts'],
+            'warnings' => $result['warnings'],
+            'staff_workload' => $result['staff_workload'],
+            'csrf_name' => csrf_token(),
+            'csrf_hash' => csrf_hash()
+        ]);
+    }
+
+    /**
+     * AJAX endpoint to get available time slots for a date
+     */
+    public function getAvailableSlots()
+    {
+        if (!$this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request']);
+        }
+
+        $date = $this->request->getGet('date') ?: $this->request->getPost('date');
+        $staffId = $this->request->getGet('staff_id') ?: $this->request->getPost('staff_id');
+
+        if (!$date) {
+            return $this->response->setJSON([
+                'success' => false, 
+                'message' => 'Date is required',
+                'csrf_name' => csrf_token(), 
+                'csrf_hash' => csrf_hash()
+            ]);
+        }
+
+        $staffId = $staffId ? (int)$staffId : null;
+        $slots = $this->scheduleModel->getAvailableTimeSlots($date, $staffId);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'date' => $date,
+            'slots' => $slots,
+            'total_available' => count($slots),
+            'csrf_name' => csrf_token(),
+            'csrf_hash' => csrf_hash()
+        ]);
+    }
+
+    /**
+     * AJAX endpoint to get staff workload summary
+     */
+    public function getStaffWorkload()
+    {
+        if (!$this->request->isAJAX()) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Invalid request']);
+        }
+
+        $staffId = $this->request->getGet('staff_id') ?: $this->request->getPost('staff_id');
+
+        if (!$staffId) {
+            return $this->response->setJSON([
+                'success' => false, 
+                'message' => 'Staff ID is required',
+                'csrf_name' => csrf_token(), 
+                'csrf_hash' => csrf_hash()
+            ]);
+        }
+
+        $summary = $this->scheduleModel->getStaffSchedulesSummary((int)$staffId);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'summary' => $summary,
+            'csrf_name' => csrf_token(),
+            'csrf_hash' => csrf_hash()
+        ]);
+    }
 }

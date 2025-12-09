@@ -97,4 +97,30 @@ class ScheduleTest extends CIUnitTestCase
         // Our fix uses submission_status for department virtual entries — assert the exact pattern exists
         $this->assertStringContainsString("strtolower(trim(\$row['submission_status'] ?? 'pending'))", $contents, 'Department virtual rows should base status on submission_status');
     }
+
+    public function testEventsAjaxRoutePresent()
+    {
+        $file = APPPATH . 'Config/Routes.php';
+        $this->assertFileExists($file);
+        $contents = file_get_contents($file);
+
+        $this->assertStringContainsString("schedule/events-ajax", $contents, 'Routes should define schedule/events-ajax endpoint');
+    }
+
+    public function testCalendarViewContainsFiltersAndTooltip()
+    {
+        $file = APPPATH . 'Views/schedule/calendar.php';
+        $this->assertFileExists($file);
+        $contents = file_get_contents($file);
+
+        $this->assertStringContainsString('id="filter-priority"', $contents, 'Calendar view should include priority filter');
+        $this->assertStringContainsString('id="filter-service"', $contents, 'Calendar view should include service filter');
+        $this->assertStringContainsString('id="filter-office"', $contents, 'Calendar view should include office filter');
+        $this->assertStringContainsString('id="filter-status"', $contents, 'Calendar view should include status filter');
+        $this->assertStringContainsString('id="filter-assigned-staff"', $contents, 'Calendar view should include assigned staff filter');
+
+        // Tooltip checks
+        $this->assertStringContainsString('setAttribute(\'title\'', $contents, 'Calendar events should set title attribute for tooltip');
+        $this->assertTrue(strpos($contents, 'bootstrap.Tooltip') !== false || strpos($contents, 'title=') !== false, 'Calendar view should initialize bootstrap.Tooltip or set title attribute');
+    }
 }

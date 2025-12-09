@@ -11,6 +11,7 @@ use App\Models\UserModel;
 use App\Models\OfficeModel;
 use App\Models\PriorityConfigurationModel;
 use App\Models\ConfigurationModel;
+use App\Libraries\AuditLogger;
 
 class Forms extends BaseController
 {
@@ -557,6 +558,11 @@ class Forms extends BaseController
                 ]);
             }
         }
+        
+        // Log the form submission
+        $form = $this->formModel->find($formId);
+        $auditLogger = new AuditLogger();
+        $auditLogger->logSubmit($submissionId, $form['code'] ?? $panelName, "Submitted form: " . ($form['description'] ?? $panelName));
         
         return redirect()->to('/forms/my-submissions')
                         ->with('message', 'Form submitted successfully');
@@ -1989,6 +1995,11 @@ class Forms extends BaseController
             // Existing rejection code...
         }
         
+        // Log the approval action
+        $form = $this->formModel->find($submission['form_id']);
+        $auditLogger = new AuditLogger();
+        $auditLogger->logApprove('submission', $submissionId, $form['code'] ?? 'Form', "Approved submission #$submissionId");
+        
         return redirect()->to('/forms/pending-approval')
                     ->with('error', 'Invalid action');
     }
@@ -2038,6 +2049,11 @@ class Forms extends BaseController
         }
         
         $this->formSubmissionModel->update($submissionId, $updateData);
+        
+        // Log the rejection action
+        $form = $this->formModel->find($submission['form_id']);
+        $auditLogger = new AuditLogger();
+        $auditLogger->logReject('submission', $submissionId, $form['code'] ?? 'Form', "Rejected submission #$submissionId", ['reason' => $reason]);
         
         return redirect()->to('/forms/pending-approval')
                         ->with('message', 'Form rejected successfully');
@@ -2745,5 +2761,48 @@ class Forms extends BaseController
         return view('forms/department_submissions', $data);
     }
 
-}
+    /**
+     * Verify submission via QR code scan
+     * Public endpoint for document verification
+     */
+    public function verify($id = null)
+    {
+        if (!$id) {
+            return redirect()->to('/')->with('error', 'Invalid document reference');
+        }
 
+        $submission = $this->formSubmissionModel->find($id);
+        
+        if (!$submission) {
+            return view('forms/verify_invalid', [
+                'title' => 'Document Not Found',
+                'message' => 'The document you are trying to verify does not exist in our system.'
+            ]);
+        }
+
+        // Get form details
+        $form = $this->formModel->find($submission['form_id']);
+        
+        // Get submitter info
+        $submitter = $this->userModel->find($submission['submitted_by']);
+        
+        // Generate DCN
+        $dcn = sprintf('%s-%04d-%s', 
+            strtoupper($form['code'] ?? 'FRM'),
+            $submission['id'],
+            date('Y', strtotime($submission['created_at']))
+        );
+
+        $data = [
+            'title' => 'Document Verification',
+            'submission' => $submission,
+            'form' => $form,
+            'submitter' => $submitter,
+            'dcn' => $dcn,
+            'verified' => true
+        ];
+
+        return view('forms/verify', $data);
+    }
+
+}

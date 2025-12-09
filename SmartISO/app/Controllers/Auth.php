@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\UserModel;
 use App\Models\OfficeModel; // legacy
 use App\Models\DepartmentModel;
+use App\Libraries\AuditLogger;
 
 class Auth extends BaseController
 {
@@ -123,6 +124,10 @@ class Auth extends BaseController
                     // Update last login time
                     $userModel->update($user['id'], ['last_login' => date('Y-m-d H:i:s')]);
                     
+                    // Log successful login
+                    $auditLogger = new AuditLogger();
+                    $auditLogger->logLogin($user['username']);
+                    
                     // Redirect to main dashboard for all user types
                     return redirect()->to('/dashboard');
                 } else {
@@ -138,6 +143,10 @@ class Auth extends BaseController
     
     public function logout()
     {
+        // Log logout before destroying session
+        $auditLogger = new AuditLogger();
+        $auditLogger->logLogout(session()->get('username'));
+        
         session()->destroy();
         return redirect()->to('/auth/login')->with('message', 'You have been logged out successfully');
     }

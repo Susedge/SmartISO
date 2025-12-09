@@ -305,6 +305,11 @@
                             <span>Database Backup</span>
                         </a>
 
+                        <a class="nav-link d-flex align-items-center <?= uri_string() == 'admin/audit-logs' ? 'active' : '' ?>" href="<?= base_url('admin/audit-logs') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-history me-2"></i></div>
+                            <span>Audit Logs</span>
+                        </a>
+
                         <!-- For admin users only -->
                         <div class="sidebar-heading">FORM TOOLS</div>
                         

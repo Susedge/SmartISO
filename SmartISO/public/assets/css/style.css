@@ -404,3 +404,40 @@ body.sidebar-open {
         margin-left: 0;
     }
 }
+
+/* Section Header Styling for Forms */
+.section-header-group {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-left: 4px solid var(--primary-color);
+    padding: 1rem 1.25rem;
+    border-radius: 0 8px 8px 0;
+    margin-top: 1.5rem;
+}
+
+.section-header-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: var(--dark-color);
+    border-bottom: 2px solid var(--primary-color) !important;
+    padding-bottom: 0.75rem !important;
+}
+
+.section-header-title i {
+    color: var(--primary-color);
+}
+
+.section-header-description {
+    margin-bottom: 0;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* Audit Log Styling */
+.audit-action-badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: 600;
+}

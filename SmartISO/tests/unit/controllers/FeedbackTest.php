@@ -47,6 +47,16 @@ class FeedbackTest extends CIUnitTestCase
         unset($_SESSION['user_type']);
     }
 
+    public function testCreateViewContainsStarRatingMarkup()
+    {
+        $file = APPPATH . 'Views/feedback/create.php';
+        $this->assertFileExists($file);
+        $contents = file_get_contents($file);
+
+        $this->assertStringContainsString('rating-stars', $contents, 'Feedback create view should include star rating UI');
+        $this->assertStringContainsString('fa-star', $contents, 'Feedback create view should include star icons');
+    }
+
     public function testMarkReviewedReturnsJsonOnMissingFeedback()
     {
         $ref = new ReflectionClass('\\App\\Controllers\\Feedback');

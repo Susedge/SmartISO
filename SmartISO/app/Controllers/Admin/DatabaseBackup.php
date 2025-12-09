@@ -4,6 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\ConfigurationModel;
+use App\Libraries\AuditLogger;
 
 class DatabaseBackup extends BaseController
 {
@@ -84,6 +85,10 @@ class DatabaseBackup extends BaseController
 
         try {
             $result = $this->performBackup();
+            
+            // Log the backup action
+            $auditLogger = new AuditLogger();
+            $auditLogger->logBackup($result['filename'], 'Manual database backup created');
             
             if ($this->request->isAJAX()) {
                 return $this->response->setJSON([
@@ -450,6 +455,10 @@ class DatabaseBackup extends BaseController
                     'csrfHash' => csrf_hash()
                 ]);
             }
+
+            // Log the restore action
+            $auditLogger = new AuditLogger();
+            $auditLogger->logRestore($filename, "Database restored from backup. Safety backup: " . ($safetyFilename ?? 'none'));
 
             $flashMsg = 'Database restored successfully from ' . $filename;
             if (!empty($safetyFilename)) {

@@ -65,6 +65,9 @@ $routes->group('analytics', ['filter' => 'auth'], function($routes) {
     $routes->post('export', 'Analytics::exportReport');
 });
 
+// Public document verification (no auth required for QR code scanning)
+$routes->get('forms/verify/(:num)', 'Forms::verify/$1');
+
 // User routes
 $routes->group('', ['filter' => 'auth'], function ($routes) {
     // Profile and signature routes
@@ -121,6 +124,8 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->get('forms/service-form/(:num)', 'Forms::serviceForm/$1');
     $routes->post('forms/service', 'Forms::submitService');
     $routes->post('forms/sign/(:num)', 'Forms::signForm/$1');
+    // API endpoint to get offices by department (for dynamic filtering)
+    $routes->get('forms/get-offices-by-department', 'Forms::getOfficesByDepartment');
     
     // Form completion routes
     $routes->get('forms/final-sign/(:num)', 'Forms::finalSignForm/$1');
@@ -155,6 +160,10 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     $routes->post('schedule/toggle-priority/(:num)', 'Schedule::togglePriority/$1');
     $routes->get('schedule/priorities', 'Schedule::priorities');
     $routes->post('schedule/priorities/clear', 'Schedule::bulkUnmarkPriorities');
+    // Staff availability checking routes
+    $routes->post('schedule/check-availability', 'Schedule::checkAvailability');
+    $routes->match(['get', 'post'], 'schedule/available-slots', 'Schedule::getAvailableSlots');
+    $routes->match(['get', 'post'], 'schedule/staff-workload', 'Schedule::getStaffWorkload');
     
     // Feedback routes
     $routes->get('feedback', 'Feedback::index');
@@ -293,18 +302,28 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     // Admin notification cleanup
     $routes->post('notifications/cleanup', 'Notifications::cleanup');
     
-    // TAU-DCO Form Approval routes
-    $routes->get('dco-approval', 'Admin\DcoApproval::index');
-    $routes->get('dco-approval/edit/(:num)', 'Admin\DcoApproval::edit/$1');
-    $routes->post('dco-approval/update/(:num)', 'Admin\DcoApproval::update/$1');
-    $routes->post('dco-approval/approve/(:num)', 'Admin\DcoApproval::approve/$1');
-    $routes->post('dco-approval/revoke/(:num)', 'Admin\DcoApproval::revoke/$1');
+    // Audit Logs routes
+    $routes->get('audit-logs', 'Admin\AuditLogs::index');
+    $routes->get('audit-logs/view/(:num)', 'Admin\AuditLogs::view/$1');
+    $routes->get('audit-logs/export', 'Admin\AuditLogs::export');
+    $routes->get('audit-logs/entity-history', 'Admin\AuditLogs::entityHistory');
+    $routes->get('audit-logs/user-activity', 'Admin\AuditLogs::userActivity');
+    $routes->post('audit-logs/cleanup', 'Admin\AuditLogs::cleanup');
 });
 
 // Superuser-only routes
 $routes->group('admin', ['filter' => 'auth:superuser'], function ($routes) {
     // Restricted user management operations (superuser only)
     $routes->get('users/delete/(:num)', 'Admin\Users::delete/$1');
+});
+
+// TAU-DCO Form Approval routes (DCO user type only)
+$routes->group('admin', ['filter' => 'auth:tau_dco'], function ($routes) {
+    $routes->get('dco-approval', 'Admin\DcoApproval::index');
+    $routes->get('dco-approval/edit/(:num)', 'Admin\DcoApproval::edit/$1');
+    $routes->post('dco-approval/update/(:num)', 'Admin\DcoApproval::update/$1');
+    $routes->post('dco-approval/approve/(:num)', 'Admin\DcoApproval::approve/$1');
+    $routes->post('dco-approval/revoke/(:num)', 'Admin\DcoApproval::revoke/$1');
 });
 
 /*

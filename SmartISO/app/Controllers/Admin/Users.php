@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\UserModel;
 use App\Models\OfficeModel; // legacy
 use App\Models\DepartmentModel;
+use App\Libraries\AuditLogger;
 
 class Users extends BaseController
 {
@@ -111,6 +112,12 @@ class Users extends BaseController
         // Skip model validation and insert directly
         $this->userModel->skipValidation(true);
         if ($this->userModel->insert($data)) {
+            $newUserId = $this->userModel->getInsertID();
+            
+            // Log user creation
+            $auditLogger = new AuditLogger();
+            $auditLogger->logCreate('user', $newUserId, $data['full_name'], "Created new user: {$data['username']}");
+            
             return redirect()->to('admin/users')
                 ->with('message', 'User created successfully');
         } else {
@@ -300,6 +307,13 @@ class Users extends BaseController
                 $message .= '. Note: The user must log out and log back in for department/office changes to take effect.';
             }
             
+            // Log user update
+            $auditLogger = new AuditLogger();
+            $auditLogger->logUpdate('user', $id, $user['full_name'], "Updated user: {$data['username']}", 
+                ['department_id' => $user['department_id'], 'user_type' => $user['user_type']],
+                ['department_id' => $data['department_id'], 'user_type' => $data['user_type']]
+            );
+            
             return redirect()->to('admin/users')
                 ->with('message', $message);
         } else {
@@ -331,6 +345,10 @@ class Users extends BaseController
         }
         
         if ($this->userModel->delete($id)) {
+            // Log user deletion
+            $auditLogger = new AuditLogger();
+            $auditLogger->logDelete('user', $id, $user['full_name'], "Deleted user: {$user['username']}");
+            
             return redirect()->to('admin/users')
                 ->with('message', 'User deleted successfully');
         } else {

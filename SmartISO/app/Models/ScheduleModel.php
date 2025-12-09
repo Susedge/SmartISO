@@ -259,4 +259,155 @@ class ScheduleModel extends Model
         
         return $results;
     }
+
+    /**
+     * Enhanced conflict checking with staff availability
+     */
+    public function checkConflictsEnhanced(string $date, string $time, int $staffId = null, int $excludeId = null): array
+    {
+        $result = [
+            'has_conflicts' => false,
+            'schedule_conflicts' => [],
+            'availability_conflicts' => [],
+            'warnings' => [],
+            'staff_workload' => null
+        ];
+
+        // Check existing schedule conflicts
+        $builder = $this->where('scheduled_date', $date)
+                        ->whereNotIn('status', ['cancelled', 'completed']);
+        
+        if ($staffId) {
+            $builder->where('assigned_staff_id', $staffId);
+        }
+        
+        if ($excludeId) {
+            $builder->where('id !=', $excludeId);
+        }
+        
+        $existingSchedules = $builder->findAll();
+        $newTime = strtotime($time);
+        
+        foreach ($existingSchedules as $schedule) {
+            $scheduledTime = strtotime($schedule['scheduled_time']);
+            $scheduleDuration = $schedule['duration_minutes'] ?: 60;
+            
+            // Check for time overlap
+            if (abs($scheduledTime - $newTime) < ($scheduleDuration * 60)) {
+                $result['has_conflicts'] = true;
+                $result['schedule_conflicts'][] = [
+                    'id' => $schedule['id'],
+                    'time' => $schedule['scheduled_time'],
+                    'duration' => $scheduleDuration,
+                    'status' => $schedule['status']
+                ];
+            }
+        }
+
+        // Check staff availability if staffId is provided
+        if ($staffId) {
+            $availabilityModel = new StaffAvailabilityModel();
+            $availability = $availabilityModel->isStaffAvailable($staffId, $date, $time);
+            
+            if (!$availability['available']) {
+                $result['has_conflicts'] = true;
+                $result['availability_conflicts'] = $availability['conflicts'];
+            }
+
+            // Get staff workload for warnings
+            $startOfWeek = date('Y-m-d', strtotime('monday this week', strtotime($date)));
+            $endOfWeek = date('Y-m-d', strtotime('sunday this week', strtotime($date)));
+            $workload = $availabilityModel->getStaffWorkload($staffId, $startOfWeek, $endOfWeek);
+            $result['staff_workload'] = $workload;
+
+            // Add warning if staff has many schedules this week
+            if ($workload['total_schedules'] >= 10) {
+                $result['warnings'][] = 'Staff member has ' . $workload['total_schedules'] . ' schedules this week';
+            }
+
+            // Check daily load
+            if (isset($workload['daily_breakdown'][$date]) && $workload['daily_breakdown'][$date] >= 5) {
+                $result['warnings'][] = 'Staff member already has ' . $workload['daily_breakdown'][$date] . ' schedules on this date';
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get available time slots for a date
+     */
+    public function getAvailableTimeSlots(string $date, int $staffId = null, int $slotDuration = 60): array
+    {
+        $availableSlots = [];
+        $workingHours = [
+            'start' => '08:00',
+            'end' => '17:00'
+        ];
+
+        // Generate all possible time slots
+        $currentTime = strtotime($workingHours['start']);
+        $endTime = strtotime($workingHours['end']);
+
+        while ($currentTime < $endTime) {
+            $timeString = date('H:i:s', $currentTime);
+            
+            $conflict = $this->checkConflictsEnhanced($date, $timeString, $staffId);
+            
+            if (!$conflict['has_conflicts']) {
+                $availableSlots[] = [
+                    'time' => $timeString,
+                    'display' => date('g:i A', $currentTime),
+                    'available' => true
+                ];
+            }
+
+            $currentTime += $slotDuration * 60; // Add slot duration in seconds
+        }
+
+        return $availableSlots;
+    }
+
+    /**
+     * Get staff schedules summary for dashboard
+     */
+    public function getStaffSchedulesSummary(int $staffId, string $startDate = null, string $endDate = null): array
+    {
+        if (!$startDate) {
+            $startDate = date('Y-m-d');
+        }
+        if (!$endDate) {
+            $endDate = date('Y-m-d', strtotime('+30 days'));
+        }
+
+        $schedules = $this->where('assigned_staff_id', $staffId)
+                          ->where('scheduled_date >=', $startDate)
+                          ->where('scheduled_date <=', $endDate)
+                          ->findAll();
+
+        $summary = [
+            'total' => count($schedules),
+            'pending' => 0,
+            'confirmed' => 0,
+            'in_progress' => 0,
+            'completed' => 0,
+            'cancelled' => 0,
+            'by_date' => []
+        ];
+
+        foreach ($schedules as $schedule) {
+            $status = $schedule['status'];
+            if (isset($summary[$status])) {
+                $summary[$status]++;
+            }
+            
+            $date = $schedule['scheduled_date'];
+            if (!isset($summary['by_date'][$date])) {
+                $summary['by_date'][$date] = 0;
+            }
+            $summary['by_date'][$date]++;
+        }
+
+        return $summary;
+    }
 }

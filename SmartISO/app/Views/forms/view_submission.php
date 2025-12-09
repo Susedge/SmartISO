@@ -18,6 +18,48 @@
     box-sizing: border-box;
 }
 
+/* ISO Control Info Header */
+.document-paper .iso-control-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px 20px;
+    border-bottom: 1px solid #ccc;
+    background: #f9f9f9;
+    font-size: 9pt;
+}
+
+.document-paper .iso-control-left {
+    text-align: left;
+}
+
+.document-paper .iso-control-right {
+    text-align: right;
+}
+
+.document-paper .iso-dcn {
+    font-weight: bold;
+    font-size: 10pt;
+    color: #333;
+}
+
+.document-paper .iso-qr-code {
+    width: 60px;
+    height: 60px;
+    border: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7pt;
+    color: #999;
+    background: #fff;
+}
+
+.document-paper .iso-qr-code canvas {
+    max-width: 100%;
+    max-height: 100%;
+}
+
 /* Header Section */
 .document-paper .doc-header {
     text-align: center;
@@ -363,6 +405,13 @@
         $departmentName = $dept['description'] ?? '';
     }
     
+    // Generate Document Control Number (DCN)
+    $dcn = sprintf('%s-%04d-%s', 
+        strtoupper($form['code'] ?? 'FRM'),
+        $submission['id'],
+        date('Y', strtotime($submission['created_at']))
+    );
+    
     // Helper for signature URLs
     $sigUrl = function($raw) {
         if (empty($raw)) return '';
@@ -373,6 +422,19 @@
         return base_url('uploads/signatures/' . $raw);
     };
     ?>
+    
+    <!-- ISO Control Header -->
+    <div class="iso-control-header">
+        <div class="iso-control-left">
+            <div class="iso-dcn">DCN: <?= esc($dcn) ?></div>
+            <div>Form Code: <?= esc($form['code']) ?></div>
+            <div>Rev. <?= esc($form['revision_no'] ?? '00') ?> | <?= !empty($form['effectivity_date']) ? date('M d, Y', strtotime($form['effectivity_date'])) : date('M d, Y', strtotime($form['created_at'] ?? 'now')) ?></div>
+        </div>
+        <div class="iso-control-right">
+            <div class="iso-qr-code" id="qrcode" title="Scan to verify document"></div>
+            <div style="font-size: 7pt; color: #666; margin-top: 2px;">Scan to verify</div>
+        </div>
+    </div>
     
     <!-- Document Header Image -->
     <div class="doc-header">
@@ -669,4 +731,28 @@
 </div>
 <?php endif; ?>
 
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+// Generate QR Code for document verification
+document.addEventListener('DOMContentLoaded', function() {
+    const qrContainer = document.getElementById('qrcode');
+    if (qrContainer && typeof qrcode === 'function') {
+        const submissionId = '<?= $submission['id'] ?>';
+        const dcn = '<?= esc($dcn) ?>';
+        const verifyUrl = '<?= base_url('forms/verify/') ?>' + submissionId;
+        
+        try {
+            const qr = qrcode(0, 'M');
+            qr.addData(verifyUrl);
+            qr.make();
+            qrContainer.innerHTML = qr.createImgTag(2, 2);
+        } catch (e) {
+            qrContainer.innerHTML = '<small>QR</small>';
+        }
+    }
+});
+</script>
 <?= $this->endSection() ?>

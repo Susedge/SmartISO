@@ -115,7 +115,7 @@
                             <option value="radio">Checkboxes</option>
                             <option value="list">List</option>
                             <option value="datepicker">Date Picker</option>
-                            
+                            <option value="section_header">Section Header</option>
                         </select>
                     </div>
                     <div class="mb-3">
