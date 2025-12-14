@@ -123,6 +123,9 @@
                             <?php endif; ?>
                         <?php endif; ?>
                     </select>
+                    <div class="form-text">
+                        <strong>TAU-DCO:</strong> Technical Assistance Unit - Document Control Office (Form approval authority)
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <label for="active" class="form-label">Status</label>

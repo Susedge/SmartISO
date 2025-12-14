@@ -34,27 +34,114 @@
                         <div class="config-table-wrap">
                         <div class="table-responsive mb-0">
         <?php if ($tableType === 'system'): ?>
-                <table class="table table-sm table-striped table-hover align-middle" id="table-system" data-type="system">
-                        <thead><tr><th style="display:none">ID</th><th>Key</th><th>Description</th><th>Type</th><th>Value</th></tr></thead>
-                        <tbody>
-                        <?php foreach ($configurations as $cfg): ?>
-                                <tr data-id="<?= $cfg['id'] ?>" data-key="<?= esc($cfg['config_key']) ?>" data-type="<?= esc($cfg['config_type']) ?>" data-value="<?= esc($cfg['config_value']) ?>">
-                                        <td style="display:none"><?= $cfg['id'] ?></td>
-                                        <td><?= esc($cfg['config_key']) ?></td>
-                                        <td><small><?= esc($cfg['config_description']) ?></small></td>
-                                        <td><?= esc($cfg['config_type']) ?></td>
-                                        <td>
-                                                <?php if ($cfg['config_type']==='boolean'): ?>
-                                                        <span class="badge bg-<?= $cfg['config_value']? 'success':'secondary' ?>"><?= $cfg['config_value']? 'Enabled':'Disabled' ?></span>
-                                                <?php else: ?>
-                                                        <code><?= esc($cfg['config_value']) ?></code>
-                                                <?php endif; ?>
-                                        </td>
-                                </tr>
+                <!-- Restyled System Settings with Inline Toggles -->
+                <div class="row g-3" id="systemSettingsGrid">
+                        <?php foreach ($configurations as $cfg): 
+                                $isBoolean = ($cfg['config_type'] === 'boolean');
+                                $isEnabled = (bool)$cfg['config_value'];
+                                $iconClass = 'fas fa-cog';
+                                // Assign icons based on config key
+                                if (strpos($cfg['config_key'], 'backup') !== false) $iconClass = 'fas fa-database';
+                                elseif (strpos($cfg['config_key'], 'email') !== false) $iconClass = 'fas fa-envelope';
+                                elseif (strpos($cfg['config_key'], 'session') !== false) $iconClass = 'fas fa-clock';
+                                elseif (strpos($cfg['config_key'], 'timezone') !== false) $iconClass = 'fas fa-globe';
+                                elseif (strpos($cfg['config_key'], 'dco') !== false || strpos($cfg['config_key'], 'approval') !== false) $iconClass = 'fas fa-stamp';
+                                elseif (strpos($cfg['config_key'], 'schedule') !== false) $iconClass = 'fas fa-calendar-alt';
+                                elseif (strpos($cfg['config_key'], 'admin') !== false) $iconClass = 'fas fa-user-shield';
+                        ?>
+                        <div class="col-md-6 col-lg-4">
+                                <div class="card h-100 shadow-sm border-0 setting-card <?= $isBoolean ? ($isEnabled ? 'border-start border-success border-3' : 'border-start border-secondary border-3') : '' ?>" 
+                                     data-key="<?= esc($cfg['config_key']) ?>" 
+                                     data-type="<?= esc($cfg['config_type']) ?>" 
+                                     data-value="<?= esc($cfg['config_value']) ?>">
+                                        <div class="card-body p-3">
+                                                <div class="d-flex align-items-start justify-content-between mb-2">
+                                                        <div class="d-flex align-items-center">
+                                                                <div class="setting-icon me-2 rounded-circle d-flex align-items-center justify-content-center <?= $isBoolean && $isEnabled ? 'bg-success-subtle text-success' : 'bg-light text-muted' ?>" style="width: 36px; height: 36px;">
+                                                                        <i class="<?= $iconClass ?>"></i>
+                                                                </div>
+                                                                <div>
+                                                                        <h6 class="mb-0 fw-semibold"><?= esc(ucwords(str_replace('_', ' ', $cfg['config_key']))) ?></h6>
+                                                                        <small class="text-muted"><?= esc($cfg['config_key']) ?></small>
+                                                                </div>
+                                                        </div>
+                                                        <?php if ($isBoolean): ?>
+                                                        <div class="form-check form-switch ms-2">
+                                                                <input class="form-check-input system-config-toggle" type="checkbox" 
+                                                                       id="cfg_<?= esc($cfg['config_key']) ?>" 
+                                                                       data-key="<?= esc($cfg['config_key']) ?>"
+                                                                       <?= $isEnabled ? 'checked' : '' ?>
+                                                                       style="width: 3em; height: 1.5em; cursor: pointer;">
+                                                        </div>
+                                                        <?php endif; ?>
+                                                </div>
+                                                <p class="small text-muted mb-2 setting-description"><?= esc($cfg['config_description']) ?></p>
+                                                <div class="d-flex align-items-center justify-content-between">
+                                                        <div class="setting-value">
+                                                                <?php if ($isBoolean): ?>
+                                                                        <span class="badge <?= $isEnabled ? 'bg-success' : 'bg-secondary' ?> status-badge" id="badge_<?= esc($cfg['config_key']) ?>">
+                                                                                <?= $isEnabled ? 'Enabled' : 'Disabled' ?>
+                                                                        </span>
+                                                                <?php elseif ($cfg['config_type'] === 'integer'): ?>
+                                                                        <span class="badge bg-primary"><?= esc($cfg['config_value']) ?></span>
+                                                                <?php else: ?>
+                                                                        <code class="small"><?= esc($cfg['config_value']) ?></code>
+                                                                <?php endif; ?>
+                                                        </div>
+                                                        <?php if (!$isBoolean): ?>
+                                                        <a href="<?= base_url('admin/configurations/edit-system-config?key=' . urlencode($cfg['config_key'])) ?>" 
+                                                           class="btn btn-sm btn-outline-primary">
+                                                                <i class="fas fa-edit me-1"></i>Edit
+                                                        </a>
+                                                        <?php endif; ?>
+                                                </div>
+                                        </div>
+                                </div>
+                        </div>
                         <?php endforeach; ?>
-                        <?php // If no configurations, render an empty tbody so DataTables shows empty state ?>
-                        </tbody>
-                </table>
+                        
+                        <!-- Add New Setting Card (for adding require_dco_approval if missing) -->
+                        <?php 
+                        $hasDcoSetting = false;
+                        foreach ($configurations as $cfg) {
+                                if ($cfg['config_key'] === 'require_dco_approval') {
+                                        $hasDcoSetting = true;
+                                        break;
+                                }
+                        }
+                        if (!$hasDcoSetting): 
+                        ?>
+                        <div class="col-md-6 col-lg-4">
+                                <div class="card h-100 shadow-sm border-0 border-start border-warning border-3">
+                                        <div class="card-body p-3">
+                                                <div class="d-flex align-items-start justify-content-between mb-2">
+                                                        <div class="d-flex align-items-center">
+                                                                <div class="setting-icon me-2 rounded-circle d-flex align-items-center justify-content-center bg-warning-subtle text-warning" style="width: 36px; height: 36px;">
+                                                                        <i class="fas fa-stamp"></i>
+                                                                </div>
+                                                                <div>
+                                                                        <h6 class="mb-0 fw-semibold">Require DCO Approval</h6>
+                                                                        <small class="text-muted">require_dco_approval</small>
+                                                                </div>
+                                                        </div>
+                                                        <div class="form-check form-switch ms-2">
+                                                                <input class="form-check-input system-config-toggle" type="checkbox" 
+                                                                       id="cfg_require_dco_approval" 
+                                                                       data-key="require_dco_approval"
+                                                                       checked
+                                                                       style="width: 3em; height: 1.5em; cursor: pointer;">
+                                                        </div>
+                                                </div>
+                                                <p class="small text-muted mb-2">Require TAU-DCO approval before forms can be used by requestors</p>
+                                                <div class="d-flex align-items-center justify-content-between">
+                                                        <span class="badge bg-success status-badge" id="badge_require_dco_approval">Enabled</span>
+                                                        <small class="text-warning"><i class="fas fa-plus-circle me-1"></i>New Setting</small>
+                                                </div>
+                                        </div>
+                                </div>
+                        </div>
+                        <?php endif; ?>
+                </div>
         <?php elseif ($tableType === 'departments'): ?>
                                 <table class="table table-sm table-striped table-hover align-middle" id="table-departments" data-type="departments">
                                         <thead><tr><th style="display:none">ID</th><th>Code</th><th>Description</th><th>Offices</th><th>Created</th></tr></thead>
@@ -411,6 +498,103 @@ document.addEventListener('DOMContentLoaded', function(){
                                         window.SimpleModal.alert('Failed to update setting: ' + (json && json.message ? json.message : 'Unknown error'), 'Error');
                                 }
                         }).catch(function(err){ console.error(err); window.SimpleModal.alert('Error communicating with server'); });
+                });
+        });
+});
+</script>
+<script>
+// System configuration toggle handler (for all boolean settings)
+document.addEventListener('DOMContentLoaded', function(){
+        // Store current CSRF token - will be updated after each request
+        var csrfToken = '<?= csrf_hash() ?>';
+        var csrfName = '<?= csrf_token() ?>';
+        
+        document.querySelectorAll('.system-config-toggle').forEach(function(toggle) {
+                toggle.addEventListener('change', function() {
+                        var configKey = this.getAttribute('data-key');
+                        var newValue = this.checked ? '1' : '0';
+                        var toggleEl = this;
+                        var card = this.closest('.setting-card') || this.closest('.card');
+                        var badge = document.getElementById('badge_' + configKey);
+                        var iconDiv = card ? card.querySelector('.setting-icon') : null;
+                        
+                        // Show loading state
+                        toggleEl.disabled = true;
+                        if (card) card.style.opacity = '0.7';
+                        
+                        var formData = new FormData();
+                        formData.append('config_key', configKey);
+                        formData.append('config_value', newValue);
+                        formData.append(csrfName, csrfToken);
+                        
+                        fetch('<?= base_url('admin/configurations/toggle-system-config') ?>', {
+                                method: 'POST',
+                                credentials: 'same-origin',
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                body: formData
+                        })
+                        .then(function(response) { return response.json(); })
+                        .then(function(data) {
+                                toggleEl.disabled = false;
+                                if (card) card.style.opacity = '1';
+                                
+                                // Update CSRF token if provided in response
+                                if (data.csrf_token) {
+                                        csrfToken = data.csrf_token;
+                                }
+                                
+                                if (data.success) {
+                                        var isEnabled = data.value == 1;
+                                        
+                                        // Update badge
+                                        if (badge) {
+                                                badge.textContent = isEnabled ? 'Enabled' : 'Disabled';
+                                                badge.className = 'badge status-badge ' + (isEnabled ? 'bg-success' : 'bg-secondary');
+                                        }
+                                        
+                                        // Update card border
+                                        if (card) {
+                                                card.classList.remove('border-success', 'border-secondary');
+                                                card.classList.add(isEnabled ? 'border-success' : 'border-secondary');
+                                        }
+                                        
+                                        // Update icon
+                                        if (iconDiv) {
+                                                iconDiv.classList.remove('bg-success-subtle', 'text-success', 'bg-light', 'text-muted');
+                                                if (isEnabled) {
+                                                        iconDiv.classList.add('bg-success-subtle', 'text-success');
+                                                } else {
+                                                        iconDiv.classList.add('bg-light', 'text-muted');
+                                                }
+                                        }
+                                        
+                                        // Show toast notification
+                                        if (window.SimpleModal && window.SimpleModal.toast) {
+                                                window.SimpleModal.toast(data.message || 'Setting updated', 'success');
+                                        } else if (window.toastr) {
+                                                toastr.success(data.message || 'Setting updated');
+                                        }
+                                } else {
+                                        // Revert toggle
+                                        toggleEl.checked = !toggleEl.checked;
+                                        if (window.SimpleModal) {
+                                                window.SimpleModal.alert(data.message || 'Failed to update setting', 'Error');
+                                        } else {
+                                                alert(data.message || 'Failed to update setting');
+                                        }
+                                }
+                        })
+                        .catch(function(error) {
+                                console.error('Toggle error:', error);
+                                toggleEl.disabled = false;
+                                if (card) card.style.opacity = '1';
+                                toggleEl.checked = !toggleEl.checked;
+                                if (window.SimpleModal) {
+                                        window.SimpleModal.alert('Failed to update setting. Please try again.', 'Error');
+                                } else {
+                                        alert('Failed to update setting');
+                                }
+                        });
                 });
         });
 });

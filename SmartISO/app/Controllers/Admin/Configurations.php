@@ -1665,10 +1665,117 @@ public function updateSystemConfig()
 
         try {
             $this->configurationModel->setConfig('auto_backup_enabled', $newVal, 'Enable automatic database backups', 'boolean');
-            return $this->response->setJSON(['success' => true, 'value' => (int)$newVal, 'message' => 'Auto backup ' . ($newVal ? 'enabled' : 'disabled')]);
+            return $this->response->setJSON([
+                'success' => true, 
+                'value' => (int)$newVal, 
+                'message' => 'Auto backup ' . ($newVal ? 'enabled' : 'disabled'),
+                'csrf_token' => csrf_hash()
+            ]);
         } catch (\Exception $e) {
             return $this->response->setStatusCode(500)->setJSON(['success' => false, 'message' => 'Failed to update setting: ' . $e->getMessage()]);
         }
+    }
+    
+    /**
+     * Toggle any boolean system configuration setting (AJAX)
+     * This provides a generic way to toggle boolean settings inline
+     */
+    public function toggleSystemConfig()
+    {
+        // Only admin/superuser may toggle settings
+        $userType = session()->get('user_type');
+        if (!in_array($userType, ['admin', 'superuser'])) {
+            return $this->response->setStatusCode(403)->setJSON([
+                'success' => false, 
+                'message' => 'Unauthorized',
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+
+        if (!$this->request->isAJAX()) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false, 
+                'message' => 'Invalid request',
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+
+        $configKey = $this->request->getPost('config_key');
+        $configValue = $this->request->getPost('config_value');
+        
+        if (empty($configKey)) {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false, 
+                'message' => 'Missing config key',
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+        
+        // Get existing configuration
+        $existingConfig = $this->configurationModel->where('config_key', $configKey)->first();
+        
+        // If config doesn't exist and it's a known setting, create it
+        if (!$existingConfig) {
+            // Define default settings that can be created on-the-fly
+            $defaultSettings = [
+                'require_dco_approval' => [
+                    'description' => 'Require TAU-DCO approval before forms can be used by requestors',
+                    'type' => 'boolean',
+                    'default' => '1'
+                ]
+            ];
+            
+            if (isset($defaultSettings[$configKey])) {
+                $setting = $defaultSettings[$configKey];
+                $this->configurationModel->insert([
+                    'config_key' => $configKey,
+                    'config_value' => $configValue !== null ? $configValue : $setting['default'],
+                    'config_description' => $setting['description'],
+                    'config_type' => $setting['type']
+                ]);
+                $existingConfig = $this->configurationModel->where('config_key', $configKey)->first();
+            } else {
+                return $this->response->setStatusCode(404)->setJSON([
+                    'success' => false, 
+                    'message' => 'Configuration not found',
+                    'csrf_token' => csrf_hash()
+                ]);
+            }
+        }
+        
+        // Only allow toggling boolean types
+        if ($existingConfig['config_type'] !== 'boolean') {
+            return $this->response->setStatusCode(400)->setJSON([
+                'success' => false, 
+                'message' => 'Only boolean settings can be toggled',
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+        
+        // Toggle or set value
+        if ($configValue !== null) {
+            $newValue = in_array((string)$configValue, ['1', 'true', 'yes'], true) ? '1' : '0';
+        } else {
+            $newValue = $existingConfig['config_value'] == '1' ? '0' : '1';
+        }
+        
+        // Update configuration
+        if ($this->configurationModel->update($existingConfig['id'], ['config_value' => $newValue])) {
+            $configName = ucwords(str_replace('_', ' ', $configKey));
+            return $this->response->setJSON([
+                'success' => true,
+                'config_key' => $configKey,
+                'value' => (int)$newValue,
+                'message' => $configName . ' ' . ($newValue == '1' ? 'enabled' : 'disabled'),
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+        
+        return $this->response->setStatusCode(500)->setJSON([
+            'success' => false, 
+            'message' => 'Failed to update configuration',
+            'csrf_token' => csrf_hash()
+        ]);
     }
 }
 

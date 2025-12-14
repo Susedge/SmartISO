@@ -152,13 +152,18 @@
                         <th>Description</th>
                         <th>Department</th>
                         <th>Office</th>
+                        <th>DCO Status</th>
                         <th style="display:none">dept_id</th>
                         <th style="display:none">office_id</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($forms as $form):
+                    <?php 
+                    // Check if DCO approval requirement is enabled
+                    $requireDcoApproval = isset($requireDcoApproval) ? $requireDcoApproval : true;
+                    
+                    foreach ($forms as $form):
                         // Resolve names like before
                         $dept = !empty($form['department_name']) ? $form['department_name'] : null;
                         if (empty($dept) && !empty($form['department_id'])) {
@@ -168,18 +173,49 @@
                         if (empty($office) && !empty($form['office_id'])) {
                             foreach ($allOffices as $o) { if ($o['id']==$form['office_id']) { $office = $o['description']; break; } }
                         }
+                        // Check DCO approval status (only matters if requireDcoApproval is enabled)
+                        $isDcoApproved = !empty($form['dco_approved']);
+                        $isRequestor = session()->get('user_type') === 'requestor';
+                        $canAccess = !$requireDcoApproval || !$isRequestor || $isDcoApproved;
+                        $showDcoStatus = $requireDcoApproval; // Only show DCO column if feature is enabled
                     ?>
-                        <tr>
+                        <tr class="<?= (!$canAccess && $requireDcoApproval) ? 'table-secondary' : '' ?>">
                             <td><?= esc($form['code']) ?></td>
-                            <td><?= esc($form['description']) ?></td>
+                            <td>
+                                <?= esc($form['description']) ?>
+                                <?php if ($requireDcoApproval && !$isDcoApproved): ?>
+                                    <small class="d-block text-muted fst-italic">Pending TAU-DCO approval</small>
+                                <?php endif; ?>
+                            </td>
                             <td><?= esc($dept ?? '') ?></td>
                             <td><?= esc($office ?? '') ?></td>
+                            <td>
+                                <?php if (!$requireDcoApproval): ?>
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-minus-circle me-1"></i>N/A
+                                    </span>
+                                <?php elseif ($isDcoApproved): ?>
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle me-1"></i>Approved
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-clock me-1"></i>Pending
+                                    </span>
+                                <?php endif; ?>
+                            </td>
                             <td style="display:none"><?= esc($form['department_id'] ?? '') ?></td>
                             <td style="display:none"><?= esc($form['office_id'] ?? '') ?></td>
                             <td>
-                                <a href="<?= base_url('forms/view/' . esc($form['code'])) ?>" class="btn btn-primary btn-sm">Fill Out</a>
-                                <?php if (session()->get('user_type') === 'requestor'): ?>
-                                    <a href="<?= base_url('forms/download/uploaded/' . esc($form['code'])) ?>" class="btn btn-outline-secondary btn-sm ms-1" title="Download Template"><i class="fas fa-file-download"></i></a>
+                                <?php if ($canAccess): ?>
+                                    <a href="<?= base_url('forms/view/' . esc($form['code'])) ?>" class="btn btn-primary btn-sm">Fill Out</a>
+                                    <?php if ($isRequestor): ?>
+                                        <a href="<?= base_url('forms/download/uploaded/' . esc($form['code'])) ?>" class="btn btn-outline-secondary btn-sm ms-1" title="Download Template"><i class="fas fa-file-download"></i></a>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <button class="btn btn-secondary btn-sm" disabled title="This form is pending TAU-DCO approval">
+                                        <i class="fas fa-lock me-1"></i>Locked
+                                    </button>
                                 <?php endif; ?>
                             </td>
                         </tr>

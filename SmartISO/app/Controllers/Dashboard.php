@@ -181,18 +181,18 @@ class Dashboard extends BaseController
         }
         elseif ($userType === 'tau_dco') {
             // For TAU-DCO users - count forms by DCO approval status
-            $panelModel = new \App\Models\Panel();
+            $formModel = new \App\Models\FormModel();
             
             // Total forms in system
-            $statusSummary['total_forms'] = $panelModel->countAllResults();
+            $statusSummary['total_forms'] = $formModel->countAllResults();
             
             // Forms pending DCO approval
-            $statusSummary['pending_dco'] = $panelModel->where('dco_approved', 0)
+            $statusSummary['pending_dco'] = $formModel->where('dco_approved', 0)
                                                        ->orWhere('dco_approved IS NULL')
                                                        ->countAllResults();
             
             // Forms with DCO approval
-            $statusSummary['dco_approved'] = $panelModel->where('dco_approved', 1)
+            $statusSummary['dco_approved'] = $formModel->where('dco_approved', 1)
                                                         ->countAllResults();
         }
         elseif ($isGlobalAdmin || $isDepartmentAdmin) {

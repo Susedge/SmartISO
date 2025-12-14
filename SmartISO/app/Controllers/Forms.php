@@ -201,7 +201,7 @@ class Forms extends BaseController
         $forms = [];
         if (isset($this->formModel)) {
             $builder = $this->db->table('forms f')
-                ->select('f.*, COALESCE(d1.description, d2.description) AS department_name, o.description AS office_name')
+                ->select('f.*, f.dco_approved, COALESCE(d1.description, d2.description) AS department_name, o.description AS office_name')
                 ->join('departments d1', 'd1.id = f.department_id', 'left')
                 ->join('offices o', 'o.id = f.office_id', 'left')
                 ->join('departments d2', 'd2.id = o.department_id', 'left');
@@ -263,6 +263,9 @@ class Forms extends BaseController
             $forms = $builder->orderBy('f.description','ASC')->get()->getResultArray();
         }
 
+        // Check if DCO approval requirement is enabled
+        $requireDcoApproval = $this->configurationModel->getConfig('require_dco_approval', true);
+
         $data = [
             'title' => 'Available Forms',
             'forms' => $forms,
@@ -275,7 +278,8 @@ class Forms extends BaseController
             'isGlobalAdmin' => $isGlobalAdmin,
             'isRequestor' => $isRequestor,
             'userDepartment' => $userDepartment,
-            'userOffice' => $userOffice
+            'userOffice' => $userOffice,
+            'requireDcoApproval' => $requireDcoApproval
         ];
 
         return view('forms/index', $data);
@@ -287,6 +291,14 @@ class Forms extends BaseController
         
         if (!$form) {
             return redirect()->to('/forms')->with('error', 'Form not found');
+        }
+        
+        // SECURITY: Check if form is DCO approved for requestors (only if setting is enabled)
+        $userType = session()->get('user_type');
+        $requireDcoApproval = $this->configurationModel->getConfig('require_dco_approval', true);
+        
+        if ($userType === 'requestor' && $requireDcoApproval && empty($form['dco_approved'])) {
+            return redirect()->to('/forms')->with('error', 'This form is pending TAU-DCO approval and cannot be used yet.');
         }
         
         // Get panel fields using the panel_name from the form, or fallback to formCode

@@ -278,6 +278,8 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     $routes->get('configurations/backup-database', 'Admin\Configurations::exportDatabase');
     // Toggle automatic backup (AJAX)
     $routes->post('configurations/toggle-auto-backup', 'Admin\Configurations::toggleAutoBackup');
+    // Toggle any boolean system config (AJAX)
+    $routes->post('configurations/toggle-system-config', 'Admin\Configurations::toggleSystemConfig');
     
     // Database Backup Management
     $routes->get('database-backup', 'Admin\DatabaseBackup::index');

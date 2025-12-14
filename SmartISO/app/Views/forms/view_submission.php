@@ -436,11 +436,9 @@
         </div>
     </div>
     
-    <!-- Document Header Image -->
+    <!-- Document Header Image - Fixed TAU Header -->
     <div class="doc-header">
-        <?php if (!empty($form['header_image'])): ?>
-            <img src="<?= base_url('uploads/form_headers/' . $form['header_image']) ?>" alt="Form Header">
-        <?php endif; ?>
+        <img src="<?= base_url('assets/TAU-header.png') ?>" alt="TAU Header">
     </div>
     
     <!-- Department Box & Form Title -->
