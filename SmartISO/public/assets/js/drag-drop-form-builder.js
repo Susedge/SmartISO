@@ -1506,6 +1506,10 @@ class FormBuilder {
                 fieldHTML += `<input type="hidden" name="${name}" value="${fieldData.value || ''}" disabled>
                     <small class="text-muted">Hidden field: ${name}</small>`;
                 break;
+            case 'section_header':
+                // Section header is just a text grouper, styled like a field label but darker
+                fieldHTML = `<label class="form-label fw-semibold" style="color: #212529; font-size: 0.95rem;">${label}</label>`;
+                break;
             default:
                 fieldHTML += `<input type="text" class="form-control" name="${name}" placeholder="${placeholder}" ${fieldData.required ? 'required' : ''} disabled>`;
         }
@@ -1776,6 +1780,7 @@ class FormBuilder {
                             <option value="radio" ${fieldTypeVal==='radio'?'selected':''}>Checkboxes</option>
                             <option value="list" ${fieldTypeVal==='list'?'selected':''}>List</option>
                             <option value="datepicker" ${fieldTypeVal==='datepicker'?'selected':''}>Date Picker</option>
+                            <option value="section_header" ${fieldTypeVal==='section_header'?'selected':''}>Section Header</option>
                         </select>
                     </div>
                     <div class="col-6"><label class="form-label small mb-1">Width</label>

@@ -80,14 +80,7 @@
                             ?>
                             <div class="row">
                                 <div class="col-12">
-                                    <div class="section-header-group my-3">
-                                        <h5 class="section-header-title border-bottom pb-2 mb-3 text-primary">
-                                            <i class="fas fa-folder-open me-2"></i><?= esc($field['field_label']) ?>
-                                        </h5>
-                                        <?php if (!empty($field['default_value'])): ?>
-                                            <p class="section-header-description text-muted small"><?= esc($field['default_value']) ?></p>
-                                        <?php endif; ?>
-                                    </div>
+                                    <label class="form-label fw-semibold mb-2" style="color: #212529; font-size: 0.95rem;"><?= esc($field['field_label']) ?></label>
                                 </div>
                             </div>
                             <?php
