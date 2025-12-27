@@ -61,7 +61,7 @@ class Users extends BaseController
             'username' => 'required|alpha_numeric_punct|min_length[3]|max_length[30]|is_unique[users.username]',
             'full_name' => 'required|min_length[3]|max_length[100]',
             'department_id' => 'permit_empty|integer',
-            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser,department_admin]',
+            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser,department_admin,tau_dco]',
             'password' => 'required|min_length[8]',
             'password_confirm' => 'required|matches[password]'
         ];
@@ -200,7 +200,7 @@ class Users extends BaseController
             'username' => "required|alpha_numeric_punct|min_length[3]|max_length[30]|is_unique[users.username,id,$id]",
             'full_name' => 'required|min_length[3]|max_length[100]',
             'department_id' => 'permit_empty|integer',
-            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser,department_admin]',
+            'user_type' => 'required|in_list[admin,requestor,approving_authority,service_staff,superuser,department_admin,tau_dco]',
         ];
         
         // Add password validation only if password field is filled

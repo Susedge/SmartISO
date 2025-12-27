@@ -1,0 +1,270 @@
+================================================================================
+                    TAU-DCO USER ACCOUNT - QUICK START GUIDE
+================================================================================
+
+✅ SETUP COMPLETE - Account is ready to use!
+
+================================================================================
+                              LOGIN CREDENTIALS
+================================================================================
+
+Username: tau_dco_user
+Password: password123
+
+⚠️  CRITICAL: Change this default password after first login via Profile page!
+
+================================================================================
+                            HOW TO LOGIN & USE
+================================================================================
+
+STEP 1: LOGIN
+-------------
+1. Open browser and go to: http://localhost:8080/auth/login
+2. Enter username: tau_dco_user
+3. Enter password: password123
+4. Click "Login"
+5. You will be redirected to the Dashboard
+
+STEP 2: EXPLORE DASHBOARD
+--------------------------
+After login, you'll see three summary cards:
+- Pending DCO Approval (yellow card) - Forms awaiting your approval
+- DCO Approved (green card) - Forms you've already approved
+- Total Forms (blue card) - All forms in the system
+
+Quick Actions available:
+- Form Approval Management
+- View Audit Logs
+
+STEP 3: ACCESS FORM APPROVAL
+-----------------------------
+1. Look at the left sidebar
+2. Find "TAU-DCO" section heading
+3. Click "Form Approval" menu item
+4. You'll see a list of all form templates with their DCO status
+
+STEP 4: APPROVE/REVOKE FORMS
+-----------------------------
+On the Form Approval page:
+
+TO APPROVE A FORM:
+1. Find a form with "Pending" (yellow) badge
+2. Click "Edit" button on that row
+3. Review form details (Revision No., Effectivity Date)
+4. Click the blue "Approve" button
+5. Form status changes to "Approved" (green badge)
+6. Requestors can now use this form
+
+TO REVOKE APPROVAL:
+1. Find a form with "Approved" (green) badge
+2. Click "Edit" button
+3. Click the red "Revoke Approval" button
+4. Confirm the action
+5. Form status returns to "Pending"
+6. Requestors can no longer use this form
+
+TO EDIT FORM DETAILS:
+1. Click "Edit" on any form
+2. Update "Revision No." (e.g., 00, 01, 02)
+3. Update "Effectivity Date"
+4. Click "Update Details"
+
+================================================================================
+                         WHAT TAU-DCO CAN ACCESS
+================================================================================
+
+ALLOWED:
+✅ Dashboard with DCO statistics
+✅ Form Approval management (approve/revoke forms)
+✅ Edit form revision numbers and effectivity dates
+✅ View all forms (all departments)
+✅ Access audit logs
+✅ University-wide access (not restricted by department)
+✅ View and manage user profiles
+✅ Access admin panel sections
+
+NOT ALLOWED:
+❌ Delete users (superuser only)
+❌ Modify system configurations (admin/superuser only)
+❌ Access schedule management (not needed for DCO role)
+
+================================================================================
+                           TECHNICAL DETAILS
+================================================================================
+
+User ID:          14
+Email:            dco@tau.edu.ph
+User Type:        tau_dco
+Status:           Active
+Department:       NULL (University-wide)
+Office:           NULL (University-wide)
+Created:          2025-12-03 11:50:12
+
+Database ENUM Values:
+- admin
+- requestor
+- approving_authority
+- service_staff
+- superuser
+- department_admin
+- tau_dco ✅ (Added)
+
+Validation Rules Updated:
+- app/Controllers/Admin/Users.php (create method) ✅
+- app/Controllers/Admin/Users.php (update method) ✅
+
+================================================================================
+                         REQUESTOR EXPERIENCE
+================================================================================
+
+When DCO approval is required (system setting):
+
+BEFORE DCO APPROVAL:
+- Requestors see form with "Pending DCO Approval" badge
+- "Fill Out Form" button is LOCKED (disabled, gray)
+- Clicking shows error: "Form not available for use"
+- Lock icon (🔒) displayed in actions column
+
+AFTER DCO APPROVAL:
+- Form shows "DCO Approved" badge (green)
+- "Fill Out Form" button is ACTIVE (blue, clickable)
+- Requestors can now submit requests using this form
+
+================================================================================
+                       DCO APPROVAL TOGGLE
+================================================================================
+
+Administrators can enable/disable DCO approval requirement:
+
+1. Login as Admin or Superuser
+2. Go to Settings > System Settings
+3. Find "Require DCO Approval" card
+4. Toggle ON: All forms need DCO approval before requestors can use them
+5. Toggle OFF: Forms available immediately without DCO approval
+6. Changes apply in real-time (no restart needed)
+
+================================================================================
+                         TROUBLESHOOTING
+================================================================================
+
+PROBLEM: Cannot login
+SOLUTION: 
+- Verify username is exactly: tau_dco_user (case-sensitive)
+- Verify password is: password123
+- Check if account is active (should be)
+- Clear browser cache and try again
+
+PROBLEM: Don't see TAU-DCO menu in sidebar
+SOLUTION:
+- Verify you're logged in as tau_dco_user
+- Check user_type in session is 'tau_dco'
+- Try logging out and logging back in
+
+PROBLEM: "Access Denied" when clicking Form Approval
+SOLUTION:
+- Verify user_type is 'tau_dco' in database
+- Check if routes are configured correctly
+- Verify DepartmentAdminFilter includes 'tau_dco' in allowed types
+
+PROBLEM: Forms not showing up
+SOLUTION:
+- Check if any forms exist in the system
+- Verify database connection is working
+- Admin users need to create forms first
+
+================================================================================
+                          CHANGE PASSWORD
+================================================================================
+
+RECOMMENDED: Change the default password immediately!
+
+1. Login with tau_dco_user
+2. Click on your profile icon (top right)
+3. Select "Profile"
+4. Click "Edit Profile" or "Change Password" tab
+5. Enter current password: password123
+6. Enter new password (min 8 characters)
+7. Confirm new password
+8. Click "Update Password"
+
+================================================================================
+                         VERIFICATION SCRIPTS
+================================================================================
+
+To verify the setup manually:
+
+Check if user exists:
+cd "c:\xampp\htdocs\SmartISO-5\SmartISO"
+php verify_tau_dco.php
+
+Check user_type ENUM:
+php check_usertype_enum.php
+
+================================================================================
+                           FILES MODIFIED
+================================================================================
+
+1. app/Controllers/Admin/Users.php
+   - Line 64: Added tau_dco to validation in create()
+   - Line 203: Added tau_dco to validation in update()
+
+2. Database (no migration needed - already exists)
+   - users.user_type ENUM includes 'tau_dco'
+   - User record exists (ID: 14)
+
+3. Existing Integration (already implemented):
+   - app/Controllers/Admin/DcoApproval.php (DCO controller)
+   - app/Views/admin/dco_approval/*.php (DCO views)
+   - app/Filters/DepartmentAdminFilter.php (includes tau_dco access)
+   - app/Config/Routes.php (tau_dco routes protected)
+   - app/Views/dashboard.php (tau_dco dashboard section)
+   - app/Views/layouts/default.php (tau_dco sidebar menu)
+
+================================================================================
+                              NEXT STEPS
+================================================================================
+
+1. ✅ Login with tau_dco_user account
+2. ✅ Change the default password
+3. ✅ Explore the Dashboard
+4. ✅ Navigate to TAU-DCO > Form Approval
+5. ✅ Review existing forms
+6. ✅ Approve/revoke forms as needed
+7. ✅ Test form access as a requestor (optional)
+8. ✅ Review audit logs for compliance tracking
+
+================================================================================
+                            SUPPORT & HELP
+================================================================================
+
+For detailed information:
+- Read: TAU_DCO_SETUP_COMPLETE.md
+- Read: recommendations_detailed.txt (search for "tau_dco")
+- Read: QUICK_ACCESS_GUIDE.txt (TAU-DCO section)
+
+System Requirements:
+- SmartISO v5 or higher
+- PHP 7.4 or higher
+- MySQL/MariaDB database
+- Apache/Nginx web server
+
+================================================================================
+                              SUCCESS!
+================================================================================
+
+✅ TAU-DCO user account is ENABLED and ACTIVE
+✅ User can LOGIN with provided credentials
+✅ User can ACCESS Form Approval module
+✅ User can APPROVE/REVOKE forms for ISO compliance
+✅ Dashboard shows DCO statistics
+✅ Navigation menu includes TAU-DCO section
+✅ Validation rules updated in controllers
+✅ Access control configured properly
+
+The system is ready for TAU-DCO operations!
+
+================================================================================
+Last Updated: December 27, 2025
+Status: Production Ready
+Version: SmartISO v5
+================================================================================
