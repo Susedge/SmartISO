@@ -243,11 +243,27 @@ class DynamicForms extends BaseController
         }
 
         $panelName = $this->request->getPost('panel_name');
+        $formName = $this->request->getPost('form_name');
+        $formId = $this->request->getPost('form_id'); // New: optional form ID for direct assignment
         $departmentId = $this->request->getPost('department_id') ?: null;
         $officeId = $this->request->getPost('office_id') ?: null;
         
         if (empty($panelName)) {
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
+        }
+        
+        // If form_id is provided, get the form_name from the forms table
+        $formModel = new \App\Models\FormModel();
+        if (!empty($formId)) {
+            $form = $formModel->find($formId);
+            if ($form) {
+                $formName = $form['code']; // Use form code as form_name for panel grouping
+            }
+        }
+        
+        // form_name is now optional - panels can be created without a form assignment
+        if (empty($formName)) {
+            $formName = ''; // Allow empty form_name for ungrouped panels
         }
 
         // Ensure uniqueness
@@ -259,6 +275,7 @@ class DynamicForms extends BaseController
         // Create a placeholder field so the panel is created and editable in the builder
         $this->dbpanelModel->insert([
             'panel_name' => $panelName,
+            'form_name' => $formName,
             'department_id' => $departmentId,
             'office_id' => $officeId,
             'field_name' => '_placeholder',
@@ -269,9 +286,14 @@ class DynamicForms extends BaseController
             'width' => 12
         ]);
 
+        // If a form_id was provided, also assign this panel to that form
+        if (!empty($formId) && $formModel->find($formId)) {
+            $formModel->update($formId, ['panel_name' => $panelName]);
+        }
+
         // Log panel creation
         $auditLogger = new AuditLogger();
-        $auditLogger->logCreate('panel', null, $panelName, "Created new panel: {$panelName}");
+        $auditLogger->logCreate('panel', null, $panelName, "Created new panel: {$panelName}" . ($formName ? " for form: {$formName}" : ""));
 
     return redirect()->to('/admin/configurations?type=panels')->with('message', 'Panel created successfully');
     }
@@ -331,12 +353,14 @@ class DynamicForms extends BaseController
     {
         $rules = [
             'source_panel_name' => 'required|max_length[100]',
-            'new_panel_name' => 'required|max_length[100]|is_unique[dbpanel.panel_name]'
+            'new_panel_name' => 'required|max_length[100]|is_unique[dbpanel.panel_name]',
+            'form_name' => 'required|max_length[255]'
         ];
         
         if ($this->validate($rules)) {
             $sourcePanelName = $this->request->getPost('source_panel_name');
             $newPanelName = $this->request->getPost('new_panel_name');
+            $formName = $this->request->getPost('form_name');
             
             // Get all fields from the source panel
             $sourceFields = $this->dbpanelModel->getPanelFields($sourcePanelName);
@@ -359,13 +383,13 @@ class DynamicForms extends BaseController
             }
             
             // Copy each field to the new panel (preserve department_id and office_id from source)
-            // New copies start as INACTIVE by default (draft/revision mode)
             $departmentId = $sourceFields[0]['department_id'] ?? null;
             $officeId = $sourceFields[0]['office_id'] ?? null;
             
             foreach ($sourceFields as $field) {
                 $newFieldData = [
                     'panel_name' => $newPanelName,
+                    'form_name' => $formName,
                     'field_name' => $field['field_name'],
                     'field_label' => $field['field_label'],
                     'field_type' => $field['field_type'],
@@ -378,8 +402,7 @@ class DynamicForms extends BaseController
                     'code_table' => $field['code_table'] ?? '',
                     'length' => $field['length'] ?? '',
                     'department_id' => $departmentId,
-                    'office_id' => $officeId,
-                    'is_active' => 0 // Copied panels start as inactive (draft)
+                    'office_id' => $officeId
                 ];
                 
                 $this->dbpanelModel->save($newFieldData);
@@ -387,7 +410,7 @@ class DynamicForms extends BaseController
             
             $fieldCount = count($sourceFields);
             return redirect()->to('/admin/configurations?type=panels')
-                            ->with('message', "Panel '{$newPanelName}' created as INACTIVE (draft) with {$fieldCount} fields copied from '{$sourcePanelName}'. Activate it when ready to use.");
+                            ->with('message', "Panel '{$newPanelName}' created with {$fieldCount} fields copied from '{$sourcePanelName}' for form '{$formName}'.");
         } else {
             $errors = $this->validator->getErrors();
             return redirect()->to('/admin/configurations?type=panels')
@@ -498,12 +521,22 @@ class DynamicForms extends BaseController
         $departmentModel = new \App\Models\DepartmentModel();
         $officeModel = new \App\Models\OfficeModel();
         
+        // Get existing form names for datalist
+        $existingFormNames = $this->dbpanelModel
+            ->select('form_name')
+            ->distinct()
+            ->where('form_name IS NOT NULL')
+            ->where('form_name !=', '')
+            ->orderBy('form_name', 'ASC')
+            ->findColumn('form_name');
+        
         $data = [
             'title' => 'Edit Panel Assignment',
             'panel_name' => $panelName,
             'panel_info' => $panelInfo,
             'departments' => $departmentModel->orderBy('description', 'ASC')->findAll(),
             'allOffices' => $officeModel->orderBy('description', 'ASC')->findAll(),
+            'existingFormNames' => $existingFormNames,
             'isDepartmentAdmin' => $isDepartmentAdmin,
             'userDepartmentId' => $userDepartmentId
         ];
@@ -518,11 +551,16 @@ class DynamicForms extends BaseController
         }
 
         $panelName = $this->request->getPost('panel_name');
+        $formName = $this->request->getPost('form_name');
         $departmentId = $this->request->getPost('department_id') ?: null;
         $officeId = $this->request->getPost('office_id') ?: null;
         
         if (empty($panelName)) {
             return redirect()->back()->with('error', 'Panel name is required')->withInput();
+        }
+        
+        if (empty($formName)) {
+            return redirect()->back()->with('error', 'Form name is required')->withInput();
         }
 
         // Check if panel exists
@@ -544,6 +582,7 @@ class DynamicForms extends BaseController
             // Update all records for this panel
             $this->dbpanelModel->where('panel_name', $panelName)
                 ->set([
+                    'form_name' => $formName,
                     'department_id' => $departmentId,
                     'office_id' => $officeId
                 ])

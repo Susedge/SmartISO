@@ -274,6 +274,8 @@ $routes->group('admin', ['filter' => 'departmentAdmin'], function ($routes) {
     // Department and Office API endpoints for panel assignment
     $routes->get('configurations/get-departments', 'Admin\Configurations::getDepartments');
     $routes->get('configurations/get-offices', 'Admin\Configurations::getOffices');
+    $routes->get('configurations/get-forms', 'Admin\Configurations::getForms');
+    $routes->post('configurations/assign-panel-to-form', 'Admin\Configurations::assignPanelToForm');
     // Database backup (download SQL dump)
     $routes->get('configurations/backup-database', 'Admin\Configurations::exportDatabase');
     // Toggle automatic backup (AJAX)

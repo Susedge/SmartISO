@@ -134,6 +134,15 @@ WHERE fs.service_staff_id = YOUR_STAFF_ID
 - Verify `assigned_staff_id` matches the logged-in service staff
 - Check if any department filters are active
 
+### Fix added (Nov 24, 2025)
+
+We discovered a case where a schedule row existed for a submission but its `assigned_staff_id` was missing (or different). The calendar previously excluded those submissions because the "virtual submission" query filtered out records when a schedule row existed. We removed that exclusion so all submissions assigned to a service staff are returned for calendar merging (the merge logic keeps real schedule rows when present). This ensures that:
+
+- Submissions assigned to a staff member will appear in the staff calendar even if the schedule row is incorrectly assigned
+- The calendar still prefers real schedule rows when both exist (no duplicate events)
+
+If you still see missing events after this change, check the logs for schedule creation errors and verify the `schedules.assigned_staff_id` values.
+
 ### 4. Date/Time Zone Issue
 **Symptoms**: Schedule date is off by one day
 **Causes**:
@@ -192,3 +201,18 @@ After approving a test submission:
 3. Check if the schedule appears in database
 4. If yes → calendar display issue
 5. If no → schedule creation issue (check error logs)
+
+## Recent code changes
+
+- Added model-level schedule creation: `FormSubmissionModel::createScheduleOnApproval` is now called whenever a submission is approved (covering admin, bulk, and UI approval flows). This guarantees a schedule row is created or updated when a submission becomes approved/pending_service.
+- Updated admin bulk approval flows to call the model's approve helper so schedules and notifications are created consistently.
+
+### Department admin notifications fix (Nov 24, 2025)
+
+- Some department admins were not receiving notifications for service assignments. The notification system now sends assignment notifications to:
+  - the assigned service staff (existing behavior)
+  - the submission approver (when present)
+  - department admins for the form's department
+  - global admins (audit)
+
+This reduces cases where department admins saw no notifications for events relevant to their department.

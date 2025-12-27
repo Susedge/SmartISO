@@ -22,7 +22,7 @@ class DbpanelModel extends Model
     protected $returnType     = 'array';
     
     protected $allowedFields = [
-        'panel_name', 'field_name', 'field_label', 'field_type', 
+        'panel_name', 'form_name', 'field_name', 'field_label', 'field_type', 
         'bump_next_field', 'code_table', 'length', 'field_order',
         'required', 'width', 'field_role', 'default_value',
         'department_id', 'office_id', 'is_active'
@@ -97,8 +97,8 @@ class DbpanelModel extends Model
     {
         $db = \Config\Database::connect();
         
-        // Build select with is_active only if column exists
-        $selectFields = 'p.panel_name, p.department_id, p.office_id, d.description as department_name, o.description as office_name';
+        // Build select with is_active and form_name
+        $selectFields = 'p.panel_name, p.form_name, p.department_id, p.office_id, p.created_at, d.description as department_name, o.description as office_name';
         if ($db->fieldExists('is_active', $this->table)) {
             $selectFields .= ', p.is_active';
         }
@@ -110,6 +110,7 @@ class DbpanelModel extends Model
                     ->distinct()
                     ->where('p.panel_name IS NOT NULL')
                     ->where('p.panel_name !=', '')
+                    ->orderBy('p.form_name', 'ASC')
                     ->orderBy('p.panel_name', 'ASC');
         
         return $builder->get()->getResultArray();

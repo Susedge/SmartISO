@@ -189,80 +189,196 @@
                         </tbody>
                 </table>
                 <?php elseif ($tableType === 'forms'): ?>
-                                                                <table class="table table-sm table-striped table-hover align-middle" id="table-forms" data-type="forms">
-                                                                                <thead><tr><th style="display:none">ID</th><th>Description</th><th>Department</th><th>Office</th><th>Template</th></tr></thead>
-                                                <tbody>
-                                                <?php
-                                                        // Build lookup maps for department/office names when the forms rows
-                                                        // do not include those values directly (controller may provide only ids)
-                                                        $deptMap = [];
-                                                        if (!empty($departments) && is_array($departments)) {
-                                                                foreach ($departments as $d) { $deptMap[$d['id']] = $d['description']; }
-                                                        }
-                                                        $officeMap = [];
-                                                        $allOfficesLocal = $allOffices ?? [];
-                                                        if (!empty($allOfficesLocal) && is_array($allOfficesLocal)) {
-                                                                foreach ($allOfficesLocal as $o) { $officeMap[$o['id']] = $o['description']; }
-                                                        }
-                                                ?>
-                                                <?php foreach ($forms as $f): $templatePath = FCPATH.'templates/docx/'.($f['code'] ?? 'unknown').'_template.docx'; $hasTemplate=file_exists($templatePath); ?>
-                                                                <tr data-id="<?= $f['id'] ?>" data-code="<?= esc($f['code'] ?? '') ?>" data-description="<?= esc($f['description'] ?? '') ?>" data-template="<?= $hasTemplate?1:0 ?>">
-                                                                                <td style="display:none"><?= $f['id'] ?></td>
-                                                                                <td><?= esc($f['description'] ?? '') ?></td>
-                                                                                <td>
-                                                                                        <?php
-                                                                                                $deptName = null;
-                                                                                                if (!empty($f['department_name'])) { $deptName = $f['department_name']; }
-                                                                                                elseif (!empty($f['department_id']) && isset($deptMap[$f['department_id']])) { $deptName = $deptMap[$f['department_id']]; }
-                                                                                                echo $deptName ? esc($deptName) : '<small class="text-muted">&mdash;</small>';
-                                                                                        ?>
-                                                                                </td>
-                                                                                <td>
-                                                                                        <?php
-                                                                                                $officeName = null;
-                                                                                                if (!empty($f['office_name'])) { $officeName = $f['office_name']; }
-                                                                                                elseif (!empty($f['office_id']) && isset($officeMap[$f['office_id']])) { $officeName = $officeMap[$f['office_id']]; }
-                                                                                                echo $officeName ? esc($officeName) : '<small class="text-muted">&mdash;</small>';
-                                                                                        ?>
-                                                                                </td>
-                                                                                <td><?= $hasTemplate?'<span class="badge bg-success">Yes</span>':'<span class="badge bg-secondary">No</span>' ?></td>
-                                                                </tr>
-                                                <?php endforeach; ?>
-                                                                                        <?php // If no forms, leave tbody empty so DataTables will display empty state ?>
-                                                </tbody>
-                                </table>
-        <?php elseif ($tableType === 'panels'): ?>
-                        <table class="table table-sm table-striped table-hover align-middle" id="table-panels" data-type="panels">
-                                <thead><tr><th style="display:none">ID</th><th>Panel Name</th><th>Status</th><th>Department</th><th>Office</th></tr></thead>
-                        <tbody>
-                                <?php if (!empty($panels)): foreach ($panels as $panel): 
-                                        $isActive = isset($panel['is_active']) ? (int)$panel['is_active'] : 1;
+                                <?php
+                                // Build panel lookup by panel_name for quick matching
+                                $panelsByName = [];
+                                foreach ($panels as $panel) {
+                                    $panelsByName[$panel['panel_name']] = $panel;
+                                }
+                                
+                                // Group panels by form_name for "Available Panels" display
+                                $formGroups = [];
+                                $ungrouped = [];
+                                foreach ($panels as $panel) {
+                                    $formName = $panel['form_name'] ?? '';
+                                    if (empty($formName)) {
+                                        $ungrouped[] = $panel;
+                                    } else {
+                                        if (!isset($formGroups[$formName])) {
+                                            $formGroups[$formName] = [];
+                                        }
+                                        $formGroups[$formName][] = $panel;
+                                    }
+                                }
+                                ksort($formGroups);
+                                
+                                // Build department lookup
+                                $deptMap = [];
+                                if (!empty($departments) && is_array($departments)) {
+                                    foreach ($departments as $d) { $deptMap[$d['id']] = $d['description']; }
+                                }
+                                $officeMap = [];
+                                $allOfficesLocal = $allOffices ?? [];
+                                if (!empty($allOfficesLocal) && is_array($allOfficesLocal)) {
+                                    foreach ($allOfficesLocal as $o) { $officeMap[$o['id']] = $o['description']; }
+                                }
                                 ?>
+                                
+                                <div class="alert alert-info mb-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Form & Panel Management:</strong> Click on a form to expand and see its assigned panel. Use the radio button to assign a different panel to each form.
+                                </div>
+                                
+                                <div class="accordion" id="formPanelsAccordion">
+                                    <?php if (!empty($forms)): ?>
+                                    <?php foreach ($forms as $form): 
+                                        $formId = $form['id'];
+                                        $formCode = $form['code'] ?? '';
+                                        $formDesc = $form['description'] ?? '';
+                                        $assignedPanel = $form['panel_name'] ?? '';
+                                        $deptName = null;
+                                        if (!empty($form['department_name'])) { $deptName = $form['department_name']; }
+                                        elseif (!empty($form['department_id']) && isset($deptMap[$form['department_id']])) { $deptName = $deptMap[$form['department_id']]; }
+                                        $officeName = null;
+                                        if (!empty($form['office_name'])) { $officeName = $form['office_name']; }
+                                        elseif (!empty($form['office_id']) && isset($officeMap[$form['office_id']])) { $officeName = $officeMap[$form['office_id']]; }
+                                        
+                                        // Get available panels (from formGroups matching form code or all ungrouped)
+                                        $availablePanels = $formGroups[$formCode] ?? [];
+                                        // Also include ungrouped panels as assignable
+                                        $allAssignable = array_merge($availablePanels, $ungrouped);
+                                    ?>
+                                    <div class="accordion-item" data-form-id="<?= $formId ?>">
+                                        <h2 class="accordion-header" id="heading-form-<?= $formId ?>">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-form-<?= $formId ?>" aria-expanded="false">
+                                                <div class="d-flex align-items-center gap-2 flex-wrap w-100">
+                                                    <i class="fas fa-file-alt text-primary"></i>
+                                                    <strong><?= esc($formCode) ?></strong>
+                                                    <span class="text-muted small">- <?= esc($formDesc) ?></span>
+                                                    <?php if ($assignedPanel): ?>
+                                                        <span class="badge bg-success ms-2" title="Assigned Panel"><i class="fas fa-link me-1"></i><?= esc($assignedPanel) ?></span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-warning text-dark ms-2"><i class="fas fa-exclamation-circle me-1"></i>No Panel Assigned</span>
+                                                    <?php endif; ?>
+                                                    <?php if ($deptName): ?>
+                                                        <span class="badge bg-secondary ms-auto"><?= esc($deptName) ?></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </button>
+                                        </h2>
+                                        <div id="collapse-form-<?= $formId ?>" class="accordion-collapse collapse" data-bs-parent="#formPanelsAccordion">
+                                            <div class="accordion-body">
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <h6 class="mb-3"><i class="fas fa-link me-2"></i>Assigned Panel</h6>
+                                                        <?php if ($assignedPanel && isset($panelsByName[$assignedPanel])): 
+                                                            $currentPanel = $panelsByName[$assignedPanel];
+                                                        ?>
+                                                            <div class="card border-success mb-3">
+                                                                <div class="card-body py-2">
+                                                                    <div class="d-flex align-items-center justify-content-between">
+                                                                        <div>
+                                                                            <strong><?= esc($assignedPanel) ?></strong>
+                                                                            <?php if (preg_match('/_v(\d+)/i', $assignedPanel, $matches)): ?>
+                                                                                <span class="badge bg-primary ms-2">v<?= $matches[1] ?></span>
+                                                                            <?php endif; ?>
+                                                                        </div>
+                                                                        <div class="btn-group btn-group-sm">
+                                                                            <a href="<?= base_url('admin/dynamicforms/form-builder/' . $assignedPanel) ?>" class="btn btn-success btn-sm" title="Visual Builder">
+                                                                                <i class="fas fa-tools"></i>
+                                                                            </a>
+                                                                            <a href="<?= base_url('admin/dynamicforms/edit-panel/' . $assignedPanel) ?>" class="btn btn-primary btn-sm" title="Edit Fields">
+                                                                                <i class="fas fa-edit"></i>
+                                                                            </a>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        <?php else: ?>
+                                                            <div class="alert alert-warning py-2">
+                                                                <i class="fas fa-info-circle me-2"></i>No panel assigned. Select one from the available panels.
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <h6 class="mb-3"><i class="fas fa-th-list me-2"></i>Available Panels</h6>
+                                                        <?php if (!empty($panels)): ?>
+                                                            <div class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
+                                                                <?php foreach ($panels as $panel): ?>
+                                                                    <label class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 <?= $panel['panel_name'] === $assignedPanel ? 'active' : '' ?>">
+                                                                        <input type="radio" 
+                                                                               name="panel_for_form_<?= $formId ?>" 
+                                                                               value="<?= esc($panel['panel_name']) ?>" 
+                                                                               class="form-check-input panel-assignment-radio"
+                                                                               data-form-id="<?= $formId ?>"
+                                                                               <?= $panel['panel_name'] === $assignedPanel ? 'checked' : '' ?>>
+                                                                        <span><?= esc($panel['panel_name']) ?></span>
+                                                                        <?php if (preg_match('/_v(\d+)/i', $panel['panel_name'], $matches)): ?>
+                                                                            <span class="badge bg-info">v<?= $matches[1] ?></span>
+                                                                        <?php endif; ?>
+                                                                        <?php if (!empty($panel['form_name'])): ?>
+                                                                            <small class="text-muted ms-auto">(<?= esc($panel['form_name']) ?>)</small>
+                                                                        <?php endif; ?>
+                                                                    </label>
+                                                                <?php endforeach; ?>
+                                                            </div>
+                                                            <button type="button" class="btn btn-outline-secondary btn-sm mt-2 clear-panel-btn" data-form-id="<?= $formId ?>">
+                                                                <i class="fas fa-times me-1"></i>Unassign Panel
+                                                            </button>
+                                                        <?php else: ?>
+                                                            <div class="text-muted small">
+                                                                <i class="fas fa-info-circle me-1"></i>No panels available. Create panels in the Panels tab first.
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                    <?php else: ?>
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        No forms configured yet. Use the "Add Form" button to create a form.
+                                    </div>
+                                    <?php endif; ?>
+                                </div>
+        <?php elseif ($tableType === 'panels'): ?>
+                <?php
+                // Build lookup maps for department/office names
+                $deptMap = [];
+                if (!empty($departments) && is_array($departments)) {
+                    foreach ($departments as $d) { $deptMap[$d['id']] = $d['description']; }
+                }
+                $officeMap = [];
+                $allOfficesLocal = $allOffices ?? [];
+                if (!empty($allOfficesLocal) && is_array($allOfficesLocal)) {
+                    foreach ($allOfficesLocal as $o) { $officeMap[$o['id']] = $o['description']; }
+                }
+                ?>
+                        <table class="table table-sm table-striped table-hover align-middle" id="table-panels" data-type="panels">
+                                <thead><tr><th style="display:none">ID</th><th>Panel Name</th><th>Form Name</th><th>Department</th><th>Office</th></tr></thead>
+                        <tbody>
+                                <?php if (!empty($panels)): foreach ($panels as $panel): ?>
                                         <tr data-id="<?= esc($panel['panel_name']) ?>" 
                                             data-code="<?= esc($panel['panel_name']) ?>"
+                                            data-form-name="<?= esc($panel['form_name'] ?? '') ?>"
                                             data-department-id="<?= esc($panel['department_id'] ?? '') ?>"
-                                            data-office-id="<?= esc($panel['office_id'] ?? '') ?>"
-                                            class="<?= !$isActive ? 'table-secondary' : '' ?>">
+                                            data-office-id="<?= esc($panel['office_id'] ?? '') ?>">
                                                 <td style="display:none">0</td>
                                                 <td><?= esc($panel['panel_name']) ?></td>
                                                 <td>
-                                                        <div class="form-check form-switch">
-                                                                <input class="form-check-input panel-status-toggle" type="checkbox" 
-                                                                       id="panelStatus_<?= md5($panel['panel_name']) ?>" 
-                                                                       data-panel="<?= esc($panel['panel_name']) ?>"
-                                                                       <?= $isActive ? 'checked' : '' ?>>
-                                                                <label class="form-check-label" for="panelStatus_<?= md5($panel['panel_name']) ?>">
-                                                                        <span class="badge <?= $isActive ? 'bg-success' : 'bg-secondary' ?>" id="statusBadge_<?= md5($panel['panel_name']) ?>">
-                                                                                <?= $isActive ? 'Active' : 'Inactive' ?>
-                                                                        </span>
-                                                                </label>
-                                                        </div>
+                                                        <?php if (!empty($panel['form_name'])): ?>
+                                                                <span class="badge bg-info"><?= esc($panel['form_name']) ?></span>
+                                                        <?php else: ?>
+                                                                <small class="text-muted">&mdash;</small>
+                                                        <?php endif; ?>
                                                 </td>
                                                 <td>
                                                         <?php
                                                                 $deptName = null;
                                                                 if (!empty($panel['department_name'])) { $deptName = $panel['department_name']; }
-                                                                elseif (!empty($panel['department_id']) && isset($departmentMap[$panel['department_id']])) { $deptName = $departmentMap[$panel['department_id']]; }
+                                                                elseif (!empty($panel['department_id']) && isset($deptMap[$panel['department_id']])) { $deptName = $deptMap[$panel['department_id']]; }
                                                                 echo $deptName ? esc($deptName) : '<small class="text-muted">&mdash;</small>';
                                                         ?>
                                                 </td>
@@ -287,6 +403,8 @@
                         <div class="mb-3 d-grid">
                                 <?php if($tableType==='panels'): ?>
                                         <a href="#" id="btnAddPanelModal" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add Panel</a>
+                                <?php elseif($tableType==='forms'): ?>
+                                        <a href="<?= base_url('admin/configurations/new?type=forms') ?>" id="btnAdd" class="btn btn-panel-add"><i class="fas fa-plus-circle me-2"></i>Add Form</a>
                                 <?php elseif($tableType==='system'): ?>
                                         <a href="<?= base_url('admin/database-backup') ?>" class="btn btn-primary">
                                                 <i class="fas fa-cog me-2"></i>Manage Database Backups
@@ -312,21 +430,20 @@
                                                         <button type="button" class="btn btn-outline-info btn-sm" id="btnPanelCopy"><i class="fas fa-copy me-1"></i>Copy Panel</button>
                                                         <button type="button" class="btn btn-outline-danger btn-sm" id="btnPanelDelete"><i class="fas fa-trash me-1"></i>Delete</button>
                                                 </div>
+                                        <?php elseif($tableType==='forms'): ?>
+                                                <!-- Forms tab help text - selection happens within accordion -->
+                                                <div class="small text-muted">
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        Click on a form in the accordion to expand it and manage panel assignment.
+                                                </div>
                                         <?php else: ?>
-                                                <!-- Render the generic selection actions for non-panel types (includes system) -->
+                                                <!-- Render the generic selection actions for non-panel, non-forms types -->
                                                 <div id="selectionActions" style="display:none" class="d-grid gap-2">
                                                         <?php if ($tableType !== 'system'): ?>
                                                         <a href="#" class="btn btn-outline-primary btn-sm" id="btnEdit"><i class="fas fa-edit me-1"></i>Edit</a>
                                                         <button type="button" class="btn btn-outline-danger btn-sm" id="btnDelete"><i class="fas fa-trash me-1"></i>Delete</button>
                                                         <?php endif; ?>
-                                                        <?php if ($tableType==='forms'): ?>
-                                                                <a href="#" class="btn btn-outline-info btn-sm" id="btnSignatories"><i class="fas fa-user-pen me-1"></i>Signatories</a>
-                                                                <div id="templateGroup" style="display:none" class="d-grid gap-1 mt-1">
-                                                                        <button type="button" class="btn btn-outline-info btn-sm" id="tmplDownload"><i class="fas fa-download me-1"></i>Download Template</button>
-                                                                        <!-- <button type="button" class="btn btn-outline-secondary btn-sm" id="tmplUpload"><i class="fas fa-upload me-1"></i>Upload / Replace Template</button>
-                                                                        <button type="button" class="btn btn-outline-danger btn-sm" id="tmplDelete"><i class="fas fa-trash me-1"></i>Delete Template</button> -->
-                                                                </div>
-                                                        <?php elseif ($tableType==='system'): ?>
+                                                        <?php if ($tableType==='system'): ?>
                                                                 <a href="#" class="btn btn-outline-primary btn-sm" id="btnEdit"><i class="fas fa-edit me-1"></i>Edit Value</a>
                                                         <?php endif; ?>
                                                 </div>
@@ -392,77 +509,7 @@ document.addEventListener('DOMContentLoaded', function(){
 <script>
 // Panel status toggle handler
 document.addEventListener('DOMContentLoaded', function(){
-        // Store current CSRF token - will be updated after each request
-        var csrfToken = '<?= csrf_hash() ?>';
-        var csrfName = '<?= csrf_token() ?>';
-        
-        document.querySelectorAll('.panel-status-toggle').forEach(function(toggle) {
-                toggle.addEventListener('change', function() {
-                        var panelName = this.getAttribute('data-panel');
-                        var isActive = this.checked ? 1 : 0;
-                        var badgeId = 'statusBadge_' + this.id.replace('panelStatus_', '');
-                        var badge = document.getElementById(badgeId);
-                        var row = this.closest('tr');
-                        var toggleEl = this;
-                        
-                        // Show loading state
-                        toggleEl.disabled = true;
-                        
-                        var formData = new FormData();
-                        formData.append('panel_name', panelName);
-                        formData.append('is_active', isActive);
-                        formData.append(csrfName, csrfToken);
-                        
-                        fetch('<?= base_url('admin/dynamicforms/toggle-panel-status') ?>', {
-                                method: 'POST',
-                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                                body: formData
-                        })
-                        .then(function(response) { return response.json(); })
-                        .then(function(data) {
-                                toggleEl.disabled = false;
-                                
-                                // Update CSRF token if provided in response
-                                if (data.csrf_token) {
-                                        csrfToken = data.csrf_token;
-                                }
-                                
-                                if (data.success) {
-                                        // Update badge
-                                        if (isActive) {
-                                                badge.textContent = 'Active';
-                                                badge.className = 'badge bg-success';
-                                                row.classList.remove('table-secondary');
-                                        } else {
-                                                badge.textContent = 'Inactive';
-                                                badge.className = 'badge bg-secondary';
-                                                row.classList.add('table-secondary');
-                                        }
-                                        // Show toast notification
-                                        if (window.SimpleModal && window.SimpleModal.toast) {
-                                                window.SimpleModal.toast(data.message || 'Panel status updated', 'success');
-                                        }
-                                } else {
-                                        // Revert toggle
-                                        toggleEl.checked = !toggleEl.checked;
-                                        if (window.SimpleModal) {
-                                                window.SimpleModal.alert(data.message || 'Failed to update panel status', 'Error');
-                                        } else {
-                                                alert(data.message || 'Failed to update panel status');
-                                        }
-                                }
-                        })
-                        .catch(function(error) {
-                                toggleEl.disabled = false;
-                                toggleEl.checked = !toggleEl.checked;
-                                if (window.SimpleModal) {
-                                        window.SimpleModal.alert('Failed to update panel status', 'Error');
-                                } else {
-                                        alert('Failed to update panel status');
-                                }
-                        });
-                });
-        });
+        // Panel status toggle functionality removed - no longer needed
 });
 </script>
 <script>

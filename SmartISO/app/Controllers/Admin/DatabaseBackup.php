@@ -315,6 +315,18 @@ class DatabaseBackup extends BaseController
         }
 
         if (unlink($filepath)) {
+            // Log the delete action
+            $auditLogger = new AuditLogger();
+            $userId = session()->get('user_id');
+            $userName = session()->get('full_name') ?? session()->get('username') ?? 'Unknown';
+            $auditLogger->logAction(
+                $userId,
+                'delete_backup',
+                'database_backups',
+                null,
+                "Deleted database backup file: {$filename} by {$userName}"
+            );
+            
             if ($this->request->isAJAX()) {
                 return $this->response->setJSON([
                     'success' => true,
@@ -458,7 +470,16 @@ class DatabaseBackup extends BaseController
 
             // Log the restore action
             $auditLogger = new AuditLogger();
-            $auditLogger->logRestore($filename, "Database restored from backup. Safety backup: " . ($safetyFilename ?? 'none'));
+            $userId = session()->get('user_id');
+            $userName = session()->get('full_name') ?? session()->get('username') ?? 'Unknown';
+            $auditLogger->logRestore($filename, "Database restored from backup by {$userName}. Safety backup: " . ($safetyFilename ?? 'none'));
+            $auditLogger->logAction(
+                $userId,
+                'restore_backup',
+                'database_backups',
+                null,
+                "Restored database from backup file: {$filename} by {$userName}. Safety backup created: " . ($safetyFilename ?? 'none')
+            );
 
             $flashMsg = 'Database restored successfully from ' . $filename;
             if (!empty($safetyFilename)) {

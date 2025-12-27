@@ -56,23 +56,6 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label mb-1 mini-muted">Form Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control form-control-sm" id="form_name" name="form_name" 
-                                value="<?= esc(old('form_name', $panel_info['form_name'] ?? '')) ?>" 
-                                list="existingFormNames" required>
-                            <datalist id="existingFormNames">
-                                <?php if (!empty($existingFormNames)): ?>
-                                    <?php foreach ($existingFormNames as $fname): ?>
-                                        <option value="<?= esc($fname) ?>">
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </datalist>
-                            <small class="text-muted">
-                                Panels are grouped by form name. Enter a new name or select existing.
-                            </small>
-                        </div>
-                        
-                        <div class="mb-3">
                             <label class="form-label mb-1 mini-muted">Department</label>
                             <?php if ($isDepartmentAdmin): ?>
                                 <!-- Department admin: locked to their department -->

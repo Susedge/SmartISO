@@ -3,18 +3,7 @@
 <?= $this->section('content') ?>
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h3>
-            <?= $title ?>
-            <?php if (preg_match('/_v(\d+)/i', $panel_name, $matches)): ?>
-                <span class="badge bg-info ms-2" title="This is a revision">
-                    <i class="fas fa-code-branch me-1"></i>Revision v<?= $matches[1] ?>
-                </span>
-            <?php elseif (preg_match('/_\d{4}/', $panel_name)): ?>
-                <span class="badge bg-info ms-2" title="This is a dated revision">
-                    <i class="fas fa-calendar me-1"></i>Revision
-                </span>
-            <?php endif; ?>
-        </h3>
+        <h3><?= $title ?></h3>
         <div>
         <a href="<?= base_url('admin/configurations?type=panels') ?>" class="btn btn-secondary">Back to Panels</a>
             <a href="<?= base_url('admin/dynamicforms/form-builder/' . $panel_name) ?>" class="btn btn-success">

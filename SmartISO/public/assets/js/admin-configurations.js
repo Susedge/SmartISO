@@ -282,10 +282,18 @@
     // Panels
     AdminConfigurations.prototype.createPanel = function(){
         var self=this;
+        
         var formHtml = `
             <div class="mb-3">
-                <label class="form-label">Panel Name</label>
+                <label class="form-label">Panel Name <span class="text-danger">*</span></label>
                 <input type="text" id="sm_new_panel_name" class="form-control form-control-sm" placeholder="Enter panel name" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Form <small class="text-muted">(Optional - assign later from Forms tab)</small></label>
+                <select id="sm_panel_form_id" class="form-select form-select-sm">
+                    <option value="">-- No Form Assignment --</option>
+                </select>
+                <small class="text-muted">Select a form to associate this panel with</small>
             </div>
             <div class="mb-3">
                 <label class="form-label">Department (Optional)</label>
@@ -312,15 +320,17 @@
         }).then(function(v){ 
             if(v==='c'){ 
                 var name=(document.getElementById('sm_new_panel_name').value||'').trim(); 
+                var formId=(document.getElementById('sm_panel_form_id').value||'');
                 var deptId=(document.getElementById('sm_panel_department').value||'');
                 var officeId=(document.getElementById('sm_panel_office').value||'');
                 
                 if(!name){ 
                     SimpleModal.alert('Panel name required.','Validation','warning'); 
                     return; 
-                } 
+                }
                 
                 var data = {panel_name:name};
+                if(formId) data.form_id = formId;
                 if(deptId) data.department_id = deptId;
                 if(officeId) data.office_id = officeId;
                 
@@ -328,12 +338,32 @@
             }
         });
         
-        // Load departments and offices after modal is shown
+        // Load departments, offices, and forms after modal is shown
         setTimeout(function(){
             document.getElementById('sm_new_panel_name')?.focus();
             self.loadPanelDepartments();
             self.loadPanelOffices();
+            self.loadFormsForPanelModal();
         },60);
+    };
+    
+    AdminConfigurations.prototype.loadFormsForPanelModal = function(){
+        fetch(window.baseUrl + 'admin/configurations/get-forms')
+            .then(r => r.json())
+            .then(data => {
+                var select = document.getElementById('sm_panel_form_id');
+                if(!select || !data.forms) return;
+                
+                data.forms.forEach(function(form){
+                    var opt = document.createElement('option');
+                    opt.value = form.id;
+                    opt.textContent = form.code + ' - ' + form.description;
+                    select.appendChild(opt);
+                });
+            })
+            .catch(function(err){
+                console.error('Error loading forms:', err);
+            });
     };
     
     AdminConfigurations.prototype.loadPanelDepartments = function(){
@@ -442,7 +472,79 @@
     // Boot
     document.addEventListener('DOMContentLoaded', function(){
         var table = document.querySelector('table[data-type]');
-        if(!table) return; var type = table.getAttribute('data-type');
-        new AdminConfigurations(type);
+        if(table){
+            var type = table.getAttribute('data-type');
+            new AdminConfigurations(type);
+        }
+        
+        // Handle panel assignment radios in Forms tab
+        document.querySelectorAll('.panel-assignment-radio').forEach(function(radio){
+            radio.addEventListener('change', function(){
+                var formId = this.getAttribute('data-form-id');
+                var panelName = this.value;
+                assignPanelToForm(formId, panelName);
+            });
+        });
+        
+        // Handle unassign panel buttons
+        document.querySelectorAll('.clear-panel-btn').forEach(function(btn){
+            btn.addEventListener('click', function(){
+                var formId = this.getAttribute('data-form-id');
+                assignPanelToForm(formId, '');
+            });
+        });
     });
+    
+    function assignPanelToForm(formId, panelName){
+        // Get CSRF tokens
+        var csrfNameMeta = document.querySelector('meta[name="csrf-name"]');
+        var csrfHashMeta = document.querySelector('meta[name="csrf-hash"]');
+        var csrfName = (csrfNameMeta && csrfNameMeta.getAttribute('content')) || 'csrf_test_name';
+        var csrfHash = (csrfHashMeta && csrfHashMeta.getAttribute('content')) || '';
+        
+        var formData = new FormData();
+        formData.append(csrfName, csrfHash);
+        formData.append('form_id', formId);
+        formData.append('panel_name', panelName);
+        
+        fetch(window.baseUrl + 'admin/configurations/assign-panel-to-form', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+            // Update CSRF token
+            if(data.csrf_token){
+                var meta = document.querySelector('meta[name="csrf-hash"]');
+                if(meta) meta.setAttribute('content', data.csrf_token);
+            }
+            
+            if(data.success){
+                // Show success message and reload page
+                if(typeof SimpleModal !== 'undefined'){
+                    SimpleModal.alert(data.message, 'Success', 'success').then(function(){
+                        window.location.reload();
+                    });
+                } else {
+                    alert(data.message);
+                    window.location.reload();
+                }
+            } else {
+                if(typeof SimpleModal !== 'undefined'){
+                    SimpleModal.alert(data.message || 'Failed to assign panel', 'Error', 'error');
+                } else {
+                    alert(data.message || 'Failed to assign panel');
+                }
+            }
+        })
+        .catch(function(err){
+            console.error('Error assigning panel:', err);
+            if(typeof SimpleModal !== 'undefined'){
+                SimpleModal.alert('Request failed. Please try again.', 'Error', 'error');
+            } else {
+                alert('Request failed. Please try again.');
+            }
+        });
+    }
 })(window);

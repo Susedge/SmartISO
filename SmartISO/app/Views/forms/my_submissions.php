@@ -118,6 +118,23 @@
                                         </form>
                                     <?php endif; ?>
                                     
+                                    <?php
+                                    // Add "Give Feedback" button for completed submissions
+                                    if ($submission['status'] == 'completed'): 
+                                        // Check if feedback already exists
+                                        $feedbackModel = new \App\Models\FeedbackModel();
+                                        $hasFeedback = $feedbackModel->hasFeedback($submission['id'], $userId);
+                                        
+                                        if (!$hasFeedback):
+                                    ?>
+                                        <a href="<?= base_url('feedback/create/' . $submission['id']) ?>" class="btn btn-sm btn-warning" title="Give Feedback">
+                                            <i class="fas fa-star me-1"></i> Feedback
+                                        </a>
+                                    <?php 
+                                        endif;
+                                    endif; 
+                                    ?>
+                                    
                                     <?php if ($submission['status'] == 'completed'): ?>
                                     <div class="btn-group">
                                         <button type="button" class="btn btn-sm btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">

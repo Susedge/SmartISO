@@ -25,15 +25,6 @@
         <h4 class="d-flex align-items-center" style="gap: 8px;">
             Panel Builder:
             <span id="panelNameDisplay" class="me-2"><?= esc($panel_name) ?></span>
-            <?php if (preg_match('/_v(\d+)/i', $panel_name, $matches)): ?>
-                <span class="badge bg-info" title="Revision Version">
-                    <i class="fas fa-code-branch me-1"></i>v<?= $matches[1] ?>
-                </span>
-            <?php elseif (preg_match('/_\d{4}/', $panel_name)): ?>
-                <span class="badge bg-info" title="Dated Revision">
-                    <i class="fas fa-calendar me-1"></i>Revision
-                </span>
-            <?php endif; ?>
             <button id="savePanelNameBtn" type="button" class="btn btn-link btn-sm p-0" title="Save Panel Name" style="color: #198754; display: none;">
                 <i class="fas fa-check"></i>
             </button>

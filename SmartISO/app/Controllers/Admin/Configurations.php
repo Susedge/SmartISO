@@ -1635,6 +1635,84 @@ public function updateSystemConfig()
             'offices' => $offices
         ]);
     }
+    
+    /**
+     * Get forms list for AJAX dropdown
+     */
+    public function getForms()
+    {
+        $forms = $this->formModel->orderBy('code', 'ASC')->findAll();
+        return $this->response->setJSON([
+            'success' => true,
+            'forms' => $forms
+        ]);
+    }
+    
+    /**
+     * Assign a panel to a form (AJAX)
+     * Updates the forms.panel_name field
+     */
+    public function assignPanelToForm()
+    {
+        if (!$this->request->isAJAX()) {
+            return $this->response->setStatusCode(400)->setJSON(['success' => false, 'message' => 'Invalid request']);
+        }
+        
+        $formId = $this->request->getPost('form_id');
+        $panelName = $this->request->getPost('panel_name');
+        
+        if (empty($formId)) {
+            return $this->response->setJSON([
+                'success' => false, 
+                'message' => 'Form ID is required',
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+        
+        // Verify form exists
+        $form = $this->formModel->find($formId);
+        if (!$form) {
+            return $this->response->setJSON([
+                'success' => false, 
+                'message' => 'Form not found',
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+        
+        // If panel_name is empty, we're unassigning
+        if (empty($panelName)) {
+            $panelName = null;
+        } else {
+            // Verify panel exists
+            $panelModel = new \App\Models\DbpanelModel();
+            $panelExists = $panelModel->where('panel_name', $panelName)->first();
+            if (!$panelExists) {
+                return $this->response->setJSON([
+                    'success' => false, 
+                    'message' => 'Panel not found',
+                    'csrf_token' => csrf_hash()
+                ]);
+            }
+        }
+        
+        // Update the form's panel_name
+        $updated = $this->formModel->update($formId, ['panel_name' => $panelName]);
+        
+        if ($updated) {
+            $message = $panelName ? 'Panel "' . $panelName . '" assigned to form' : 'Panel unassigned from form';
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => $message,
+                'csrf_token' => csrf_hash()
+            ]);
+        }
+        
+        return $this->response->setJSON([
+            'success' => false, 
+            'message' => 'Failed to update form',
+            'csrf_token' => csrf_hash()
+        ]);
+    }
 
     /**
      * Toggle automatic database backup setting (AJAX)

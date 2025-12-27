@@ -1,0 +1,221 @@
+﻿php : PHP Warning:  Module "openssl" is already loaded in 
+Unknown on line 0
+At line:1 char:1
++ php spark routes 2>&1 | Out-File -FilePath 
+"routes_check.txt" -Encodi ...
++ ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (PHP Warning:  M. 
+   ..known on line 0:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+Warning: Module "openssl" is already loaded in Unknown on line 0
+
+CodeIgniter v4.6.2 Command Line Tool - Server Time: 2025-12-08 14:42:19 UTC+00:00
+
++---------+-----------------------------------------------------------+------+---------------------------------------------------------------+----------------------+-----------------+
+| Method  | Route                                                     | Name | Handler                                                       | Before Filters       | After Filters   |
++---------+-----------------------------------------------------------+------+---------------------------------------------------------------+----------------------+-----------------+
+| GET     | /                                                         | ┬╗    | \App\Controllers\Home::index                                  | csrf                 |                 |
+| GET     | forms/upload-docx/([^/]+)                                 | ┬╗    | \App\Controllers\Forms::uploadDocx/$1                         |                      |                 |
+| GET     | session-diagnostic                                        | ┬╗    | \App\Controllers\SessionDiagnostic::index                     | csrf                 |                 |
+| GET     | auth/register                                             | ┬╗    | \App\Controllers\Auth::register                               | csrf                 |                 |
+| GET     | auth/login                                                | ┬╗    | \App\Controllers\Auth::login                                  | csrf                 |                 |
+| GET     | auth/logout                                               | ┬╗    | \App\Controllers\Auth::logout                                 | csrf                 |                 |
+| GET     | api/current-time                                          | ┬╗    | \App\Controllers\Api::currentTime                             | csrf                 |                 |
+| GET     | debug-data                                                | ┬╗    | \App\Controllers\DebugData::index                             | csrf                 |                 |
+| GET     | dashboard                                                 | ┬╗    | \App\Controllers\Dashboard::index                             | csrf auth            | auth            |
+| GET     | analytics                                                 | ┬╗    | \App\Controllers\Analytics::index                             | csrf auth            | auth            |
+| GET     | analytics/api/([^/]+)                                     | ┬╗    | \App\Controllers\Analytics::api/$1                            | csrf auth            | auth            |
+| GET     | forms/verify/([0-9]+)                                     | ┬╗    | \App\Controllers\Forms::verify/$1                             | csrf                 |                 |
+| GET     | profile                                                   | ┬╗    | \App\Controllers\Profile::index                               | csrf auth            | auth            |
+| GET     | forms                                                     | ┬╗    | \App\Controllers\Forms::index                                 | csrf auth            | auth            |
+| GET     | forms/view/([^/]+)                                        | ┬╗    | \App\Controllers\Forms::view/$1                               | csrf auth            | auth            |
+| GET     | forms/document/([^/]+)                                    | ┬╗    | \App\Controllers\Forms::viewDocument/$1                       | csrf auth            | auth            |
+| GET     | forms/my-submissions                                      | ┬╗    | \App\Controllers\Forms::mySubmissions                         | csrf auth            | auth            |
+| GET     | forms/department-submissions                              | ┬╗    | \App\Controllers\Forms::departmentSubmissions                 | csrf auth            | auth            |
+| GET     | forms/submission/([0-9]+)                                 | ┬╗    | \App\Controllers\Forms::viewSubmission/$1                     | csrf auth            | auth            |
+| GET     | forms/submission/([0-9]+)/([a-zA-Z]+)                     | ┬╗    | \App\Controllers\Forms::export/$1/$2                          | csrf auth            | auth            |
+| GET     | forms/export/([0-9]+)/([a-zA-Z]+)                         | ┬╗    | \App\Controllers\Forms::export/$1/$2                          | csrf auth            | auth            |
+| GET     | forms/completed                                           | ┬╗    | \App\Controllers\Forms::completedForms                        | csrf auth            | auth            |
+| GET     | forms/pending-signature                                   | ┬╗    | \App\Controllers\Forms::pendingRequestorSignature             | csrf auth            | auth            |
+| GET     | forms/pending-approval                                    | ┬╗    | \App\Controllers\Forms::pendingApproval                       | csrf auth            | auth            |
+| GET     | forms/approved-by-me                                      | ┬╗    | \App\Controllers\Forms::approvedByMe                          | csrf auth            | auth            |
+| GET     | forms/rejected-by-me                                      | ┬╗    | \App\Controllers\Forms::rejectedByMe                          | csrf auth            | auth            |
+| GET     | forms/pending-service                                     | ┬╗    | \App\Controllers\Forms::pendingService                        | csrf auth            | auth            |
+| GET     | forms/serviced-by-me                                      | ┬╗    | \App\Controllers\Forms::servicedByMe                          | csrf auth            | auth            |
+| GET     | forms/sign/([0-9]+)                                       | ┬╗    | \App\Controllers\Forms::signForm/$1                           | csrf auth            | auth            |
+| GET     | forms/approve/([0-9]+)                                    | ┬╗    | \App\Controllers\Forms::approveForm/$1                        | csrf auth            | auth            |
+| GET     | forms/approve-form/([0-9]+)                               | ┬╗    | \App\Controllers\Forms::approveForm/$1                        | csrf auth            | auth            |
+| GET     | forms/reject/([0-9]+)                                     | ┬╗    | \App\Controllers\Forms::rejectForm/$1                         | csrf auth            | auth            |
+| GET     | forms/service/([0-9]+)                                    | ┬╗    | \App\Controllers\Forms::serviceForm/$1                        | csrf auth            | auth            |
+| GET     | forms/service-form/([0-9]+)                               | ┬╗    | \App\Controllers\Forms::serviceForm/$1                        | csrf auth            | auth            |
+| GET     | forms/final-sign/([0-9]+)                                 | ┬╗    | \App\Controllers\Forms::finalSignForm/$1                      | csrf auth            | auth            |
+| GET     | pdfgenerator/generateFormPdf/([0-9]+)                     | ┬╗    | \App\Controllers\PdfGenerator::generateFormPdf/$1             | csrf auth            | auth            |
+| GET     | pdfgenerator/generateFormPdf/([0-9]+)/([a-zA-Z]+)         | ┬╗    | \App\Controllers\PdfGenerator::generateFormPdf/$1/$2          | csrf auth            | auth            |
+| GET     | forms/download/pdf/([^/]+)                                | ┬╗    | \App\Controllers\FormDownload::downloadPDF/$1                 | csrf auth            | auth            |
+| GET     | forms/download/word/([^/]+)                               | ┬╗    | \App\Controllers\FormDownload::downloadWord/$1                | csrf auth            | auth            |
+| GET     | forms/download/uploaded/([^/]+)                           | ┬╗    | \App\Controllers\FormDownload::downloadUploaded/$1            | csrf auth            | auth            |
+| GET     | schedule                                                  | ┬╗    | \App\Controllers\Schedule::index                              | csrf auth            | auth            |
+| GET     | schedule/create/([0-9]+)                                  | ┬╗    | \App\Controllers\Schedule::create/$1                          | csrf auth            | auth            |
+| GET     | schedule/edit/([0-9]+)                                    | ┬╗    | \App\Controllers\Schedule::edit/$1                            | csrf auth            | auth            |
+| GET     | schedule/delete/([0-9]+)                                  | ┬╗    | \App\Controllers\Schedule::delete/$1                          | csrf auth            | auth            |
+| GET     | schedule/calendar                                         | ┬╗    | \App\Controllers\Schedule::calendar                           | csrf auth            | auth            |
+| GET     | schedule/events-ajax                                      | ┬╗    | \App\Controllers\Schedule::eventsAjax                         | csrf auth            | auth            |
+| GET     | schedule/priorities                                       | ┬╗    | \App\Controllers\Schedule::priorities                         | csrf auth            | auth            |
+| GET     | schedule/available-slots                                  | ┬╗    | \App\Controllers\Schedule::getAvailableSlots                  | csrf auth            | auth            |
+| GET     | schedule/staff-workload                                   | ┬╗    | \App\Controllers\Schedule::getStaffWorkload                   | csrf auth            | auth            |
+| GET     | feedback                                                  | ┬╗    | \App\Controllers\Feedback::index                              | csrf auth            | auth            |
+| GET     | feedback/create                                           | ┬╗    | \App\Controllers\Feedback::create                             | csrf auth            | auth            |
+| GET     | feedback/view/([0-9]+)                                    | ┬╗    | \App\Controllers\Feedback::view/$1                            | csrf auth            | auth            |
+| GET     | feedback/analytics                                        | ┬╗    | \App\Controllers\Feedback::analytics                          | csrf auth            | auth            |
+| GET     | feedback/export                                           | ┬╗    | \App\Controllers\Feedback::export                             | csrf auth            | auth            |
+| GET     | feedback/create/([0-9]+)                                  | ┬╗    | \App\Controllers\Feedback::create/$1                          | csrf auth            | auth            |
+| GET     | notifications                                             | ┬╗    | \App\Controllers\Notifications::index                         | csrf auth            | auth            |
+| GET     | notifications/unread                                      | ┬╗    | \App\Controllers\Notifications::getUnread                     | csrf auth            | auth            |
+| GET     | notifications/view/([0-9]+)                               | ┬╗    | \App\Controllers\Notifications::view/$1                       | csrf auth            | auth            |
+| GET     | admin/configurations                                      | ┬╗    | \App\Controllers\Admin\Configurations::index                  | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/new                                  | ┬╗    | \App\Controllers\Admin\Configurations::new                    | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/edit/([0-9]+)                        | ┬╗    | \App\Controllers\Admin\Configurations::edit/$1                | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/item/([0-9]+)                        | ┬╗    | \App\Controllers\Admin\Configurations::item/$1                | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/delete/([0-9]+)                      | ┬╗    | \App\Controllers\Admin\Configurations::delete/$1              | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/form-signatories/([0-9]+)            | ┬╗    | \App\Controllers\Admin\Configurations::formSignatories/$1     | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/remove-form-signatory/([0-9]+)       | ┬╗    | \App\Controllers\Admin\Configurations::removeFormSignatory/$1 | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/user-form-signatories/([0-9]+)       | ┬╗    | \App\Controllers\Admin\Configurations::userFormSignatories/$1 | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/forms                                               | ┬╗    | \App\Controllers\Admin\Forms::index                           | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/forms/gallery                                       | ┬╗    | \App\Controllers\Admin\Forms::gallery                         | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/forms/new                                           | ┬╗    | \App\Controllers\Admin\Forms::new                             | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/forms/edit/([0-9]+)                                 | ┬╗    | \App\Controllers\Admin\Forms::edit/$1                         | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/forms/delete/([0-9]+)                               | ┬╗    | \App\Controllers\Admin\Forms::delete/$1                       | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/forms/get-headers                                   | ┬╗    | \App\Controllers\Admin\Forms::getHeaders                      | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms                                        | ┬╗    | \App\Controllers\Admin\DynamicForms::index                    | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/guide                                  | ┬╗    | \App\Controllers\Admin\DynamicForms::guide                    | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/panel                                  | ┬╗    | \App\Controllers\Admin\DynamicForms::panel                    | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/panel-config                           | ┬╗    | (Closure)                                                     | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/edit-panel/([^/]+)                     | ┬╗    | \App\Controllers\Admin\DynamicForms::editPanel/$1             | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/edit-panel-info/([^/]+)                | ┬╗    | \App\Controllers\Admin\DynamicForms::editPanelInfo/$1         | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/form-builder/([^/]+)                   | ┬╗    | \App\Controllers\Admin\DynamicForms::formBuilder/$1           | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/parse-docx                             | ┬╗    | \App\Controllers\Admin\DynamicForms::parseDocx                | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/delete-field/([0-9]+)                  | ┬╗    | \App\Controllers\Admin\DynamicForms::deleteField/$1           | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/submissions                            | ┬╗    | \App\Controllers\Admin\DynamicForms::submissions              | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/view-submission/([0-9]+)               | ┬╗    | \App\Controllers\Admin\DynamicForms::viewSubmission/$1        | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/export-submission/([0-9]+)/([a-zA-Z]+) | ┬╗    | \App\Controllers\Admin\DynamicForms::exportSubmission/$1/$2   | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/users                                               | ┬╗    | \App\Controllers\Admin\Users::index                           | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/users/new                                           | ┬╗    | \App\Controllers\Admin\Users::new                             | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/users/edit/([0-9]+)                                 | ┬╗    | \App\Controllers\Admin\Users::edit/$1                         | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dynamicforms/approval-form/([0-9]+)                 | ┬╗    | \App\Controllers\Admin\DynamicForms::approvalForm/$1          | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/download-template/([0-9]+)           | ┬╗    | \App\Controllers\Admin\Configurations::downloadTemplate/$1    | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/delete-template/([0-9]+)             | ┬╗    | \App\Controllers\Admin\Configurations::deleteTemplate/$1      | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/get-departments                      | ┬╗    | \App\Controllers\Admin\Configurations::getDepartments         | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/get-offices                          | ┬╗    | \App\Controllers\Admin\Configurations::getOffices             | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/configurations/backup-database                      | ┬╗    | \App\Controllers\Admin\Configurations::exportDatabase         | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/database-backup                                     | ┬╗    | \App\Controllers\Admin\DatabaseBackup::index                  | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/database-backup/download/([^/]+)                    | ┬╗    | \App\Controllers\Admin\DatabaseBackup::download/$1            | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/office                                              | ┬╗    | \App\Controllers\Admin\Office::index                          | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/office/create                                       | ┬╗    | \App\Controllers\Admin\Office::create                         | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/office/edit/([0-9]+)                                | ┬╗    | \App\Controllers\Admin\Office::edit/$1                        | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/office/delete/([0-9]+)                              | ┬╗    | \App\Controllers\Admin\Office::delete/$1                      | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/office/active                                       | ┬╗    | \App\Controllers\Admin\Office::getActiveOffices               | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/offices/by-department/([0-9]+)                      | ┬╗    | \App\Controllers\Admin\Office::byDepartment/$1                | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dco-approval                                        | ┬╗    | \App\Controllers\Admin\DcoApproval::index                     | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/dco-approval/edit/([0-9]+)                          | ┬╗    | \App\Controllers\Admin\DcoApproval::edit/$1                   | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/audit-logs                                          | ┬╗    | \App\Controllers\Admin\AuditLogs::index                       | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/audit-logs/view/([0-9]+)                            | ┬╗    | \App\Controllers\Admin\AuditLogs::view/$1                     | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/audit-logs/export                                   | ┬╗    | \App\Controllers\Admin\AuditLogs::export                      | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/audit-logs/entity-history                           | ┬╗    | \App\Controllers\Admin\AuditLogs::entityHistory               | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/audit-logs/user-activity                            | ┬╗    | \App\Controllers\Admin\AuditLogs::userActivity                | csrf departmentAdmin | departmentAdmin |
+| GET     | admin/users/delete/([0-9]+)                               | ┬╗    | \App\Controllers\Admin\Users::delete/$1                       | csrf auth:superuser  | auth:superuser  |
+| POST    | forms/upload-docx/([^/]+)                                 | ┬╗    | \App\Controllers\Forms::uploadDocx/$1                         |                      |                 |
+| POST    | auth/register                                             | ┬╗    | \App\Controllers\Auth::register                               | csrf                 |                 |
+| POST    | auth/login                                                | ┬╗    | \App\Controllers\Auth::login                                  | csrf                 |                 |
+| POST    | auth/extend-session                                       | ┬╗    | \App\Controllers\Auth::extendSession                          | csrf                 |                 |
+| POST    | analytics/export                                          | ┬╗    | \App\Controllers\Analytics::exportReport                      | csrf auth            | auth            |
+| POST    | profile/update                                            | ┬╗    | \App\Controllers\Profile::update                              | csrf auth            | auth            |
+| POST    | profile/change-password                                   | ┬╗    | \App\Controllers\Profile::changePassword                      | csrf auth            | auth            |
+| POST    | profile/upload-signature                                  | ┬╗    | \App\Controllers\Profile::uploadSignature                     | csrf auth            | auth            |
+| POST    | profile/upload-profile-image                              | ┬╗    | \App\Controllers\Profile::uploadProfileImage                  | csrf auth            | auth            |
+| POST    | forms/submit                                              | ┬╗    | \App\Controllers\Forms::submit                                | csrf auth            | auth            |
+| POST    | forms/cancel-submission                                   | ┬╗    | \App\Controllers\Forms::cancelSubmission                      | csrf auth            | auth            |
+| POST    | forms/delete-submission                                   | ┬╗    | \App\Controllers\Forms::deleteSubmission                      | csrf auth            | auth            |
+| POST    | forms/approve                                             | ┬╗    | \App\Controllers\Forms::submitApproval                        | csrf auth            | auth            |
+| POST    | forms/reject                                              | ┬╗    | \App\Controllers\Forms::submitRejection                       | csrf auth            | auth            |
+| POST    | forms/reject/([0-9]+)                                     | ┬╗    | \App\Controllers\Forms::submitRejection/$1                    | csrf auth            | auth            |
+| POST    | forms/approve-all                                         | ┬╗    | \App\Controllers\Forms::approveAll                            | csrf auth            | auth            |
+| POST    | forms/assign-service-staff                                | ┬╗    | \App\Controllers\Forms::assignServiceStaff                    | csrf auth            | auth            |
+| POST    | forms/service                                             | ┬╗    | \App\Controllers\Forms::submitService                         | csrf auth            | auth            |
+| POST    | forms/sign/([0-9]+)                                       | ┬╗    | \App\Controllers\Forms::signForm/$1                           | csrf auth            | auth            |
+| POST    | forms/confirm-service                                     | ┬╗    | \App\Controllers\Forms::confirmService                        | csrf auth            | auth            |
+| POST    | forms/confirm-service/([0-9]+)                            | ┬╗    | \App\Controllers\Forms::confirmService/$1                     | csrf auth            | auth            |
+| POST    | schedule/store                                            | ┬╗    | \App\Controllers\Schedule::store                              | csrf auth            | auth            |
+| POST    | schedule/update/([0-9]+)                                  | ┬╗    | \App\Controllers\Schedule::update/$1                          | csrf auth            | auth            |
+| POST    | schedule/update-priority/(.*)                             | ┬╗    | \App\Controllers\Schedule::updatePriority/$1                  | csrf auth            | auth            |
+| POST    | schedule/update-submission-priority/([0-9]+)              | ┬╗    | \App\Controllers\Schedule::updateSubmissionPriority/$1        | csrf auth            | auth            |
+| POST    | schedule/mark-complete/([0-9]+)                           | ┬╗    | \App\Controllers\Schedule::markComplete/$1                    | csrf auth            | auth            |
+| POST    | schedule/toggle-priority/([0-9]+)                         | ┬╗    | \App\Controllers\Schedule::togglePriority/$1                  | csrf auth            | auth            |
+| POST    | schedule/priorities/clear                                 | ┬╗    | \App\Controllers\Schedule::bulkUnmarkPriorities               | csrf auth            | auth            |
+| POST    | schedule/check-availability                               | ┬╗    | \App\Controllers\Schedule::checkAvailability                  | csrf auth            | auth            |
+| POST    | schedule/available-slots                                  | ┬╗    | \App\Controllers\Schedule::getAvailableSlots                  | csrf auth            | auth            |
+| POST    | schedule/staff-workload                                   | ┬╗    | \App\Controllers\Schedule::getStaffWorkload                   | csrf auth            | auth            |
+| POST    | feedback/store                                            | ┬╗    | \App\Controllers\Feedback::store                              | csrf auth            | auth            |
+| POST    | feedback/mark-reviewed/([0-9]+)                           | ┬╗    | \App\Controllers\Feedback::markReviewed/$1                    | csrf auth            | auth            |
+| POST    | notifications/mark-read/([0-9]+)                          | ┬╗    | \App\Controllers\Notifications::markAsRead/$1                 | csrf auth            | auth            |
+| POST    | notifications/mark-all-read                               | ┬╗    | \App\Controllers\Notifications::markAsRead                    | csrf auth            | auth            |
+| POST    | notifications/delete/([0-9]+)                             | ┬╗    | \App\Controllers\Notifications::delete/$1                     | csrf auth            | auth            |
+| POST    | admin/configurations/create                               | ┬╗    | \App\Controllers\Admin\Configurations::create                 | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/update/([0-9]+)                      | ┬╗    | \App\Controllers\Admin\Configurations::update/$1              | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/ajaxSaveDepartment/([0-9]+)          | ┬╗    | \App\Controllers\Admin\Configurations::ajaxSaveDepartment/$1  | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/ajaxSaveOffice/([0-9]+)              | ┬╗    | \App\Controllers\Admin\Configurations::ajaxSaveOffice/$1      | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/ajaxSaveForm/([0-9]+)                | ┬╗    | \App\Controllers\Admin\Configurations::ajaxSaveForm/$1        | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/add-form-signatory                   | ┬╗    | \App\Controllers\Admin\Configurations::addFormSignatory       | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/forms/create                                        | ┬╗    | \App\Controllers\Admin\Forms::create                          | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/forms/update/([0-9]+)                               | ┬╗    | \App\Controllers\Admin\Forms::update/$1                       | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/forms/upload-header                                 | ┬╗    | \App\Controllers\Admin\Forms::uploadHeader                    | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/forms/delete-header                                 | ┬╗    | \App\Controllers\Admin\Forms::deleteHeader                    | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/save-panel-info                        | ┬╗    | \App\Controllers\Admin\DynamicForms::savePanelInfo            | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/update-panel-info                      | ┬╗    | \App\Controllers\Admin\DynamicForms::updatePanelInfo          | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/save-form-builder                      | ┬╗    | \App\Controllers\Admin\DynamicForms::saveFormBuilder          | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/reorder-fields                         | ┬╗    | \App\Controllers\Admin\DynamicForms::reorderFields            | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/parse-docx                             | ┬╗    | \App\Controllers\Admin\DynamicForms::parseDocx                | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/add-panel-field                        | ┬╗    | \App\Controllers\Admin\DynamicForms::addPanelField            | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/create-panel                           | ┬╗    | \App\Controllers\Admin\DynamicForms::createPanel              | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/copy-panel                             | ┬╗    | \App\Controllers\Admin\DynamicForms::copyPanel                | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/toggle-panel-status                    | ┬╗    | \App\Controllers\Admin\DynamicForms::togglePanelStatus        | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/create-form                            | ┬╗    | \App\Controllers\Admin\DynamicForms::createForm               | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/update-form                            | ┬╗    | \App\Controllers\Admin\DynamicForms::updateForm               | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/delete-form                            | ┬╗    | \App\Controllers\Admin\DynamicForms::deleteForm               | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/delete-panel                           | ┬╗    | \App\Controllers\Admin\DynamicForms::deletePanel              | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/update-panel-field                     | ┬╗    | \App\Controllers\Admin\DynamicForms::updatePanelField         | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/submit                                 | ┬╗    | \App\Controllers\Admin\DynamicForms::submit                   | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/update-status                          | ┬╗    | \App\Controllers\Admin\DynamicForms::updateStatus             | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/update-priority                        | ┬╗    | \App\Controllers\Admin\DynamicForms::updatePriority           | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/bulk-action                            | ┬╗    | \App\Controllers\Admin\DynamicForms::bulkAction               | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/rename-panel                           | ┬╗    | \App\Controllers\Admin\DynamicForms::renamePanel              | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/users/create                                        | ┬╗    | \App\Controllers\Admin\Users::create                          | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/users/update/([0-9]+)                               | ┬╗    | \App\Controllers\Admin\Users::update/$1                       | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dynamicforms/approve-submission                     | ┬╗    | \App\Controllers\Admin\DynamicForms::approveSubmission        | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/upload-template/([0-9]+)             | ┬╗    | \App\Controllers\Admin\Configurations::uploadTemplate/$1      | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/update-header/([0-9]+)               | ┬╗    | \App\Controllers\Admin\Configurations::updateHeader/$1        | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/update-system-config                 | ┬╗    | \App\Controllers\Admin\Configurations::updateSystemConfig     | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/configurations/toggle-auto-backup                   | ┬╗    | \App\Controllers\Admin\Configurations::toggleAutoBackup       | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/database-backup/create                              | ┬╗    | \App\Controllers\Admin\DatabaseBackup::create                 | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/database-backup/delete/([^/]+)                      | ┬╗    | \App\Controllers\Admin\DatabaseBackup::delete/$1              | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/database-backup/restore/([^/]+)                     | ┬╗    | \App\Controllers\Admin\DatabaseBackup::restore/$1             | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/database-backup/toggle-auto-backup                  | ┬╗    | \App\Controllers\Admin\DatabaseBackup::toggleAutoBackup       | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/database-backup/update-backup-time                  | ┬╗    | \App\Controllers\Admin\DatabaseBackup::updateBackupTime       | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/database-backup/check-and-backup                    | ┬╗    | \App\Controllers\Admin\DatabaseBackup::checkAndBackup         | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/office/store                                        | ┬╗    | \App\Controllers\Admin\Office::store                          | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/office/update/([0-9]+)                              | ┬╗    | \App\Controllers\Admin\Office::update/$1                      | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/notifications/cleanup                               | ┬╗    | \App\Controllers\Notifications::cleanup                       | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dco-approval/update/([0-9]+)                        | ┬╗    | \App\Controllers\Admin\DcoApproval::update/$1                 | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dco-approval/approve/([0-9]+)                       | ┬╗    | \App\Controllers\Admin\DcoApproval::approve/$1                | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/dco-approval/revoke/([0-9]+)                        | ┬╗    | \App\Controllers\Admin\DcoApproval::revoke/$1                 | csrf departmentAdmin | departmentAdmin |
+| POST    | admin/audit-logs/cleanup                                  | ┬╗    | \App\Controllers\Admin\AuditLogs::cleanup                     | csrf departmentAdmin | departmentAdmin |
+| OPTIONS | forms/upload-docx/([^/]+)                                 | ┬╗    | \App\Controllers\Forms::uploadDocx/$1                         |                      |                 |
+| OPTIONS | admin/configurations/ajaxSaveDepartment/([0-9]+)          | ┬╗    | \App\Controllers\Admin\Configurations::ajaxSaveDepartment/$1  | csrf departmentAdmin | departmentAdmin |
+| OPTIONS | admin/configurations/ajaxSaveOffice/([0-9]+)              | ┬╗    | \App\Controllers\Admin\Configurations::ajaxSaveOffice/$1      | csrf departmentAdmin | departmentAdmin |
+| OPTIONS | admin/configurations/ajaxSaveForm/([0-9]+)                | ┬╗    | \App\Controllers\Admin\Configurations::ajaxSaveForm/$1        | csrf departmentAdmin | departmentAdmin |
+| OPTIONS | admin/dynamicforms/parse-docx                             | ┬╗    | \App\Controllers\Admin\DynamicForms::parseDocx                | csrf departmentAdmin | departmentAdmin |
++---------+-----------------------------------------------------------+------+---------------------------------------------------------------+----------------------+-----------------+
+
+Required Before Filters: forcehttps, pagecache
+ Required After Filters: pagecache, performance, toolbar
