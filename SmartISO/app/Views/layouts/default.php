@@ -164,6 +164,13 @@
                             <div class="nav-link-icon"><i class="fas fa-calendar-alt me-2"></i></div>
                             <span>Schedule</span>
                         </a>
+                        
+                        <?php if(in_array(session()->get('user_type'), ['admin', 'superuser'])): ?>
+                        <a class="nav-link d-flex align-items-center <?= strpos(uri_string(), 'schedule/staff-availability') !== false ? 'active' : '' ?>" href="<?= base_url('schedule/staff-availability') ?>">
+                            <div class="nav-link-icon"><i class="fas fa-users-cog me-2"></i></div>
+                            <span>Staff Availability</span>
+                        </a>
+                        <?php endif; ?>
                         <?php endif; ?>
                         
                         <!-- TAU-DCO Section - Show prominently for tau_dco users -->

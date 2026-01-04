@@ -202,17 +202,25 @@ class ScheduleModel extends Model
             $builder->where('id !=', $excludeId);
         }
         
-        // This is a simplified conflict check - you may want to implement more sophisticated time overlap logic
         $existingSchedules = $builder->findAll();
+        
+        // Buffer time in minutes (15 minutes between appointments)
+        $bufferMinutes = 15;
         
         foreach ($existingSchedules as $schedule) {
             $scheduledTime = strtotime($schedule['scheduled_time']);
             $newTime = strtotime($time);
             $scheduleDuration = $schedule['duration_minutes'] ?: 60; // Default 1 hour
             
-            // Check for overlap
-            if (abs($scheduledTime - $newTime) < ($scheduleDuration * 60)) {
-                return true; // Conflict found
+            // Calculate end times with buffer
+            $scheduleEndTime = $scheduledTime + (($scheduleDuration + $bufferMinutes) * 60);
+            $newEndTime = $newTime + (($duration + $bufferMinutes) * 60);
+            
+            // Check for overlap (including buffer time)
+            if (($newTime >= $scheduledTime && $newTime < $scheduleEndTime) ||
+                ($newEndTime > $scheduledTime && $newEndTime <= $scheduleEndTime) ||
+                ($newTime <= $scheduledTime && $newEndTime >= $scheduleEndTime)) {
+                return true; // Conflict found (including buffer violation)
             }
         }
         

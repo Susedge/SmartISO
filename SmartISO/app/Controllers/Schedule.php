@@ -310,6 +310,193 @@ class Schedule extends BaseController
         return view('schedule/calendar', $data);
     }
 
+    /**
+     * My Schedule - Personal schedule view for service staff
+     * Shows only schedules assigned to the logged-in service staff member
+     */
+    public function mySchedule()
+    {
+        $userType = session()->get('user_type');
+        $userId = session()->get('user_id');
+        
+        // Only service staff can access this page
+        if ($userType !== 'service_staff') {
+            return redirect()->to('/dashboard')->with('error', 'This page is only accessible to service staff');
+        }
+        
+        // Get schedules assigned to this service staff member
+        $schedules = $this->scheduleModel->getStaffSchedules($userId);
+        
+        // Also get submissions assigned to this service staff that don't have schedules yet
+        $submissionsWithoutSchedules = $this->getServiceStaffSubmissionsWithoutSchedules($userId);
+        
+        // Merge and deduplicate
+        $merged = $schedules;
+        foreach ($submissionsWithoutSchedules as $sub) {
+            $submissionId = $sub['submission_id'] ?? null;
+            $isDuplicate = false;
+            if ($submissionId) {
+                foreach ($schedules as $sched) {
+                    if (($sched['submission_id'] ?? null) == $submissionId) {
+                        $isDuplicate = true;
+                        break;
+                    }
+                }
+            }
+            if (!$isDuplicate) {
+                $merged[] = $sub;
+            }
+        }
+        $schedules = $merged;
+        
+        // Prepare calendar events
+        $calendarEvents = [];
+        $visibleSubmissionIds = [];
+        
+        foreach ($schedules as $schedule) {
+            if (!empty($schedule['submission_id'])) {
+                $visibleSubmissionIds[] = (int)$schedule['submission_id'];
+            }
+            
+            // Build event for calendar
+            $event = [
+                'id' => $schedule['id'] ?? 'sub_' . ($schedule['submission_id'] ?? 'unknown'),
+                'title' => $schedule['form_code'] ?? 'Service Request',
+                'start' => ($schedule['scheduled_date'] ?? date('Y-m-d')) . 'T' . ($schedule['scheduled_time'] ?? '09:00:00'),
+                'duration' => $schedule['duration_minutes'] ?? 60,
+                'status' => $schedule['status'] ?? 'pending',
+                'priority' => $schedule['priority_level'] ?? 'low',
+                'location' => $schedule['location'] ?? '',
+                'notes' => $schedule['notes'] ?? '',
+                'requestor' => $schedule['requestor_name'] ?? 'Unknown',
+                'submission_id' => $schedule['submission_id'] ?? null
+            ];
+            
+            $calendarEvents[] = $event;
+        }
+        
+        session()->set('calendar_visible_submissions', array_values(array_unique($visibleSubmissionIds)));
+        
+        $data = [
+            'title' => 'My Schedule',
+            'schedules' => $schedules,
+            'events' => json_encode($calendarEvents),
+            'events_count' => count($calendarEvents)
+        ];
+        
+        return view('schedule/my_schedule', $data);
+    }
+
+    /**
+     * Set Availability - Staff can mark their available/unavailable dates
+     */
+    public function setAvailability()
+    {
+        $userType = session()->get('user_type');
+        $userId = session()->get('user_id');
+        
+        if ($userType !== 'service_staff') {
+            return redirect()->to('/dashboard')->with('error', 'This page is only accessible to service staff');
+        }
+        
+        $availabilityModel = new \App\Models\StaffAvailabilityModel();
+        
+        // Get all availability records for this staff member
+        $availabilities = $availabilityModel->where('staff_id', $userId)->findAll();
+        
+        $data = [
+            'title' => 'Set My Availability',
+            'availabilities' => $availabilities
+        ];
+        
+        return view('schedule/set_availability', $data);
+    }
+
+    /**
+     * Save Availability - AJAX endpoint to save staff availability
+     */
+    public function saveAvailability()
+    {
+        $userType = session()->get('user_type');
+        $userId = session()->get('user_id');
+        
+        if ($userType !== 'service_staff') {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Unauthorized access'
+            ]);
+        }
+        
+        $availabilityModel = new \App\Models\StaffAvailabilityModel();
+        
+        $date = $this->request->getPost('date');
+        $availabilityType = $this->request->getPost('availability_type'); // 'available', 'partially_available', 'unavailable'
+        $startTime = $this->request->getPost('start_time');
+        $endTime = $this->request->getPost('end_time');
+        $notes = $this->request->getPost('notes');
+        
+        // Check if already exists for this date
+        $existing = $availabilityModel->where([
+            'staff_id' => $userId,
+            'date' => $date
+        ])->first();
+        
+        $data = [
+            'staff_id' => $userId,
+            'date' => $date,
+            'availability_type' => $availabilityType,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'notes' => $notes
+        ];
+        
+        if ($existing) {
+            $availabilityModel->update($existing['id'], $data);
+        } else {
+            $availabilityModel->insert($data);
+        }
+        
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Availability updated successfully'
+        ]);
+    }
+
+    /**
+     * Staff Availability - Admin view to see all staff calendars
+     */
+    public function staffAvailability()
+    {
+        $userType = session()->get('user_type');
+        
+        if (!in_array($userType, ['admin', 'superuser'])) {
+            return redirect()->to('/dashboard')->with('error', 'This page is only accessible to administrators');
+        }
+        
+        $userModel = new \App\Models\UserModel();
+        $availabilityModel = new \App\Models\StaffAvailabilityModel();
+        
+        // Get all service staff
+        $staffMembers = $userModel->where('user_type', 'service_staff')->findAll();
+        
+        // Get selected staff ID from query parameter
+        $selectedStaffId = $this->request->getGet('staff_id');
+        
+        $availabilities = [];
+        if ($selectedStaffId) {
+            $availabilities = $availabilityModel->where('staff_id', $selectedStaffId)->findAll();
+        }
+        
+        $data = [
+            'title' => 'Staff Availability Management',
+            'staffMembers' => $staffMembers,
+            'selectedStaffId' => $selectedStaffId,
+            'availabilities' => $availabilities
+        ];
+        
+        return view('schedule/staff_availability', $data);
+    }
+
     public function create($submissionId = null)
     {
         if (!$submissionId) {
@@ -423,6 +610,21 @@ class Schedule extends BaseController
             return redirect()->back()
                            ->withInput()
                            ->with('error', 'Schedule conflict detected. Please choose a different time.');
+        }
+
+        // Check staff availability
+        $availabilityModel = new \App\Models\StaffAvailabilityModel();
+        $availabilityCheck = $availabilityModel->isStaffAvailable(
+            $data['assigned_staff_id'],
+            $data['scheduled_date'],
+            $data['scheduled_time'],
+            date('H:i:s', strtotime($data['scheduled_time']) + ($data['duration_minutes'] * 60))
+        );
+
+        if (!$availabilityCheck['available']) {
+            return redirect()->back()
+                           ->withInput()
+                           ->with('error', 'Staff is not available: ' . $availabilityCheck['message']);
         }
 
         $insertId = $this->scheduleModel->insert($data, true);

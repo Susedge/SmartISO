@@ -147,6 +147,10 @@ $routes->group('', ['filter' => 'auth'], function ($routes) {
     
     // Scheduling routes
     $routes->get('schedule', 'Schedule::index');
+    $routes->get('schedule/my-schedule', 'Schedule::mySchedule');
+$routes->get('schedule/set-availability', 'Schedule::setAvailability');
+$routes->post('schedule/save-availability', 'Schedule::saveAvailability');
+$routes->get('schedule/staff-availability', 'Schedule::staffAvailability'); // Service staff personal schedule
     $routes->get('schedule/create/(:num)', 'Schedule::create/$1');
     $routes->post('schedule/store', 'Schedule::store');
     $routes->get('schedule/edit/(:num)', 'Schedule::edit/$1');
