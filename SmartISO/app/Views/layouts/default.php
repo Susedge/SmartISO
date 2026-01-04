@@ -245,6 +245,11 @@
                                 <div class="nav-link-icon"><i class="fas fa-check-circle me-2"></i></div>
                                 <span>Completed Forms</span>
                             </a>
+                            
+                            <a class="nav-link d-flex align-items-center <?= uri_string() == 'schedule/my-schedule' ? 'active' : '' ?>" href="<?= base_url('schedule/my-schedule') ?>">
+                                <div class="nav-link-icon"><i class="fas fa-calendar-alt me-2"></i></div>
+                                <span>My Schedule</span>
+                            </a>
                         <?php endif; ?>
                         
                         <!-- Department Admin section -->
