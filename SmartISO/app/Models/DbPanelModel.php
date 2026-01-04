@@ -4,7 +4,7 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class DbpanelModel extends Model
+class DbPanelModel extends Model
 {
     /**
      * Rename a panel by updating all rows with old panel name to new panel name

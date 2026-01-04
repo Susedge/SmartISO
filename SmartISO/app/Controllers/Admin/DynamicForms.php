@@ -4,7 +4,7 @@ namespace App\Controllers\Admin;
 
 use CodeIgniter\Model;
 use App\Controllers\BaseController;
-use App\Models\DbpanelModel;
+use App\Models\DbPanelModel; // Fixed: DbPanelModel (capital P)
 use App\Models\FormModel;
 use App\Models\OfficeModel;
 use App\Models\DepartmentModel;
@@ -62,7 +62,7 @@ class DynamicForms extends BaseController
     public function __construct()
     {
         $this->db = \Config\Database::connect();
-        $this->dbpanelModel = new DbpanelModel();
+        $this->dbpanelModel = new DbPanelModel(); // Fixed: DbPanelModel (capital P)
         $this->formModel = new FormModel();
         $this->departmentModel = new DepartmentModel();
     $this->officeModel = new OfficeModel();

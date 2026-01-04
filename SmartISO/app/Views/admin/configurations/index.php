@@ -190,10 +190,17 @@
                 </table>
                 <?php elseif ($tableType === 'forms'): ?>
                                 <?php
+                                // Ensure panels is an array to prevent errors
+                                if (!isset($panels) || !is_array($panels)) {
+                                    $panels = [];
+                                }
+                                
                                 // Build panel lookup by panel_name for quick matching
                                 $panelsByName = [];
                                 foreach ($panels as $panel) {
-                                    $panelsByName[$panel['panel_name']] = $panel;
+                                    if (isset($panel['panel_name']) && !empty($panel['panel_name'])) {
+                                        $panelsByName[$panel['panel_name']] = $panel;
+                                    }
                                 }
                                 
                                 // Group panels by form_name for "Available Panels" display

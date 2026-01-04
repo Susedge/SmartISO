@@ -223,8 +223,22 @@ class Configurations extends BaseController
         $offices = ($tableType === 'offices' || $tableType === 'departments') ? $officesQ->orderBy('code','ASC')->findAll() : [];
         $forms = ($tableType === 'forms' || $tableType === 'offices') ? $formsQ->orderBy('code','ASC')->findAll() : [];
         $configurations = ($tableType === 'system') ? $configQ->orderBy('config_key','ASC')->findAll() : [];
-    // panels list for Panels tab
-    $panels = (new \App\Models\DbpanelModel())->getPanels();
+    
+    // panels list for Panels tab - with error handling
+    $panels = [];
+    try {
+        $dbpanelModel = new \App\Models\DbPanelModel(); // Use correct case: DbPanelModel
+        $panels = $dbpanelModel->getPanels();
+        
+        // Ensure panels is an array
+        if (!is_array($panels)) {
+            $panels = [];
+        }
+    } catch (\Exception $e) {
+        // Log error and continue with empty panels array
+        log_message('error', 'Error loading panels in Configurations: ' . $e->getMessage());
+        $panels = [];
+    }
     
     // For department admins, filter panels by their scoped department
     if (session()->get('is_department_admin') && session()->get('scoped_department_id')) {

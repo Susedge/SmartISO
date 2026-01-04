@@ -30,7 +30,7 @@ class Forms extends BaseController
         $this->db = \Config\Database::connect();
 
         $this->formModel = new FormModel();
-        $this->dbpanelModel = new DbpanelModel();
+        $this->dbpanelModel = new DbPanelModel();
         $this->formSubmissionModel = new FormSubmissionModel();
         $this->formSubmissionDataModel = new FormSubmissionDataModel();
         $this->departmentModel = new DepartmentModel();

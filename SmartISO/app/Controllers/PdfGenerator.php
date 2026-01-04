@@ -3,7 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\FormModel;
-use App\Models\DbpanelModel;
+use App\Models\DbPanelModel; // Fixed: DbPanelModel (capital P)
 use App\Models\FormSubmissionModel;
 use App\Models\FormSubmissionDataModel;
 use App\Models\UserModel;
@@ -23,7 +23,7 @@ class PdfGenerator extends BaseController
     {
         $this->db = \Config\Database::connect();
         $this->formModel = new FormModel();
-        $this->dbpanelModel = new DbpanelModel();
+        $this->dbpanelModel = new DbPanelModel();
         $this->formSubmissionModel = new FormSubmissionModel();
         $this->formSubmissionDataModel = new FormSubmissionDataModel();
         $this->userModel = new UserModel();
