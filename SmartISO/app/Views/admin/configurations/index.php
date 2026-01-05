@@ -309,9 +309,9 @@
                                                     </div>
                                                     <div class="col-md-6">
                                                         <h6 class="mb-3"><i class="fas fa-th-list me-2"></i>Available Panels</h6>
-                                                        <?php if (!empty($panels)): ?>
+                                                        <?php if (!empty($allAssignable)): ?>
                                                             <div class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
-                                                                <?php foreach ($panels as $panel): ?>
+                                                                <?php foreach ($allAssignable as $panel): ?>
                                                                     <label class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 <?= $panel['panel_name'] === $assignedPanel ? 'active' : '' ?>">
                                                                         <input type="radio" 
                                                                                name="panel_for_form_<?= $formId ?>" 
