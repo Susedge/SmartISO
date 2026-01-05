@@ -239,6 +239,9 @@ class DynamicForms extends BaseController
     public function createPanel()
     {
         if ($this->request->getMethod() !== 'POST') {
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Invalid request method']);
+            }
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Invalid request method');
         }
 
@@ -249,6 +252,9 @@ class DynamicForms extends BaseController
         $officeId = $this->request->getPost('office_id') ?: null;
         
         if (empty($panelName)) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Panel name is required']);
+            }
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name is required');
         }
         
@@ -269,33 +275,64 @@ class DynamicForms extends BaseController
         // Ensure uniqueness
         $exists = $this->dbpanelModel->where('panel_name', $panelName)->countAllResults();
         if ($exists) {
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['success' => false, 'message' => 'Panel name already exists']);
+            }
             return redirect()->to('/admin/configurations?type=panels')->with('error', 'Panel name already exists');
         }
 
-        // Create a placeholder field so the panel is created and editable in the builder
-        $this->dbpanelModel->insert([
-            'panel_name' => $panelName,
-            'form_name' => $formName,
-            'department_id' => $departmentId,
-            'office_id' => $officeId,
-            'field_name' => '_placeholder',
-            'field_label' => 'Placeholder',
-            'field_type' => 'input',
-            'field_order' => 1,
-            'required' => 0,
-            'width' => 12
-        ]);
+        try {
+            // Create a placeholder field so the panel is created and editable in the builder
+            $inserted = $this->dbpanelModel->insert([
+                'panel_name' => $panelName,
+                'form_name' => $formName,
+                'department_id' => $departmentId,
+                'office_id' => $officeId,
+                'field_name' => '_placeholder',
+                'field_label' => 'Placeholder',
+                'field_type' => 'input',
+                'field_order' => 1,
+                'required' => 0,
+                'width' => 12
+            ]);
 
-        // If a form_id was provided, also assign this panel to that form
-        if (!empty($formId) && $formModel->find($formId)) {
-            $formModel->update($formId, ['panel_name' => $panelName]);
+            if (!$inserted) {
+                $errors = $this->dbpanelModel->errors();
+                log_message('error', 'Failed to insert panel: ' . json_encode($errors));
+                $errorMsg = 'Failed to create panel. ' . (is_array($errors) ? implode(', ', $errors) : 'Please check the logs.');
+                
+                if ($this->request->isAJAX()) {
+                    return $this->response->setJSON(['success' => false, 'message' => $errorMsg, 'errors' => $errors]);
+                }
+                return redirect()->to('/admin/configurations?type=panels')->with('error', $errorMsg);
+            }
+
+            // If a form_id was provided, also assign this panel to that form
+            if (!empty($formId) && $formModel->find($formId)) {
+                $formModel->update($formId, ['panel_name' => $panelName]);
+            }
+
+            // Log panel creation
+            $auditLogger = new AuditLogger();
+            $auditLogger->logCreate('panel', null, $panelName, "Created new panel: {$panelName}" . ($formName ? " for form: {$formName}" : ""));
+
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON([
+                    'success' => true, 
+                    'message' => 'Panel created successfully',
+                    'csrf_token' => csrf_hash()
+                ]);
+            }
+            return redirect()->to('/admin/configurations?type=panels')->with('message', 'Panel created successfully');
+        } catch (\Exception $e) {
+            log_message('error', 'Panel creation error: ' . $e->getMessage());
+            $errorMsg = 'An error occurred while creating the panel: ' . $e->getMessage();
+            
+            if ($this->request->isAJAX()) {
+                return $this->response->setJSON(['success' => false, 'message' => $errorMsg]);
+            }
+            return redirect()->to('/admin/configurations?type=panels')->with('error', $errorMsg);
         }
-
-        // Log panel creation
-        $auditLogger = new AuditLogger();
-        $auditLogger->logCreate('panel', null, $panelName, "Created new panel: {$panelName}" . ($formName ? " for form: {$formName}" : ""));
-
-    return redirect()->to('/admin/configurations?type=panels')->with('message', 'Panel created successfully');
     }
     
     public function updatePanelInfo()

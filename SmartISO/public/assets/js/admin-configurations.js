@@ -329,12 +329,10 @@
                     return; 
                 }
                 
-                var data = {panel_name:name};
-                if(formId) data.form_id = formId;
-                if(deptId) data.department_id = deptId;
-                if(officeId) data.office_id = officeId;
+                console.log('Creating panel with data:', {panel_name: name, form_id: formId, department_id: deptId, office_id: officeId});
                 
-                self.postPanelForm('create-panel', data); 
+                // Use AJAX instead of form submission for better error handling
+                self.createPanelAjax(name, formId, deptId, officeId); 
             }
         });
         
@@ -364,6 +362,77 @@
             .catch(function(err){
                 console.error('Error loading forms:', err);
             });
+    };
+    
+    AdminConfigurations.prototype.createPanelAjax = function(panelName, formId, deptId, officeId){
+        var self = this;
+        
+        // Get fresh CSRF tokens
+        var csrfNameMeta = document.querySelector('meta[name="csrf-name"]');
+        var csrfHashMeta = document.querySelector('meta[name="csrf-hash"]');
+        var csrfName = (csrfNameMeta && csrfNameMeta.getAttribute('content')) || 'csrf_test_name';
+        var csrfHash = (csrfHashMeta && csrfHashMeta.getAttribute('content')) || '';
+        
+        var formData = new FormData();
+        formData.append(csrfName, csrfHash);
+        formData.append('panel_name', panelName);
+        if(formId) formData.append('form_id', formId);
+        if(deptId) formData.append('department_id', deptId);
+        if(officeId) formData.append('office_id', officeId);
+        
+        // Show loading state
+        if(window.SimpleModal && window.SimpleModal.showLoading) {
+            window.SimpleModal.showLoading('Creating panel...');
+        }
+        
+        fetch(window.baseUrl + 'admin/dynamicforms/create-panel', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(function(response) {
+            // Try to parse as JSON first
+            var contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            }
+            // If not JSON, it's likely a redirect - treat as success
+            if (response.ok) {
+                return { success: true, message: 'Panel created successfully' };
+            }
+            throw new Error('Server returned status ' + response.status);
+        })
+        .then(function(data) {
+            if(window.SimpleModal && window.SimpleModal.hideLoading) {
+                window.SimpleModal.hideLoading();
+            }
+            
+            // Update CSRF token if provided
+            if (data.csrf_token) {
+                var meta = document.querySelector('meta[name="csrf-hash"]');
+                if(meta) meta.setAttribute('content', data.csrf_token);
+                self.csrfToken = data.csrf_token;
+            }
+            
+            if (data.success !== false) {
+                // Success - reload page to show new panel
+                SimpleModal.alert('Panel created successfully!', 'Success', 'success').then(function(){
+                    window.location.reload();
+                });
+            } else {
+                // Error from server
+                SimpleModal.alert(data.message || 'Failed to create panel', 'Error', 'error');
+            }
+        })
+        .catch(function(error) {
+            if(window.SimpleModal && window.SimpleModal.hideLoading) {
+                window.SimpleModal.hideLoading();
+            }
+            console.error('Panel creation error:', error);
+            SimpleModal.alert('Failed to create panel: ' + error.message + '. Please check the console for details.', 'Error', 'error');
+        });
     };
     
     AdminConfigurations.prototype.loadPanelDepartments = function(){
