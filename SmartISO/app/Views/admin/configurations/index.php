@@ -339,6 +339,22 @@
                                                         <?php endif; ?>
                                                     </div>
                                                 </div>
+                                                <!-- Form Actions -->
+                                                <div class="row mt-3">
+                                                    <div class="col-12">
+                                                        <div class="d-flex gap-2 justify-content-end border-top pt-3">
+                                                            <a href="<?= base_url('admin/configurations/edit/' . $formId . '?type=forms') ?>" class="btn btn-sm btn-outline-primary">
+                                                                <i class="fas fa-edit me-1"></i>Edit Form
+                                                            </a>
+                                                            <a href="<?= base_url('admin/configurations/form-signatories/' . $formId) ?>" class="btn btn-sm btn-outline-info">
+                                                                <i class="fas fa-user-check me-1"></i>Signatories
+                                                            </a>
+                                                            <button type="button" class="btn btn-sm btn-outline-danger delete-form-btn" data-form-id="<?= $formId ?>" data-form-code="<?= esc($formCode) ?>">
+                                                                <i class="fas fa-trash me-1"></i>Delete Form
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -651,6 +667,101 @@ document.addEventListener('DOMContentLoaded', function(){
                         });
                 });
         });
+});
+</script>
+<script>
+// Forms delete button handler
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.delete-form-btn').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+            e.preventDefault();
+            e.stopPropagation();
+            
+            var formId = this.getAttribute('data-form-id');
+            var formCode = this.getAttribute('data-form-code') || 'this form';
+            
+            if (!formId) {
+                if (window.SimpleModal) {
+                    window.SimpleModal.alert('Invalid form ID', 'Error');
+                }
+                return;
+            }
+            
+            var confirmMsg = 'Delete form "' + formCode + '"? This cannot be undone.';
+            
+            if (window.SimpleModal && window.SimpleModal.confirm) {
+                window.SimpleModal.confirm(confirmMsg, 'Confirm Delete', 'warning').then(function(confirmed){
+                    if (!confirmed) return;
+                    
+                    // Perform the delete
+                    fetch('<?= base_url('admin/configurations/delete/') ?>' + formId + '?type=forms&ajax=1', {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(function(response){
+                        var contentType = (response.headers.get('content-type') || '').toLowerCase();
+                        if (contentType.indexOf('application/json') !== -1) {
+                            return response.json();
+                        }
+                        return response.text().then(function(text){
+                            if (response.ok) {
+                                try { return JSON.parse(text); } 
+                                catch(e) { return { success: true, message: 'Form deleted successfully' }; }
+                            }
+                            throw new Error(text || 'Request failed');
+                        });
+                    })
+                    .then(function(data){
+                        if (data && data.success) {
+                            // Remove the accordion item
+                            var accordionItem = document.querySelector('.accordion-item[data-form-id="' + formId + '"]');
+                            if (accordionItem) {
+                                accordionItem.remove();
+                            }
+                            
+                            if (window.SimpleModal) {
+                                window.SimpleModal.alert(data.message || 'Form deleted successfully', 'Success', 'success');
+                            }
+                            
+                            // Check if there are any forms left
+                            var remainingForms = document.querySelectorAll('.accordion-item[data-form-id]');
+                            if (remainingForms.length === 0) {
+                                // Show the "no forms" message
+                                var accordion = document.getElementById('formPanelsAccordion');
+                                if (accordion) {
+                                    accordion.innerHTML = '<div class="alert alert-info"><i class="fas fa-info-circle me-2"></i>No forms configured yet. Use the "Add Form" button to create a form.</div>';
+                                }
+                            }
+                        } else {
+                            var errorMsg = (data && data.message) || 'Unable to delete form.';
+                            if (window.SimpleModal) {
+                                window.SimpleModal.alert(errorMsg, 'Delete Failed', 'warning');
+                            } else {
+                                alert(errorMsg);
+                            }
+                        }
+                    })
+                    .catch(function(error){
+                        console.error('Delete error:', error);
+                        if (window.SimpleModal) {
+                            window.SimpleModal.alert('An error occurred while deleting the form. Please try again.', 'Error');
+                        } else {
+                            alert('An error occurred while deleting the form.');
+                        }
+                    });
+                });
+            } else {
+                // Fallback if SimpleModal is not available
+                if (confirm(confirmMsg)) {
+                    window.location.href = '<?= base_url('admin/configurations/delete/') ?>' + formId + '?type=forms';
+                }
+            }
+        });
+    });
 });
 </script>
 <?php $this->endSection() ?>
